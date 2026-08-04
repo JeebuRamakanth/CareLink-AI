@@ -1,0 +1,149 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-50: #f4f8ff;
+  --color-brand-100: #e8f0ff;
+  --color-brand-200: #c8d9ff;
+  --color-brand-300: #9dbcff;
+  --color-brand-400: #6c9dff;
+  --color-brand-500: #4d84ff;
+  --color-brand-600: #2d6df5;
+  --color-brand-700: #1f55c8;
+  --color-brand-800: #1c46a1;
+  --color-brand-900: #183b81;
+
+  --color-accent-50: #effcf9;
+  --color-accent-100: #c9f7ee;
+  --color-accent-200: #95f0df;
+  --color-accent-300: #5ce0cc;
+  --color-accent-400: #2dc8b4;
+  --color-accent-500: #16b6a6;
+  --color-accent-600: #0f8b82;
+  --color-accent-700: #0f6e6f;
+  --color-accent-800: #12595c;
+  --color-accent-900: #144b4f;
+
+  --color-surface-50: #f9fbff;
+  --color-surface-100: #eef3ff;
+  --color-surface-200: #dfe8ff;
+  --color-surface-300: #c8d7ff;
+  --color-surface-950: #050816;
+
+  --color-ink-50: #f4f7fb;
+  --color-ink-100: #e9eef6;
+  --color-ink-200: #cdd7e6;
+  --color-ink-300: #aab7d0;
+  --color-ink-400: #7f8faf;
+  --color-ink-500: #5a6c89;
+  --color-ink-600: #44556d;
+  --color-ink-700: #304155;
+  --color-ink-800: #1d2a3b;
+  --color-ink-900: #111827;
+  --color-ink-950: #050816;
+
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  --font-display: "Plus Jakarta Sans", "Inter", "Segoe UI", sans-serif;
+
+  --text-display: 3.5rem;
+  --text-display-lg: 4.25rem;
+  --text-display-sm: 2.75rem;
+  --text-title: 2rem;
+  --text-body: 1rem;
+  --text-caption: 0.875rem;
+
+  --spacing-18: 4.5rem;
+  --spacing-22: 5.5rem;
+  --spacing-24: 6rem;
+
+  --radius-sm: 0.5rem;
+  --radius-md: 0.875rem;
+  --radius-lg: 1.125rem;
+  --radius-xl: 1.375rem;
+  --radius-2xl: 1.75rem;
+  --radius-3xl: 2rem;
+
+  --shadow-soft: 0 20px 45px -24px rgba(15, 23, 42, 0.45);
+  --shadow-elevated: 0 25px 60px -24px rgba(77, 132, 255, 0.35);
+  --shadow-glow: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 18px 60px -24px rgba(77, 132, 255, 0.45);
+  --shadow-panel: 0 10px 40px -24px rgba(2, 6, 23, 0.65);
+}
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  min-height: 100vh;
+  background-color: var(--color-surface-950);
+  color: var(--color-ink-50);
+  font-family: var(--font-sans);
+  background-image: radial-gradient(circle at top left, rgba(77, 132, 255, 0.16), transparent 30%),
+    linear-gradient(135deg, rgba(6, 10, 30, 0.96), rgba(5, 8, 22, 1));
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: rgba(77, 132, 255, 0.35);
+  color: white;
+}
+
+@layer components {
+  .container-shell {
+    @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
+  }
+
+  .surface-panel {
+    @apply rounded-[var(--radius-2xl)] border border-white/10 bg-white/10 backdrop-blur-xl;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@layer utilities {
+  .animate-fade-in {
+    animation: fade-in 0.45s ease both;
+  }
+
+  .animate-float {
+    animation: float 5s ease-in-out infinite;
+  }
+
+  .animate-pulse-soft {
+    animation: pulse-soft 1.8s ease-in-out infinite;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 0.65;
+  }
+  50% {
+    opacity: 1;
+  }
+}
