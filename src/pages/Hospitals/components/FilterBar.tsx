@@ -1,39 +1,14 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Section } from '../../../components/ui/Section';
+import type { HospitalFilterState } from '../hooks/useHospitals';
 import { FilterChip, FilterField } from './FilterField';
 
-type FilterState = {
-  hospital: string;
-  city: string;
-  department: string;
-  specialty: string;
-  emergency: boolean;
-  hours24: boolean;
-  icu: boolean;
-  ambulance: boolean;
-  bloodBank: boolean;
-  parking: boolean;
-  insurance: boolean;
-  rating: string;
-  distance: string;
-  sortBy: string;
-};
-
-const initialFilters: FilterState = {
-  hospital: '',
-  city: '',
-  department: '',
-  specialty: '',
-  emergency: false,
-  hours24: false,
-  icu: false,
-  ambulance: false,
-  bloodBank: false,
-  parking: false,
-  insurance: false,
-  rating: 'Any',
-  distance: 'Any',
-  sortBy: 'Recommended',
+type FilterBarProps = {
+  searchValue: string;
+  filters: HospitalFilterState;
+  onSearchChange: (value: string) => void;
+  onFilterChange: (changes: Partial<HospitalFilterState>) => void;
+  onReset: () => void;
 };
 
 const departmentOptions = ['Cardiology', 'Neurology', 'Orthopedics', 'Oncology', 'Pediatrics', 'Emergency'];
@@ -42,12 +17,10 @@ const ratingOptions = ['Any', '4.5+', '4.0+', '3.5+'];
 const distanceOptions = ['Any', 'Within 5 km', 'Within 10 km', 'Within 20 km'];
 const sortOptions = ['Recommended', 'Highest Rated', 'Nearest', '24x7 Access'];
 
-export function FilterBar() {
-  const [filters, setFilters] = useState<FilterState>(initialFilters);
-
+export function FilterBar({ searchValue, filters, onSearchChange, onFilterChange, onReset }: FilterBarProps) {
   const activeFilters = useMemo(() => {
     const entries = [
-      filters.hospital && 'Hospital',
+      searchValue && 'Search',
       filters.city && 'City',
       filters.department && 'Department',
       filters.specialty && 'Specialty',
@@ -64,18 +37,18 @@ export function FilterBar() {
     ].filter(Boolean) as string[];
 
     return entries;
-  }, [filters]);
+  }, [filters, searchValue]);
 
-  const updateFilter = <K extends keyof FilterState>(key: K, value: FilterState[K]) => {
-    setFilters((current) => ({ ...current, [key]: value }));
+  const updateFilter = <K extends keyof HospitalFilterState>(key: K, value: HospitalFilterState[K]) => {
+    onFilterChange({ [key]: value } as Partial<HospitalFilterState>);
   };
 
-  const toggleFeature = (key: keyof Pick<FilterState, 'emergency' | 'hours24' | 'icu' | 'ambulance' | 'bloodBank' | 'parking' | 'insurance'>) => {
-    setFilters((current) => ({ ...current, [key]: !current[key] }));
+  const toggleFeature = (key: keyof Pick<HospitalFilterState, 'emergency' | 'hours24' | 'icu' | 'ambulance' | 'bloodBank' | 'parking' | 'insurance'>) => {
+    onFilterChange({ [key]: !filters[key] } as Partial<HospitalFilterState>);
   };
 
   const resetFilters = () => {
-    setFilters(initialFilters);
+    onReset();
   };
 
   return (
@@ -114,8 +87,8 @@ export function FilterBar() {
           <div className="grid gap-3 xl:grid-cols-[1.1fr_0.9fr_0.8fr_0.8fr]">
             <FilterField label="Search hospital" hint="Name">
               <input
-                value={filters.hospital}
-                onChange={(event) => updateFilter('hospital', event.target.value)}
+                value={searchValue}
+                onChange={(event) => onSearchChange(event.target.value)}
                 placeholder="Search by hospital name"
                 className="rounded-[0.8rem] border border-white/10 bg-slate-950/70 px-3 py-2.5 text-sm text-white outline-none transition focus:border-brand-400/40 focus:ring-2 focus:ring-brand-400/20"
               />

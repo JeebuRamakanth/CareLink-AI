@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import type { Hospital } from '../../../types';
 import { Section } from '../../../components/ui/Section';
 import { EmptyState } from './EmptyState';
 import { HospitalCard } from './HospitalCard';
@@ -22,6 +23,7 @@ type HospitalResultsSectionProps = {
   infiniteScrollEnabled?: boolean;
   className?: string;
   children?: ReactNode;
+  hospitals?: Hospital[];
 };
 
 function ErrorState({
@@ -71,6 +73,7 @@ export function HospitalResultsSection({
   infiniteScrollEnabled = true,
   className = '',
   children,
+  hospitals = [],
 }: HospitalResultsSectionProps) {
   if (state === 'loading') {
     return <LoadingSkeleton />;
@@ -98,10 +101,10 @@ export function HospitalResultsSection({
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.25rem] border border-white/10 bg-white/5 px-4 py-3 text-sm text-ink-300">
           <div>
             <p className="font-semibold text-white">{resultCount} results available</p>
-            <p className="mt-1 text-ink-400">Placeholder architecture for the full hospital discovery experience.</p>
+            <p className="mt-1 text-ink-400">Hospitals are rendered from the new data foundation and ready for future expansion.</p>
           </div>
           <div className="rounded-full border border-brand-400/25 bg-brand-400/10 px-3 py-1.5 text-[0.7rem] font-semibold uppercase tracking-[0.24em] text-brand-100">
-            Preview mode
+            Data driven
           </div>
         </div>
 
@@ -110,27 +113,24 @@ export function HospitalResultsSection({
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-[0.72rem] font-semibold uppercase tracking-[0.26em] text-ink-400">Results grid</p>
-                <p className="mt-1 text-sm text-ink-300">A single placeholder card is shown to demonstrate the layout shell.</p>
+                <p className="mt-1 text-sm text-ink-300">The current experience now renders hospital cards from structured product data.</p>
               </div>
             </div>
 
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)]">
-              <HospitalCard
-                name="Northstar Regional Hospital"
-                address="128 Harbor Avenue, San Diego, CA"
-                distance="3.2 km away"
-                rating={4.9}
-                reviewCount={214}
-                departments={['Cardiology', 'Neurology', 'Orthopedics']}
-                doctorsCount={32}
-                accreditation={['JCI', 'NABH']}
-                imageLabel="Hospital preview"
-              />
-            </div>
+            {children ? (
+              <div className="rounded-[1.25rem] border border-white/10 bg-white/5 p-4">{children}</div>
+            ) : (
+              <div className="grid gap-4 xl:grid-cols-2">
+                {hospitals.map((hospital) => (
+                  <HospitalCard
+                    key={hospital.id}
+                    hospital={hospital}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </div>
-
-        {children ? <div className="rounded-[1.25rem] border border-white/10 bg-white/5 p-4">{children}</div> : null}
 
         {paginationEnabled ? (
           <div className="rounded-[1.25rem] border border-white/10 bg-white/5 p-4">

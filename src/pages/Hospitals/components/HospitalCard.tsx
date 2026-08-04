@@ -1,43 +1,40 @@
 import { useState } from 'react';
+import type { Hospital } from '../../../types';
 
 type HospitalCardProps = {
-  name: string;
-  address: string;
-  distance?: string;
-  rating?: number;
-  reviewCount?: number;
-  isOpen?: boolean;
-  emergencyAvailable?: boolean;
-  is24x7?: boolean;
-  departments?: string[];
-  doctorsCount?: number;
-  insuranceAccepted?: boolean;
-  bloodBankAvailable?: boolean;
-  ambulanceAvailable?: boolean;
-  accreditation?: string[];
-  imageLabel?: string;
+  hospital: Hospital;
   className?: string;
 };
 
-export function HospitalCard({
-  name,
-  address,
-  distance = '2.4 km away',
-  rating = 4.8,
-  reviewCount = 128,
-  isOpen = true,
-  emergencyAvailable = true,
-  is24x7 = true,
-  departments = ['Cardiology', 'Neurology', 'Orthopedics'],
-  doctorsCount = 24,
-  insuranceAccepted = true,
-  bloodBankAvailable = true,
-  ambulanceAvailable = true,
-  accreditation = ['JCI', 'NABH'],
-  imageLabel = 'Hospital preview',
-  className = '',
-}: HospitalCardProps) {
+export function HospitalCard({ hospital, className = '' }: HospitalCardProps) {
   const [isFavorite, setIsFavorite] = useState(false);
+
+  const {
+    name,
+    address,
+    city,
+    state,
+    rating,
+    review_count,
+    distance_km,
+    facilities,
+    departments,
+    insurance_partners,
+    availability_status,
+    is_verified,
+    doctor_count,
+  } = hospital;
+
+  const displayAddress = `${address}, ${city}, ${state}`;
+  const displayDistance = distance_km ? `${distance_km.toFixed(1)} km away` : 'Distance available on request';
+  const accreditation = is_verified ? ['Verified'] : ['Preview'];
+  const isOpen = availability_status !== 'closed';
+  const emergencyAvailable = facilities.emergency;
+  const is24x7 = facilities.twenty_four_hours;
+  const insuranceAccepted = (insurance_partners?.length ?? 0) > 0;
+  const bloodBankAvailable = facilities.blood_bank;
+  const ambulanceAvailable = facilities.ambulance;
+  const doctorsCount = doctor_count ?? Math.max(8, departments.length + 3);
 
   return (
     <article
@@ -48,7 +45,7 @@ export function HospitalCard({
           <div className="absolute inset-0 transition duration-500 group-hover:scale-105" />
           <div className="absolute inset-0 flex items-end justify-between p-4">
             <div className="rounded-full border border-white/10 bg-slate-950/70 px-3 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.26em] text-brand-100">
-              {imageLabel}
+              Care network
             </div>
             <div className="rounded-full border border-emerald-400/25 bg-emerald-500/12 px-3 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.24em] text-emerald-200">
               {isOpen ? 'Open now' : 'Closed'}
@@ -72,7 +69,7 @@ export function HospitalCard({
             </div>
             <div>
               <h3 className="text-xl font-semibold text-white">{name}</h3>
-              <p className="mt-1 text-sm leading-6 text-ink-300">{address}</p>
+              <p className="mt-1 text-sm leading-6 text-ink-300">{displayAddress}</p>
             </div>
           </div>
 
@@ -90,10 +87,10 @@ export function HospitalCard({
           <div className="flex items-center gap-1.5">
             <span className="text-amber-300">★</span>
             <span className="font-semibold text-white">{rating.toFixed(1)}</span>
-            <span>({reviewCount} reviews)</span>
+            <span>({review_count} reviews)</span>
           </div>
           <span className="h-1 w-1 rounded-full bg-white/20" />
-          <span>{distance}</span>
+          <span>{displayDistance}</span>
         </div>
 
         <div className="flex flex-wrap gap-2">

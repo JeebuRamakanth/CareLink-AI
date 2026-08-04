@@ -1,9 +1,20 @@
-import { Section } from '../../../components/ui/Section';
+import type { Hospital } from '../../../types';
+import { HospitalCard } from './HospitalCard';
 
-export function HospitalGrid() {
+type HospitalGridProps = {
+  hospitals: Hospital[];
+};
+
+export function HospitalGrid({ hospitals }: HospitalGridProps) {
+  if (hospitals.length === 0) {
+    return null;
+  }
+
   return (
-    <Section title="Hospital Grid" description="Hospital listings will appear here in a future step." eyebrow="Results">
-      <div className="min-h-[280px] rounded-[1.5rem] border border-white/10 bg-white/5" />
-    </Section>
+    <div className="grid gap-4 xl:grid-cols-2">
+      {hospitals.map((hospital) => (
+        <HospitalCard key={hospital.id} hospital={hospital} />
+      ))}
+    </div>
   );
 }
