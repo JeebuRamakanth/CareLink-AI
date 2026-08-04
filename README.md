@@ -30,3 +30,6 @@ If you are developing a production application, we recommend enabling type-aware
 ```
 
 See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+=======
+# CareLink-
+CareLink AI is an AI-powered Hospital Management System designed to simplify hospital operations. It helps manage appointments, patient records, billing, pharmacy, and doctor schedules efficiently, making healthcare services faster, smarter, and more reliable.
