@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { HomePage } from '../pages/Home/HomePage';
 import { HospitalsPage } from '../pages/Hospitals/HospitalsPage';
 import { DoctorsPage } from '../pages/Doctors/DoctorsPage';
+import { ReviewsPage } from '../pages/Reviews/ReviewsPage';
 import { ROUTES } from './routeConstants';
 import { PublicLayout } from './PublicLayout';
 
@@ -23,10 +24,10 @@ export function AppRoutes() {
         <Route path={ROUTES.home} element={<HomePage />} />
         <Route path={ROUTES.hospitals} element={<HospitalsPage />} />
         <Route path={ROUTES.doctors} element={<DoctorsPage />} />
+        <Route path={ROUTES.reviews} element={<ReviewsPage />} />
         <Route path={ROUTES.about} element={<PlaceholderPage title="About" />} />
         <Route path={ROUTES.help} element={<PlaceholderPage title="Help" />} />
         <Route path={ROUTES.contact} element={<PlaceholderPage title="Contact" />} />
-        <Route path={ROUTES.reviews} element={<PlaceholderPage title="Reviews" />} />
         <Route path={ROUTES.login} element={<PlaceholderPage title="Login" />} />
         <Route path={ROUTES.register} element={<PlaceholderPage title="Register" />} />
       </Route>

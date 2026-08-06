@@ -107,6 +107,18 @@ export interface DoctorFilters {
   sort_by?: 'recommended' | 'highest_rated' | 'experience' | 'availability';
 }
 
+export interface Review extends BaseEntity {
+  patient_name: string;
+  patient_initials: string;
+  patient_verified: boolean;
+  subject_type: 'Doctor' | 'Hospital';
+  subject_name: string;
+  rating: number;
+  title: string;
+  comment: string;
+  reviewed_at: string;
+}
+
 export interface PatientProfile extends BaseEntity {
   status: EntityStatus;
   user_id: string;
