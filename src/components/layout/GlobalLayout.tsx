@@ -10,6 +10,7 @@ const navItems = [
   { label: 'Home', href: ROUTES.home },
   { label: 'Hospitals', href: ROUTES.hospitals },
   { label: 'Doctors', href: ROUTES.doctors },
+  { label: 'Appointments', href: ROUTES.appointments },
   { label: 'Reviews', href: ROUTES.reviews },
   { label: 'About', href: ROUTES.about },
   { label: 'Help', href: ROUTES.help },

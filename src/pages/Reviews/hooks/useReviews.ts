@@ -1,118 +1,105 @@
 import { useEffect, useMemo, useState } from 'react';
-import { sampleReviews } from '../data/reviewData';
+import { sampleHospitalReviews } from '../data/reviewDiscoveryData';
 
-export type ReviewCategory = 'all' | 'doctors' | 'hospitals';
-export type ReviewRatingFilter = 'all' | '4+' | '3+' | '2+';
-export type ReviewSortBy = 'latest' | 'highestRated';
-
-const PAGE_SIZE = 6;
-
-function getMinimumRating(value: ReviewRatingFilter) {
-  switch (value) {
-    case '4+':
-      return 4;
-    case '3+':
-      return 3;
-    case '2+':
-      return 2;
-    default:
-      return null;
-  }
-}
+export type ReviewChipFilter = 'Hospitals' | 'Doctors' | 'Specialties' | 'Diseases' | 'Top Rated' | 'Most Reviewed' | 'Near Me';
+export type ReviewSortOption = 'Recommended' | 'Highest Rated' | 'Most Reviewed' | 'Nearest';
 
 export function useReviews() {
-  const [category, setCategory] = useState<ReviewCategory>('all');
-  const [rating, setRating] = useState<ReviewRatingFilter>('all');
-  const [sortBy, setSortBy] = useState<ReviewSortBy>('latest');
-  const [currentPage, setCurrentPage] = useState(1);
+  const [query, setQuery] = useState('');
+  const [activeFilters, setActiveFilters] = useState<ReviewChipFilter[]>([]);
+  const [sort, setSort] = useState<ReviewSortOption>('Recommended');
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setIsLoading(false), 280);
+    const timer = window.setTimeout(() => setIsLoading(false), 320);
     return () => window.clearTimeout(timer);
   }, []);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [category, rating, sortBy]);
-
-  const minimumRating = getMinimumRating(rating);
+  const normalizedQuery = query.trim().toLowerCase();
 
   const filteredReviews = useMemo(() => {
-    const filtered = sampleReviews.filter((review) => {
-      if (category === 'doctors' && review.subject_type !== 'Doctor') {
-        return false;
-      }
+    return sampleHospitalReviews
+      .filter((review) => {
+        if (!normalizedQuery) {
+          return true;
+        }
 
-      if (category === 'hospitals' && review.subject_type !== 'Hospital') {
-        return false;
-      }
+        const combinedFields = [
+          review.name,
+          review.location,
+          ...review.specialties,
+          ...review.doctors,
+          ...review.diseaseTags,
+        ];
 
-      if (minimumRating !== null && review.rating < minimumRating) {
-        return false;
-      }
+        return combinedFields.some((value) => value.toLowerCase().includes(normalizedQuery));
+      })
+      .filter((review) => {
+        if (activeFilters.includes('Hospitals')) {
+          return /hospital|medical|institute/i.test(review.name);
+        }
 
-      return true;
-    });
+        if (activeFilters.includes('Doctors')) {
+          return review.doctors.length > 0;
+        }
 
-    return filtered.sort((left, right) => {
-      if (sortBy === 'highestRated') {
-        return right.rating - left.rating || new Date(right.reviewed_at).getTime() - new Date(left.reviewed_at).getTime();
-      }
+        if (activeFilters.includes('Specialties')) {
+          return review.specialties.length > 0;
+        }
 
-      return new Date(right.reviewed_at).getTime() - new Date(left.reviewed_at).getTime();
-    });
-  }, [category, minimumRating, sortBy]);
+        if (activeFilters.includes('Diseases')) {
+          return review.diseaseTags.length > 0;
+        }
 
-  const pageCount = Math.max(1, Math.ceil(filteredReviews.length / PAGE_SIZE));
-  const currentPageIndex = Math.min(currentPage, pageCount);
-  const currentReviews = filteredReviews.slice((currentPageIndex - 1) * PAGE_SIZE, currentPageIndex * PAGE_SIZE);
+        return true;
+      })
+      .sort((left, right) => {
+        if (activeFilters.includes('Top Rated')) {
+          return right.rating - left.rating;
+        }
 
-  const activeFilterLabels = useMemo(() => {
-    const labels: string[] = [];
+        if (activeFilters.includes('Most Reviewed')) {
+          return right.reviewCount - left.reviewCount;
+        }
 
-    if (category === 'doctors') {
-      labels.push('Doctors');
-    }
+        if (activeFilters.includes('Near Me')) {
+          return left.distanceKm - right.distanceKm;
+        }
 
-    if (category === 'hospitals') {
-      labels.push('Hospitals');
-    }
+        if (sort === 'Highest Rated') {
+          return right.rating - left.rating;
+        }
 
-    if (rating !== 'all') {
-      labels.push(`Rating ${rating}`);
-    }
+        if (sort === 'Most Reviewed') {
+          return right.reviewCount - left.reviewCount;
+        }
 
-    if (sortBy === 'highestRated') {
-      labels.push('Highest rated');
-    }
+        if (sort === 'Nearest') {
+          return left.distanceKm - right.distanceKm;
+        }
 
-    return labels;
-  }, [category, rating, sortBy]);
+        return right.rating - left.rating || right.reviewCount - left.reviewCount;
+      });
+  }, [activeFilters, normalizedQuery, sort]);
 
-  const resetFilters = () => {
-    setCategory('all');
-    setRating('all');
-    setSortBy('latest');
-    setCurrentPage(1);
+  const toggleFilter = (filter: ReviewChipFilter) => {
+    setActiveFilters((current) =>
+      current.includes(filter) ? current.filter((item) => item !== filter) : [...current, filter]
+    );
   };
 
+  const clearFilters = () => setActiveFilters([]);
+
   return {
-    isLoading,
-    reviews: filteredReviews,
-    currentReviews,
-    totalReviews: sampleReviews.length,
+    query,
+    setQuery,
+    activeFilters,
+    toggleFilter,
+    clearFilters,
+    filteredReviews,
     filteredCount: filteredReviews.length,
-    pageCount,
-    currentPage: currentPageIndex,
-    category,
-    rating,
-    sortBy,
-    activeFilterLabels,
-    setCategory,
-    setRating,
-    setSortBy,
-    setCurrentPage,
-    resetFilters,
+    isLoading,
+    sort,
+    setSort,
   };
 }

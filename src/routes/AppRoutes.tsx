@@ -2,7 +2,11 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { HomePage } from '../pages/Home/HomePage';
 import { HospitalsPage } from '../pages/Hospitals/HospitalsPage';
 import { DoctorsPage } from '../pages/Doctors/DoctorsPage';
+import { DoctorProfilePage } from '../pages/Doctors/DoctorProfilePage';
 import { ReviewsPage } from '../pages/Reviews/ReviewsPage';
+import { HospitalDetailsPage } from '../pages/Hospitals/HospitalDetailsPage';
+import { AppointmentsPage } from '../pages/Appointments/AppointmentsPage';
+import { AppointmentDetailPage } from '../pages/Appointments/AppointmentDetailPage';
 import { ROUTES } from './routeConstants';
 import { PublicLayout } from './PublicLayout';
 
@@ -24,7 +28,11 @@ export function AppRoutes() {
         <Route path={ROUTES.home} element={<HomePage />} />
         <Route path={ROUTES.hospitals} element={<HospitalsPage />} />
         <Route path={ROUTES.doctors} element={<DoctorsPage />} />
+        <Route path={ROUTES.doctorDetail} element={<DoctorProfilePage />} />
         <Route path={ROUTES.reviews} element={<ReviewsPage />} />
+        <Route path={ROUTES.hospitalDetail} element={<HospitalDetailsPage />} />
+        <Route path={ROUTES.appointments} element={<AppointmentsPage />} />
+        <Route path={ROUTES.appointmentDetail} element={<AppointmentDetailPage />} />
         <Route path={ROUTES.about} element={<PlaceholderPage title="About" />} />
         <Route path={ROUTES.help} element={<PlaceholderPage title="Help" />} />
         <Route path={ROUTES.contact} element={<PlaceholderPage title="Contact" />} />

@@ -1,7 +1,10 @@
 import { Button } from '../../../components/ui/Button';
 import { Section } from '../../../components/ui/Section';
 import { cn } from '../../../components/common/cn';
-import type { ReviewCategory, ReviewRatingFilter, ReviewSortBy } from '../hooks/useReviews';
+
+type ReviewCategory = 'all' | 'doctors' | 'hospitals';
+type ReviewRatingFilter = 'all' | '4+' | '3+' | '2+';
+type ReviewSortBy = 'latest' | 'highestRated';
 
 type ReviewFilterBarProps = {
   category: ReviewCategory;

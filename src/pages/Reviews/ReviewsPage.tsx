@@ -1,80 +1,60 @@
+import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Container } from '../../components/ui/Container';
-import { Section } from '../../components/ui/Section';
-import { ReviewFilterBar } from './components/ReviewFilterBar';
-import { ReviewList } from './components/ReviewList';
-import { ReviewPagination } from './components/ReviewPagination';
-import { ReviewEmptyState } from './components/ReviewEmptyState';
-import { ReviewLoadingSkeleton } from './components/ReviewLoadingSkeleton';
+import { ReviewsHero } from './components/ReviewsHero';
+import { ReviewDiscoverySection } from './components/ReviewDiscoverySection';
 import { useReviews } from './hooks/useReviews';
+import { sampleSearchSuggestions } from './data/reviewDiscoveryData';
+import { ROUTES } from '../../routes/routeConstants';
 
 export function ReviewsPage() {
+  const navigate = useNavigate();
   const {
-    isLoading,
-    currentReviews,
+    query,
+    setQuery,
+    activeFilters,
+    toggleFilter,
+    clearFilters,
+    filteredReviews,
     filteredCount,
-    pageCount,
-    currentPage,
-    category,
-    rating,
-    sortBy,
-    activeFilterLabels,
-    setCategory,
-    setRating,
-    setSortBy,
-    setCurrentPage,
-    resetFilters,
+    isLoading,
+    sort,
+    setSort,
   } = useReviews();
+
+  const searchSuggestions = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    return sampleSearchSuggestions.filter((suggestion) =>
+      suggestion.title.toLowerCase().includes(normalizedQuery) || suggestion.subtitle.toLowerCase().includes(normalizedQuery)
+    );
+  }, [query]);
 
   return (
     <Container className="py-8 sm:py-10 lg:py-16">
       <main className="space-y-10">
-        <Section
-          eyebrow="Reviews"
-          title="Patient feedback for doctors and hospitals"
-          description="Explore verified patient reviews to build trust, discover top-rated care providers, and compare recent experiences."
-        >
-          <div className="grid gap-6 sm:grid-cols-2 sm:items-end lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
-            <div className="space-y-3">
-              <p className="text-sm text-ink-300">{filteredCount} reviews available</p>
-              <p className="text-sm text-ink-300">
-                {activeFilterLabels.length > 0
-                  ? `Filtered by ${activeFilterLabels.join(', ')}`
-                  : 'Showing all reviews from verified patients.'}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="rounded-full border border-brand-400/25 bg-brand-400/10 px-3 py-1.5 text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-brand-100">
-                Responsive + accessible
-              </span>
-            </div>
-          </div>
-        </Section>
-
-        <ReviewFilterBar
-          category={category}
-          rating={rating}
-          sortBy={sortBy}
-          onCategoryChange={setCategory}
-          onRatingChange={setRating}
-          onSortChange={setSortBy}
-          onReset={resetFilters}
+        <ReviewsHero
+          searchQuery={query}
+          suggestions={searchSuggestions}
+          isLoading={isLoading}
+          activeFilters={activeFilters}
+          onSearchChange={setQuery}
+          onClearSearch={() => setQuery('')}
+          onSuggestionSelect={(value) => setQuery(value)}
+          onToggleFilter={toggleFilter}
+          onClearFilters={clearFilters}
+          filteredCount={filteredCount}
         />
 
-        {isLoading ? (
-          <ReviewLoadingSkeleton />
-        ) : filteredCount === 0 ? (
-          <ReviewEmptyState onReset={resetFilters} />
-        ) : (
-          <div className="space-y-6">
-            <ReviewList reviews={currentReviews} />
-            <ReviewPagination
-              currentPage={currentPage}
-              pageCount={pageCount}
-              filteredCount={filteredCount}
-              onPageChange={setCurrentPage}
-            />
-          </div>
-        )}
+        <ReviewDiscoverySection
+          reviews={filteredReviews}
+          isLoading={isLoading}
+          searchQuery={query}
+          sort={sort}
+          onSortChange={setSort}
+          activeFilters={activeFilters}
+          onViewHospital={(id) => navigate(`${ROUTES.hospitals}/${id}`)}
+          onClearSearch={() => setQuery('')}
+        />
       </main>
     </Container>
   );
