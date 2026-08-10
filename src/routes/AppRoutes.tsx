@@ -7,6 +7,7 @@ import { ReviewsPage } from '../pages/Reviews/ReviewsPage';
 import { HospitalDetailsPage } from '../pages/Hospitals/HospitalDetailsPage';
 import { AppointmentsPage } from '../pages/Appointments/AppointmentsPage';
 import { AppointmentDetailPage } from '../pages/Appointments/AppointmentDetailPage';
+import { AgentCommandCenterPage } from '../pages/Agent/AgentCommandCenterPage';
 import { ROUTES } from './routeConstants';
 import { PublicLayout } from './PublicLayout';
 
@@ -24,6 +25,8 @@ function PlaceholderPage({ title }: { title: string }) {
 export function AppRoutes() {
   return (
     <Routes>
+      {/* Agent command center is a full-screen workspace with its own chrome. */}
+      <Route path={ROUTES.agent} element={<AgentCommandCenterPage />} />
       <Route element={<PublicLayout />}>
         <Route path={ROUTES.home} element={<HomePage />} />
         <Route path={ROUTES.hospitals} element={<HospitalsPage />} />

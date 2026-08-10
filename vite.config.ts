@@ -7,4 +7,10 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  server: {
+    allowedHosts: [
+      "work-1-ntnjcxifeswstvvx.prod-runtime.all-hands.dev",
+      "work-2-ntnjcxifeswstvvx.prod-runtime.all-hands.dev",
+    ],
+  },
 });
