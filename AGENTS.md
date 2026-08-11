@@ -59,3 +59,19 @@ plain chat. Mock interpretations are explicitly labelled.
 - Conversation/attachment/recovery state is in localStorage — old persisted
   mock responses keep their original text even after a code fix. Clear the
   conversation to see corrected output.
+
+## Home hero + agent integration (verified)
+The agent lives inside the Home hero, not a separate middle-page section:
+- `src/features/health-agent/components/HealthCommandCenter.tsx` is a
+  `forwardRef` exposing `focus()` and `ask(prompt)` (useImperativeHandle) so
+  hero CTAs ("Ask CareLink AI", "Find Care Near Me") drive the agent without
+  lifting state.
+- `src/pages/Home/components/Hero.tsx` renders the agent in the right column on
+  `lg+` (two-column hero), single column below. Agent wrapper motion.div and
+  `.agent-shell` and the composer textarea all have `min-w-0` to prevent
+  mobile overflow/clipping.
+- Responsive composition verified clean (no horizontal overflow / clipping) at
+  360/390/412/768/820/1024/1280/1440. Mobile stacks: headline → CTAs (full
+  width, vertical) → agent. CTAs go side-by-side ≥768.
+- Navbar breakpoint is `xl` (not `lg`) in `GlobalLayout.tsx` so the hamburger
+  shows at 1024 instead of overflowing.

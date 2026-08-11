@@ -49,7 +49,7 @@ export function GlobalLayout({ children, activePage = 'Home' }: GlobalLayoutProp
               </div>
             </Link>
 
-            <nav className="hidden items-center gap-1 lg:flex" aria-label="Primary navigation">
+            <nav className="hidden items-center gap-1 xl:flex" aria-label="Primary navigation">
               {navItems.map((item) => (
                 <NavLink
                   key={item.label}
@@ -66,7 +66,7 @@ export function GlobalLayout({ children, activePage = 'Home' }: GlobalLayoutProp
               ))}
             </nav>
 
-            <div className="hidden items-center gap-2 lg:flex">
+            <div className="hidden items-center gap-2 xl:flex">
               <Link to={ROUTES.login} className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-[0.92rem] font-medium text-ink-200 transition-all duration-200 hover:bg-white/10 hover:text-white">Login</Link>
               <Link to={ROUTES.register} className="rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-4 py-2 text-[0.92rem] font-semibold text-white transition-all duration-200 hover:-translate-y-0.5">Register</Link>
               <Link to={ROUTES.home} className="flex items-center gap-2 rounded-full bg-gradient-to-r from-rose-500 to-amber-500 px-4 py-2 text-[0.92rem] font-semibold text-white transition-all duration-200 hover:-translate-y-0.5">
@@ -77,7 +77,7 @@ export function GlobalLayout({ children, activePage = 'Home' }: GlobalLayoutProp
 
             <button
               type="button"
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition-all duration-200 hover:bg-white/15 lg:hidden"
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition-all duration-200 hover:bg-white/15 xl:hidden"
               onClick={() => setMobileMenuOpen((prev) => !prev)}
               aria-label="Toggle navigation menu"
               aria-expanded={mobileMenuOpen}
@@ -93,7 +93,7 @@ export function GlobalLayout({ children, activePage = 'Home' }: GlobalLayoutProp
         </LayoutContainer>
 
         {mobileMenuOpen ? (
-          <div className="border-t border-white/10 bg-slate-950/85 backdrop-blur-xl lg:hidden">
+          <div className="border-t border-white/10 bg-slate-950/85 backdrop-blur-xl xl:hidden">
             <LayoutContainer className="py-4">
               <nav className="flex flex-col gap-2" aria-label="Mobile navigation">
                 {navItems.map((item) => (

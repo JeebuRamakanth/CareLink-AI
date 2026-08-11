@@ -1,19 +1,22 @@
 /**
- * HealthCommandCenter — the interactive Home command-center entry point.
+ * HealthCommandCenter — the interactive CareLink AI agent surface.
  *
- * Replaces the previous static CTA with a real (mock-backed) search experience:
- * text input, attachment/upload, camera + voice placeholders, quick prompts,
- * loading/result/error/emergency states, and CTA actions that deep-link into the
- * existing Reviews → Hospital → Doctor → Appointment flow.
+ * A real (mock-backed) search experience embedded directly in the Home hero:
+ * text input, attachment/upload, camera + voice placeholders, quick actions,
+ * loading/result/error/emergency states, and CTA actions that deep-link into
+ * the existing Reviews → Hospital → Doctor → Appointment flow.
  *
- * This is the compact Home surface. The full workspace lives at /agent and
- * reuses the same health-agent services.
+ * Renders as a single premium command-center card so it drops cleanly into the
+ * hero (mobile below the headline, desktop right column). Exposes an imperative
+ * ref (`focus()` + `ask(prompt)`) so hero CTAs can drive the agent.
+ *
+ * The full workspace lives at /agent and reuses the same health-agent services.
  */
 
-import { useCallback, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import type { KeyboardEvent } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { cn } from '../../../components/common/cn';
-import { Section } from '../../../components/ui/Section';
 import { Badge } from '../../../components/ui/Badge';
 import { ROUTES } from '../../../routes/routeConstants';
 import {
@@ -24,9 +27,13 @@ import {
   IconGlobe,
   IconHeart,
   IconHospital,
+  IconLab,
+  IconLocation,
   IconMic,
   IconPaperclip,
+  IconPharmacy,
   IconPhone,
+  IconPlus,
   IconReport,
   IconRoute,
   IconSend,
@@ -37,11 +44,20 @@ import {
 import {
   ACCEPT_ATTR,
   LANGUAGE_LABELS,
-  QUICK_PROMPTS,
   formatBytes,
 } from '../utils/helpers';
 import { useHealthAgent } from '../hooks/useHealthAgent';
+import type { HealthAgentStatus } from '../hooks/useHealthAgent';
 import type { AgentAction, AgentLanguage, AgentResult } from '../types';
+
+/**
+ * Imperative handle the Hero exposes via ref so its CTAs can drive the agent
+ * without lifting state. Keeps the agent self-contained and reusable.
+ */
+export interface HealthCommandCenterHandle {
+  focus: () => void;
+  ask: (prompt: string) => void;
+}
 
 /* ----------------------------------------------------------------------------
  * Small presentational pieces
@@ -58,19 +74,6 @@ function IconButton({ label, children, onClick, disabled }: { label: string; chi
       className="flex size-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 text-ink-200 transition-all duration-200 hover:border-brand-400/40 hover:bg-brand-400/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40 disabled:cursor-not-allowed disabled:opacity-40"
     >
       {children}
-    </button>
-  );
-}
-
-function QuickPrompt({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[0.78rem] font-medium text-ink-200 transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-400/30 hover:bg-brand-400/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40"
-    >
-      {label}
-      <IconArrowRight width={12} height={12} aria-hidden />
     </button>
   );
 }
@@ -337,12 +340,61 @@ function DocumentChips() {
  * Main component
  * ------------------------------------------------------------------------- */
 
-export function HealthCommandCenter() {
+const QUICK_ACTIONS: { label: string; prompt: string; icon: typeof IconHospital }[] = [
+  { label: 'Find a hospital', prompt: 'Find a hospital near me', icon: IconHospital },
+  { label: 'Find a doctor', prompt: 'Find a doctor near me', icon: IconSparkle },
+  { label: 'Explain my report', prompt: 'Explain this blood report', icon: IconReport },
+  { label: 'Identify medicine', prompt: 'What is this tablet?', icon: IconPharmacy },
+  { label: 'Find pharmacy', prompt: 'Find a pharmacy near me', icon: IconPharmacy },
+  { label: 'Find lab', prompt: 'Find a diagnostic lab near me', icon: IconLab },
+  { label: 'Book appointment', prompt: 'Book a doctor', icon: IconReport },
+  { label: 'What should I do next?', prompt: 'What should I do next?', icon: IconHeart },
+];
+
+const LOCATION_LABEL = 'Hyderabad · 500032';
+
+const STATUS_LABEL: Record<HealthAgentStatus, string> = {
+  idle: 'Ready',
+  thinking: 'Thinking',
+  processing: 'Processing',
+  result: 'Guidance ready',
+  error: 'Try again',
+  emergency: 'Urgent',
+};
+
+function StateDot({ status }: { status: HealthAgentStatus }) {
+  const tone = status === 'emergency'
+    ? 'bg-rose-400'
+    : status === 'error'
+      ? 'bg-amber-400'
+      : status === 'result'
+        ? 'bg-emerald-400'
+        : status === 'thinking' || status === 'processing'
+          ? 'bg-brand-300'
+          : 'bg-ink-400';
+  return (
+    <span className="relative flex size-2.5">
+      {(status === 'thinking' || status === 'processing' || status === 'emergency') ? (
+        <span className={cn('absolute inline-flex h-full w-full animate-ping rounded-full opacity-60', tone)} />
+      ) : null}
+      <span className={cn('relative inline-flex size-2.5 rounded-full', tone)} />
+    </span>
+  );
+}
+
+export const HealthCommandCenter = forwardRef<HealthCommandCenterHandle>(function HealthCommandCenter(_props, ref) {
   const agent = useHealthAgent();
   const [text, setText] = useState('');
+  const [focused, setFocused] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
+  const [actionsExpanded, setActionsExpanded] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  const isEmergency = agent.status === 'emergency';
+  const isThinking = agent.status === 'thinking' || agent.status === 'processing';
+  const showResult = (agent.status === 'result' || agent.status === 'emergency') && agent.result;
 
   const handleSubmit = useCallback((e?: React.FormEvent) => {
     e?.preventDefault();
@@ -363,157 +415,194 @@ export function HealthCommandCenter() {
     void agent.submit(prompt);
   };
 
-  const isThinking = agent.status === 'thinking' || agent.status === 'processing';
-  const showResult = (agent.status === 'result' || agent.status === 'emergency') && agent.result;
+  const focus = useCallback(() => {
+    inputRef.current?.focus();
+  }, []);
 
-  const capabilities = [
-    { icon: IconHospital, label: 'Find hospitals' },
-    { icon: IconSparkle, label: 'Match specialists' },
-    { icon: IconReport, label: 'Explain reports' },
-    { icon: IconHeart, label: 'Track recovery' },
-  ];
+  // Imperative handle: hero CTAs drive the agent without lifting state.
+  useImperativeHandle(ref, () => ({
+    focus,
+    ask: (prompt: string) => {
+      void agent.submit(prompt);
+    },
+  }), [focus, agent]);
+
+  // Close the language menu on outside click / Escape (keyboard accessible).
+  useEffect(() => {
+    if (!langOpen) return;
+    const onKey = (e: globalThis.KeyboardEvent) => { if (e.key === 'Escape') setLangOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [langOpen]);
+
+  const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit();
+    }
+  };
+
+  const visibleActions = actionsExpanded ? QUICK_ACTIONS : QUICK_ACTIONS.slice(0, 4);
 
   return (
-    <Section
-      title="Your AI healthcare command center"
-      description="One intelligent interface for symptoms, doctors, hospitals, pharmacies, labs, reports, medicines, and recovery — with safe, action-oriented next steps."
-      eyebrow="CareLink AI agent"
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: 'easeOut' }}
+      className={cn(
+        'agent-shell surface-panel relative w-full min-w-0 flex flex-col overflow-hidden rounded-[1.5rem] border p-4 backdrop-blur-2xl transition-colors duration-300 sm:p-5',
+        isEmergency ? 'border-rose-400/40' : focused ? 'border-brand-400/40' : 'border-white/12'
+      )}
     >
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, amount: 0.2 }}
-        transition={{ duration: 0.45, ease: 'easeOut' }}
-        className="surface-panel relative overflow-hidden border border-white/10 p-6 sm:p-8 lg:p-10"
-      >
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(77,132,255,0.14),transparent_40%),radial-gradient(circle_at_bottom_left,rgba(22,182,166,0.1),transparent_38%)]" />
-        <div className="relative grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
-          {/* Left: interactive search */}
-          <div className="space-y-5">
-            <div className="inline-flex items-center gap-2 rounded-full border border-brand-400/25 bg-brand-500/12 px-3 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.26em] text-brand-100">
-              <IconSparkle width={13} height={13} aria-hidden /> Command center
-            </div>
-            <h3 className="text-2xl font-semibold leading-tight text-white sm:text-3xl">Ask anything. Get guided next steps.</h3>
-            <p className="max-w-xl text-sm leading-7 text-ink-300 sm:text-base">
-              Describe a symptom, upload a report, or ask CareLink to find care near you. The agent returns structured, trustworthy guidance — never a diagnosis, always a clear next action.
+      <div
+        aria-hidden
+        className={cn(
+          'pointer-events-none absolute inset-0 transition-opacity duration-500',
+          isEmergency
+            ? 'bg-[radial-gradient(circle_at_top_right,rgba(239,68,68,0.18),transparent_45%),radial-gradient(circle_at_bottom_left,rgba(245,158,11,0.12),transparent_40%)]'
+            : 'bg-[radial-gradient(circle_at_top_right,rgba(77,132,255,0.16),transparent_42%),radial-gradient(circle_at_bottom_left,rgba(22,182,166,0.1),transparent_40%)]'
+        )}
+      />
+
+      {/* Header: ✦ CARELINK AI · "Your healthcare command center" · Guidance */}
+      <div className="relative flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className={cn(
+            'flex size-9 shrink-0 items-center justify-center rounded-[0.85rem] border text-white',
+            isEmergency ? 'border-rose-400/30 bg-gradient-to-br from-rose-500/40 to-amber-500/25' : 'border-brand-400/30 bg-gradient-to-br from-brand-500/35 to-accent-500/20'
+          )}>
+            {isEmergency ? <IconEmergency width={17} height={17} aria-hidden /> : <IconSparkle width={17} height={17} aria-hidden />}
+          </span>
+          <div className="min-w-0 leading-tight">
+            <p className="flex items-center gap-1 text-[0.95rem] font-semibold tracking-wide text-white">
+              <span aria-hidden>✦</span> CareLink AI
             </p>
-
-            {/* Search bar */}
-            <form onSubmit={handleSubmit} className="space-y-3">
-              <div className={cn('rounded-[1.1rem] border bg-slate-950/50 p-2 transition-colors', agent.status === 'emergency' ? 'border-rose-400/40' : 'border-white/12 focus-within:border-brand-400/40')}>
-                {agent.documents.length > 0 ? <div className="px-1.5 pb-2"><DocumentChips /></div> : null}
-                <div className="flex items-end gap-2">
-                  <div className="flex items-center gap-1.5 pl-1.5">
-                    <label className="flex size-9 cursor-pointer items-center justify-center rounded-full border border-white/10 bg-white/5 text-ink-200 transition hover:border-brand-400/40 hover:bg-brand-400/10 hover:text-white focus-within:outline-none focus-within:ring-2 focus-within:ring-brand-400/40">
-                      <IconPaperclip width={16} height={16} aria-hidden />
-                      <input ref={fileRef} type="file" accept={ACCEPT_ATTR} multiple className="sr-only" onChange={(e) => { handleFiles(e.target.files); e.target.value = ''; }} aria-label="Upload report, prescription, or image" />
-                    </label>
-                    <label className="flex size-9 cursor-pointer items-center justify-center rounded-full border border-white/10 bg-white/5 text-ink-200 transition hover:border-brand-400/40 hover:bg-brand-400/10 hover:text-white focus-within:outline-none focus-within:ring-2 focus-within:ring-brand-400/40">
-                      <IconCamera width={16} height={16} aria-hidden />
-                      <input ref={cameraRef} type="file" accept="image/*,application/pdf" capture="environment" className="sr-only" onChange={(e) => { handleFiles(e.target.files); e.target.value = ''; }} aria-label="Scan or capture document" />
-                    </label>
-                  </div>
-                  <textarea
-                    value={text}
-                    onChange={(e) => setText(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(); } }}
-                    placeholder="Describe your symptoms, upload a report, or ask CareLink anything…"
-                    rows={1}
-                    aria-label="Ask CareLink AI"
-                    className="agent-composer max-h-[140px] min-h-[2.5rem] flex-1 resize-none bg-transparent px-2 py-2 text-sm text-white placeholder:text-ink-400 focus:outline-none"
-                  />
-                  <div className="flex items-center gap-1.5">
-                    <IconButton label="Voice input (coming soon)" disabled><IconMic width={16} height={16} /></IconButton>
-                    <button type="submit" disabled={isThinking || (!text.trim() && agent.documents.length === 0)} aria-label="Send" className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-brand-500 to-accent-500 text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/50 disabled:cursor-not-allowed disabled:opacity-40">
-                      <IconSend width={16} height={16} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Language selector + supported types */}
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="relative">
-                  <button type="button" onClick={() => setLangOpen((v) => !v)} className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[0.74rem] font-semibold text-ink-200 transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">
-                    <IconGlobe width={13} height={13} aria-hidden /> {LANGUAGE_LABELS[agent.language]}
-                    <IconArrowRight width={11} height={11} className="rotate-90" aria-hidden />
-                  </button>
-                  {langOpen ? (
-                    <div className="absolute left-0 top-full z-20 mt-1 w-36 overflow-hidden rounded-[0.7rem] border border-white/10 bg-slate-950/95 p-1 backdrop-blur-xl">
-                      {(Object.keys(LANGUAGE_LABELS) as AgentLanguage[]).map((l) => (
-                        <button key={l} type="button" onClick={() => { agent.setLanguage(l); setLangOpen(false); }} className={cn('block w-full rounded-[0.5rem] px-3 py-1.5 text-left text-[0.78rem] transition hover:bg-white/8', agent.language === l ? 'text-brand-200' : 'text-ink-200')}>
-                          {LANGUAGE_LABELS[l]}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-                <p className="text-[0.66rem] text-ink-400">JPG · PNG · WEBP · PDF · DOC · DOCX · max 10 MB</p>
-              </div>
-            </form>
-
-            {/* Quick prompts */}
-            <div className="flex flex-wrap gap-2">
-              {QUICK_PROMPTS.map((p) => <QuickPrompt key={p.label} label={p.label} onClick={() => handlePrompt(p.label)} />)}
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              {capabilities.map((cap) => {
-                const Icon = cap.icon;
-                return (
-                  <span key={cap.label} className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[0.78rem] font-medium text-ink-200">
-                    <Icon width={14} height={14} aria-hidden /> {cap.label}
-                  </span>
-                );
-              })}
-            </div>
-            <p className="text-[0.7rem] text-ink-400">
-              CareLink provides navigational guidance, not a medical diagnosis. In an emergency, call your local emergency number.
-            </p>
-          </div>
-
-          {/* Right: result / state panel */}
-          <div className="rounded-[1.25rem] border border-white/10 bg-slate-950/50 p-4 sm:p-5">
-            <div className="space-y-3 rounded-[1rem] border border-white/10 bg-gradient-to-br from-white/8 to-white/3 p-4 backdrop-blur-xl sm:p-5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="flex size-7 items-center justify-center rounded-full border border-brand-400/25 bg-gradient-to-br from-brand-500/30 to-accent-500/20 text-white">
-                    <IconSparkle width={13} height={13} />
-                  </span>
-                  <span className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-brand-200">CareLink AI</span>
-                </div>
-                <span className="rounded-full border border-emerald-400/25 bg-emerald-500/12 px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.18em] text-emerald-200">Guidance</span>
-              </div>
-
-              <AnimatePresence mode="wait">
-                {agent.error ? (
-                  <motion.div key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="rounded-[0.9rem] border border-amber-400/25 bg-amber-500/8 p-3.5">
-                    <p className="text-sm text-amber-100">{agent.error}</p>
-                    <button type="button" onClick={agent.reset} className="mt-2 text-[0.72rem] font-semibold text-brand-200 hover:text-white">Try again</button>
-                  </motion.div>
-                ) : isThinking ? (
-                  <ThinkingState key="thinking" />
-                ) : showResult && agent.result ? (
-                  <ResultPreview key={agent.result.id} result={agent.result} onReply={handlePrompt} onReset={agent.reset} />
-                ) : (
-                  <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3">
-                    <div className="rounded-[0.7rem] border border-brand-400/20 bg-brand-500/10 px-3 py-2 text-sm text-white">Try: “I have severe chest pain”</div>
-                    <div className="space-y-2 rounded-[0.7rem] border border-white/10 bg-white/5 p-3">
-                      <div className="h-2 w-24 rounded-full bg-white/15" />
-                      <div className="h-2 w-full rounded-full bg-white/10" />
-                      <div className="h-2 w-4/5 rounded-full bg-white/10" />
-                    </div>
-                    <a href={ROUTES.agent} className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-4 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/50">
-                      Open full command center <IconArrowRight width={14} height={14} aria-hidden />
-                    </a>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-            <p className="mt-3 text-center text-[0.66rem] text-ink-400">Mock preview — guided, safety-first responses with real next steps.</p>
+            <p className="truncate text-[0.7rem] font-medium text-ink-300">Your healthcare command center</p>
           </div>
         </div>
-      </motion.div>
-    </Section>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="hidden items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-ink-300 sm:inline-flex">
+            <StateDot status={agent.status} /> {STATUS_LABEL[agent.status]}
+          </span>
+          <span className="rounded-full border border-emerald-400/25 bg-emerald-500/12 px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.18em] text-emerald-200">
+            Guidance
+          </span>
+        </div>
+      </div>
+
+      {/* Main input: text · mic · attach · camera · send */}
+      <form onSubmit={handleSubmit} className="relative mt-4 space-y-2.5">
+        <div className={cn(
+          'rounded-[1.1rem] border bg-slate-950/55 p-2 transition-colors duration-200',
+          isEmergency ? 'border-rose-400/40' : focused ? 'border-brand-400/45' : 'border-white/12 focus-within:border-brand-400/45'
+        )}>
+          {agent.documents.length > 0 ? <div className="px-1 pb-2"><DocumentChips /></div> : null}
+          <div className="flex items-end gap-1.5">
+            <div className="flex shrink-0 items-center gap-1.5 pl-1">
+              <label className="flex size-9 cursor-pointer items-center justify-center rounded-full border border-white/10 bg-white/5 text-ink-200 transition hover:border-brand-400/40 hover:bg-brand-400/10 hover:text-white focus-within:outline-none focus-within:ring-2 focus-within:ring-brand-400/40">
+                <IconPaperclip width={16} height={16} aria-hidden />
+                <input ref={fileRef} type="file" accept={ACCEPT_ATTR} multiple className="sr-only" onChange={(e) => { handleFiles(e.target.files); e.target.value = ''; }} aria-label="Upload report, prescription, or image" />
+              </label>
+              <label className="flex size-9 cursor-pointer items-center justify-center rounded-full border border-white/10 bg-white/5 text-ink-200 transition hover:border-brand-400/40 hover:bg-brand-400/10 hover:text-white focus-within:outline-none focus-within:ring-2 focus-within:ring-brand-400/40">
+                <IconCamera width={16} height={16} aria-hidden />
+                <input ref={cameraRef} type="file" accept="image/*,application/pdf" capture="environment" className="sr-only" onChange={(e) => { handleFiles(e.target.files); e.target.value = ''; }} aria-label="Scan or capture document" />
+              </label>
+            </div>
+            <textarea
+              ref={inputRef}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onFocus={() => setFocused(true)}
+              onBlur={() => setFocused(false)}
+              onKeyDown={onKeyDown}
+              placeholder="Ask anything about your health…"
+              rows={1}
+              aria-label="Ask CareLink AI"
+              className="agent-composer max-h-[120px] min-h-[2.75rem] min-w-0 flex-1 resize-none bg-transparent px-1.5 py-2 text-sm text-white placeholder:text-ink-400 focus:outline-none"
+            />
+            <div className="flex shrink-0 items-center gap-1.5">
+              <IconButton label="Voice input (coming soon)" disabled><IconMic width={16} height={16} /></IconButton>
+              <button type="submit" disabled={isThinking || (!text.trim() && agent.documents.length === 0)} aria-label="Send" className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-brand-500 to-accent-500 text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/50 disabled:cursor-not-allowed disabled:opacity-40">
+                <IconSend width={16} height={16} />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Location indicator + language + supported types */}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[0.7rem] font-medium text-ink-200">
+            <IconLocation width={12} height={12} className="text-brand-300" aria-hidden /> {LOCATION_LABEL}
+          </span>
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <button type="button" onClick={() => setLangOpen((v) => !v)} aria-haspopup="listbox" aria-expanded={langOpen} className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[0.72rem] font-semibold text-ink-200 transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">
+                <IconGlobe width={12} height={12} aria-hidden /> {LANGUAGE_LABELS[agent.language]}
+                <IconArrowRight width={10} height={10} className="rotate-90" aria-hidden />
+              </button>
+              {langOpen ? (
+                <div role="listbox" className="absolute right-0 top-full z-30 mt-1 w-36 overflow-hidden rounded-[0.7rem] border border-white/10 bg-slate-950/95 p-1 backdrop-blur-xl">
+                  {(Object.keys(LANGUAGE_LABELS) as AgentLanguage[]).map((l) => (
+                    <button key={l} role="option" aria-selected={agent.language === l} type="button" onClick={() => { agent.setLanguage(l); setLangOpen(false); }} className={cn('block w-full rounded-[0.5rem] px-3 py-1.5 text-left text-[0.78rem] transition hover:bg-white/8', agent.language === l ? 'text-brand-200' : 'text-ink-200')}>
+                      {LANGUAGE_LABELS[l]}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            <p className="hidden text-[0.62rem] text-ink-400 sm:block">JPG · PNG · PDF · DOC · max 10 MB</p>
+          </div>
+        </div>
+      </form>
+
+      {/* Quick actions: intelligently arranged chips with compact "More" */}
+      <div className="relative mt-3">
+        <div className="flex flex-wrap gap-2">
+          {visibleActions.map((a) => {
+            const Icon = a.icon;
+            return (
+              <button key={a.label} type="button" onClick={() => handlePrompt(a.prompt)} className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[0.76rem] font-medium text-ink-200 transition hover:-translate-y-0.5 hover:border-brand-400/30 hover:bg-brand-400/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">
+                <Icon width={13} height={13} aria-hidden /> {a.label}
+              </button>
+            );
+          })}
+          <button type="button" onClick={() => setActionsExpanded((v) => !v)} aria-expanded={actionsExpanded} className="inline-flex items-center gap-1 rounded-full border border-brand-400/25 bg-brand-500/10 px-3 py-1.5 text-[0.76rem] font-semibold text-brand-100 transition hover:-translate-y-0.5 hover:bg-brand-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">
+            {actionsExpanded ? 'Less' : 'More'} <IconPlus width={12} height={12} aria-hidden />
+          </button>
+        </div>
+      </div>
+
+      {/* Result / state panel — grows naturally without breaking the hero */}
+      <div className={cn(
+        'relative mt-3 overflow-hidden rounded-[1rem] border bg-slate-950/40 p-3 transition-all duration-300 sm:p-4',
+        isEmergency ? 'border-rose-400/30' : 'border-white/10'
+      )}>
+        <AnimatePresence mode="wait">
+          {agent.error ? (
+            <motion.div key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} role="alert" className="rounded-[0.85rem] border border-amber-400/25 bg-amber-500/8 p-3.5">
+              <p className="text-sm text-amber-100">{agent.error}</p>
+              <button type="button" onClick={agent.reset} className="mt-2 text-[0.72rem] font-semibold text-brand-200 hover:text-white">Try again</button>
+            </motion.div>
+          ) : isThinking ? (
+            <ThinkingState key="thinking" />
+          ) : showResult && agent.result ? (
+            <ResultPreview key={agent.result.id} result={agent.result} onReply={handlePrompt} onReset={agent.reset} />
+          ) : (
+            <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-2.5" aria-live="polite">
+              <p className="text-[0.78rem] leading-6 text-ink-300">
+                Describe a symptom, upload a report, or ask for nearby care. CareLink returns structured, trustworthy guidance — never a diagnosis, always a clear next action.
+              </p>
+              <a href={ROUTES.agent} className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3.5 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">
+                Open full command center <IconArrowRight width={13} height={13} aria-hidden />
+              </a>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      <p className="relative mt-2 text-center text-[0.64rem] text-ink-400">
+        <span className="inline-flex items-center gap-1"><IconShield width={11} height={11} aria-hidden /> Guidance, not a diagnosis · In an emergency, call your local emergency number.</span>
+      </p>
+    </motion.div>
   );
-}
+});

@@ -1,5 +1,4 @@
 import { Container } from '../../components/ui/Container';
-import { AIAssistant } from './components/AIAssistant';
 import { BloodDonation } from './components/BloodDonation';
 import { CTA } from './components/CTA';
 import { Doctors } from './components/Doctors';
@@ -13,8 +12,8 @@ import { Testimonials } from './components/Testimonials';
 
 export function HomePage() {
   return (
-    <Container className="py-8 sm:py-10 lg:py-16">
-      <div className="mt-8 space-y-8 sm:mt-10 lg:mt-16 lg:space-y-12">
+    <Container className="py-8 sm:py-10 lg:py-12">
+      <div className="space-y-8 sm:space-y-10 lg:space-y-14">
         <Hero />
         <Stats />
         <Features />
@@ -23,7 +22,6 @@ export function HomePage() {
         <BloodDonation />
         <Hospitals />
         <Doctors />
-        <AIAssistant />
         <Testimonials />
         <CTA />
       </div>

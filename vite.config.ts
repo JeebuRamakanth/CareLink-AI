@@ -9,8 +9,8 @@ export default defineConfig({
   ],
   server: {
     allowedHosts: [
-      "work-1-ntnjcxifeswstvvx.prod-runtime.all-hands.dev",
-      "work-2-ntnjcxifeswstvvx.prod-runtime.all-hands.dev",
+      "work-1-jdiilzdraqknuphy.prod-runtime.all-hands.dev",
+      "work-2-jdiilzdraqknuphy.prod-runtime.all-hands.dev",
     ],
   },
 });

@@ -9,6 +9,7 @@ export * from './types';
 export { useHealthAgent } from './hooks/useHealthAgent';
 export type { UseHealthAgent, HealthAgentState, HealthAgentStatus } from './hooks/useHealthAgent';
 export { HealthCommandCenter } from './components/HealthCommandCenter';
+export type { HealthCommandCenterHandle } from './components/HealthCommandCenter';
 export { createAgentOrchestrator } from './services/agentOrchestrator';
 export type { AgentOrchestrator } from './services/agentOrchestrator';
 export { mockAdapters } from './services/adapters/mockAdapters';
