@@ -1,6 +1,7 @@
 export const ROUTES = {
   home: '/',
   agent: '/agent',
+  ai: '/ai',
   hospitals: '/hospitals',
   hospitalDetail: '/hospitals/:hospitalId',
   doctors: '/doctors',

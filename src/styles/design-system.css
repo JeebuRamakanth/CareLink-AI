@@ -147,3 +147,17 @@ body {
     opacity: 1;
   }
 }
+
+/* Reduced-motion: honor user OS setting globally. Disables non-essential
+   animations/transitions (including Framer Motion CSS-driven effects) while
+   keeping opacity-only fades for legibility. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

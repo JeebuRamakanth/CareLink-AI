@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Container } from '../../components/ui/Container';
 import { Button } from '../../components/ui/Button';
 import { HospitalHero } from './components/HospitalHero';
@@ -19,11 +19,15 @@ const reviewFilters: ReviewFilterOption[] = ['All', '5 Star', '4 Star', '3 Star'
 
 export function HospitalDetailsPage() {
   const { hospitalId } = useParams<{ hospitalId: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const hospital = useMemo(() => (hospitalId ? getHospitalDetailById(hospitalId) : undefined), [hospitalId]);
   const doctorsSectionRef = useRef<HTMLDivElement | null>(null);
   const locationSectionRef = useRef<HTMLDivElement | null>(null);
-  const [selectedDoctorTopic, setSelectedDoctorTopic] = useState<HospitalDoctorTopic>('All');
+  // Pre-filter relevant doctors when the AI deep-links with ?focus=<topic>.
+  const focusTopic = searchParams.get('focus');
+  const initialTopic: HospitalDoctorTopic = (doctorTopics.includes(focusTopic as HospitalDoctorTopic) ? focusTopic : 'All') as HospitalDoctorTopic;
+  const [selectedDoctorTopic, setSelectedDoctorTopic] = useState<HospitalDoctorTopic>(initialTopic);
   const [selectedReviewFilter, setSelectedReviewFilter] = useState<ReviewFilterOption>('All');
 
   const filteredDoctors = useMemo(() => {
