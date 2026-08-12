@@ -12,12 +12,15 @@ import type {
   AgentLanguage,
   ConfidenceLevel,
   DocumentAnalysis,
+  DocumentAnalysisResult,
+  DocumentAttachment,
   EmergencyAssessment,
   HealthDocument,
   HospitalRecommendation,
   IntentClassification,
   LabRecommendation,
   MedicineInput,
+  MedicineRecognitionResult,
   MedicineResult,
   PatientContext,
   PharmacyRecommendation,
@@ -112,7 +115,14 @@ export interface AppointmentServiceAdapter {
  * ------------------------------------------------------------------------- */
 
 export interface DocumentAnalysisAdapter {
+  /** Legacy entry point used by the orchestrator mock flow. */
   analyze(document: HealthDocument): Promise<DocumentAnalysis>;
+  /**
+   * Full structured analysis (Step 11): lab values, medicine recognition, and a
+   * non-diagnostic safety assessment. Returns a clearly mock-labelled result
+   * until a real OCR/NLP backend is connected.
+   */
+  analyzeDocument(document: DocumentAttachment): Promise<DocumentAnalysisResult>;
 }
 
 /* ----------------------------------------------------------------------------
@@ -121,6 +131,12 @@ export interface DocumentAnalysisAdapter {
 
 export interface MedicineRecognitionAdapter {
   recognize(input: MedicineInput): Promise<MedicineResult | null>;
+  /**
+   * Recognize a medicine from a photo or text (Step 11). Returns a clearly
+   * mock-labelled result with confidence + warnings until a real verified
+   * medicine data source is connected. Never returns a dosage recommendation.
+   */
+  recognizeMedicine(input: MedicineInput): Promise<MedicineRecognitionResult | null>;
 }
 
 /* ----------------------------------------------------------------------------
@@ -151,12 +167,26 @@ export interface StorageUploadResult {
   previewUrl?: string;
   /** Provider-side metadata (public id, version, format). */
   providerMetadata?: Record<string, string>;
+  /** Storage reference (bucket + path) for later signed access / deletion. */
+  storageRef?: { bucket: string; path: string };
   /** Whether this came from a real provider or the mock/local adapter. */
   source: 'real' | 'mock';
 }
 
+export interface StorageProgress {
+  /** 0–100 upload progress. */
+  progress: number;
+}
+
 export interface StorageProvider {
-  upload(file: File, options?: { folder?: string; signal?: AbortSignal }): Promise<StorageUploadResult>;
+  upload(
+    file: File,
+    options?: { folder?: string; signal?: AbortSignal; onProgress?: (p: StorageProgress) => void }
+  ): Promise<StorageUploadResult>;
+  /** Create a short-lived signed URL for private access; null in mock mode. */
+  signedUrl?(storageRef: { bucket: string; path: string }, expiresInSec?: number): Promise<string | null>;
+  /** Remove a stored asset by its storage reference. */
+  delete?(storageRef: { bucket: string; path: string }): Promise<boolean>;
   /** Whether a real storage backend is configured. */
   readonly available: boolean;
   readonly name: string;

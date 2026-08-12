@@ -88,6 +88,42 @@ plain chat. Mock interpretations are explicitly labelled.
   family profiles into the profile switcher (falls back to mock otherwise).
   The agent reads only minimum-necessary context via `healthContextRepository`.
 
+## Secure document + image intelligence (Step 11)
+- Canonical document-intelligence model types live in
+  `src/features/health-agent/types/index.ts`: `DocumentAttachment`,
+  `DocumentAnalysisResult`, `LabResult`, `ExtractedMedicalValue`,
+  `MedicineRecognitionResult`, `DocumentSafetyAssessment`,
+  `DocumentProcessingState`/`DocumentUploadState`. The legacy
+  `HealthDocument`/`DocumentAnalysis` are kept as a slim view for the existing
+  orchestrator mock flow.
+- Adapter contracts extended (in `services/adapters/interfaces.ts`):
+  `DocumentAnalysisAdapter.analyzeDocument()` returns the full structured
+  result; `MedicineRecognitionAdapter.recognizeMedicine()` returns a
+  confidence-labelled result. `StorageProvider` gained `signedUrl()` + `delete()`
+  + `onProgress` so the boundary covers signed/private delivery + lifecycle.
+- Secure document pipeline: `src/features/health-agent/services/documentPipeline.ts`.
+  VALIDATE → SECURE STORAGE (replaceable boundary, Cloudinary or Supabase) →
+  METADATA PERSISTENCE (documentsRepository; never raw content) → MOCK
+  ANALYSIS → STRUCTURED RESULT. AbortSignal support, safe (non-revealing)
+  error messages, blob-URL previews only. `isRealDocumentStorageConfigured()`
+  reports whether a real backend is wired.
+- Library hook: `src/features/health-agent/hooks/useDocumentLibrary.ts` — owns
+  in-memory + persisted-safe-metadata document state, profile scoping, batch
+  processing, retry/cancel, and safe deletion (storage object + metadata row).
+  In mock/local mode, safe metadata is mirrored to localStorage key
+  `carelink_ai_document_library` (NO blob URLs or extracted values persisted).
+- Documents page: `src/pages/Documents/DocumentsPage.tsx` at protected route
+  `/documents` (header nav + profile quick link). Premium, responsive grid with
+  filters All/Reports/Prescriptions/Medicines/Lab Results/Other, drag-drop +
+  camera capture, per-card progress + state, view/analyze/delete, demo badges.
+- Non-diagnostic safety: `assessDocumentSafety()` in `utils/safety.ts`. Never
+  produces a diagnosis — only concern tiers + recommended actions. Emergency
+  indicators escalate so urgent-care guidance shows immediately.
+- File security: `lib/validation.ts` adds `sanitizeFileName`, MIME/extension
+  mismatch detection, batch dedupe, and `validateFileBatch`.
+- Chat attachment UI: `AttachmentPreview` shows Uploading→Processing→Ready
+  chips + demo badge so mock analysis is never mistaken for real processing.
+
 ## Home hero + agent integration (verified)
 The agent lives inside the Home hero, not a separate middle-page section:
 - `src/features/health-agent/components/HealthCommandCenter.tsx` is a

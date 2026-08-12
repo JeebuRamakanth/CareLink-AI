@@ -14,6 +14,7 @@ const navItems = [
   { label: 'Doctors', href: ROUTES.doctors },
   { label: 'Appointments', href: ROUTES.appointments },
   { label: 'Reviews', href: ROUTES.reviews },
+  { label: 'Documents', href: ROUTES.documents },
   { label: 'About', href: ROUTES.about },
   { label: 'Help', href: ROUTES.help },
   { label: 'Contact', href: ROUTES.contact }
@@ -72,8 +73,8 @@ export function GlobalLayout({ children, activePage = 'Home' }: GlobalLayoutProp
             <div className="hidden items-center gap-2 xl:flex">
               {auth.user ? (
                 <>
-                  <Link to={ROUTES.profile} className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-[0.92rem] font-medium text-ink-200 transition-all duration-200 hover:bg-white/10 hover:text-white">
-                    {auth.user.email ? auth.user.email.split('@')[0] : 'Account'}
+                  <Link to={ROUTES.documents} className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-[0.92rem] font-medium text-ink-200 transition-all duration-200 hover:bg-white/10 hover:text-white">
+                    Documents
                   </Link>
                   <Link to={ROUTES.profile} className="flex items-center gap-2 rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-4 py-2 text-[0.92rem] font-semibold text-white transition-all duration-200 hover:-translate-y-0.5">
                     Profile

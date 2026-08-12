@@ -8,6 +8,15 @@
 export * from './types';
 export { useHealthAgent } from './hooks/useHealthAgent';
 export type { UseHealthAgent, HealthAgentState, HealthAgentStatus } from './hooks/useHealthAgent';
+export { useDocumentLibrary } from './hooks/useDocumentLibrary';
+export type { DocumentLibraryFilter, UseDocumentLibrary } from './hooks/useDocumentLibrary';
+export {
+  prepareDocumentBatch,
+  processDocument,
+  deleteDocumentArtifact,
+  isRealDocumentStorageConfigured,
+} from './services/documentPipeline';
+export type { DocumentPipelineEvent, ProcessOptions, PipelineAcceptResult } from './services/documentPipeline';
 export { HealthCommandCenter } from './components/HealthCommandCenter';
 export type { HealthCommandCenterHandle } from './components/HealthCommandCenter';
 export { createAgentOrchestrator } from './services/agentOrchestrator';
@@ -15,7 +24,8 @@ export type { AgentOrchestrator } from './services/agentOrchestrator';
 export { mockAdapters } from './services/adapters/mockAdapters';
 export { adapters, isAnyProviderReal } from './services/adapters/registry';
 export { rankHospitals, rankDoctors, rankPharmacies, rankLabs } from './utils/ranking';
-export { DISCLOSURES, tierForIntent, urgencyForIntent, isEmergencyIntent, tierLabel } from './utils/safety';
+export { DISCLOSURES, tierForIntent, urgencyForIntent, isEmergencyIntent, tierLabel, assessDocumentSafety } from './utils/safety';
+export type { DocumentSafetyInput, DocumentSafetyOutput } from './utils/safety';
 export type {
   AgentAdapters,
   AIProvider,
