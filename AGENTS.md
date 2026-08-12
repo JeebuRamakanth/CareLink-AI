@@ -60,6 +60,34 @@ plain chat. Mock interpretations are explicitly labelled.
   mock responses keep their original text even after a code fix. Clear the
   conversation to see corrected output.
 
+## Supabase backend + auth (Step 10)
+- `@supabase/supabase-js` is installed but lazily imported (dynamic import) so
+  missing credentials never crash the app or bloat the main bundle.
+- Schema + RLS migrations live in `supabase/migrations/`:
+  `0001_initial_health_schema.sql` (18 tables, UUID PKs, ownership columns,
+  indexes, private `medical_documents` storage bucket, auto-profile trigger)
+  and `0002_rls_policies.sql` (per-user, per-bucket RLS — NO broad "authenticated
+  can read everything" policies). Apply both before enabling Supabase Auth.
+- Typed DB row types: `src/services/health-data/types.ts`.
+- Typed client: `src/services/supabase/client.ts` (anon key only; `persistSession`
+  on). Never put `service_role` in `VITE_*`.
+- Auth: `src/services/auth/authService.ts` + `src/contexts/AuthContext.tsx`.
+  Real Supabase Auth when configured; deterministic LOCAL mock when not, so the
+  auth UX + protected routes are exercisable without credentials. Mock accounts
+  live in localStorage key `carelink_ai_mock_auth_*`.
+- Repositories (no Supabase queries in UI): `src/services/health-data/*Repository.ts`.
+  Each returns null/empty when Supabase is unavailable → existing
+  localStorage-backed flows (AgentContext, AppointmentContext) remain the
+  fallback source of truth.
+- Storage boundary: `src/services/storage/supabaseStorage.ts` — private bucket,
+  signed URLs only, metadata separate from binary. Path convention
+  `<owner_id>/<document_id>/<file>` so RLS authorizes by folder name.
+- Routes: `/login`, `/register` are real pages; `/profile` is protected
+  (`ProtectedRoute`). Public browsing (hospitals/doctors/reviews) is NOT gated.
+- Agent patient context: `AgentContext` loads the authenticated user's real
+  family profiles into the profile switcher (falls back to mock otherwise).
+  The agent reads only minimum-necessary context via `healthContextRepository`.
+
 ## Home hero + agent integration (verified)
 The agent lives inside the Home hero, not a separate middle-page section:
 - `src/features/health-agent/components/HealthCommandCenter.tsx` is a

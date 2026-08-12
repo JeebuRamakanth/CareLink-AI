@@ -5,6 +5,8 @@ import { PageTransition } from './PageTransition';
 import { ScrollToTop } from './ScrollToTop';
 import type { ReactNode } from 'react';
 import { ROUTES } from '../../routes/routeConstants';
+import { useOptionalAuth } from '../../contexts/AuthContext';
+import { Button } from '../ui/Button';
 
 const navItems = [
   { label: 'Home', href: ROUTES.home },
@@ -25,6 +27,7 @@ interface GlobalLayoutProps {
 export function GlobalLayout({ children, activePage = 'Home' }: GlobalLayoutProps) {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const auth = useOptionalAuth();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -67,8 +70,21 @@ export function GlobalLayout({ children, activePage = 'Home' }: GlobalLayoutProp
             </nav>
 
             <div className="hidden items-center gap-2 xl:flex">
-              <Link to={ROUTES.login} className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-[0.92rem] font-medium text-ink-200 transition-all duration-200 hover:bg-white/10 hover:text-white">Login</Link>
-              <Link to={ROUTES.register} className="rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-4 py-2 text-[0.92rem] font-semibold text-white transition-all duration-200 hover:-translate-y-0.5">Register</Link>
+              {auth.user ? (
+                <>
+                  <Link to={ROUTES.profile} className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-[0.92rem] font-medium text-ink-200 transition-all duration-200 hover:bg-white/10 hover:text-white">
+                    {auth.user.email ? auth.user.email.split('@')[0] : 'Account'}
+                  </Link>
+                  <Link to={ROUTES.profile} className="flex items-center gap-2 rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-4 py-2 text-[0.92rem] font-semibold text-white transition-all duration-200 hover:-translate-y-0.5">
+                    Profile
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link to={ROUTES.login} className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-[0.92rem] font-medium text-ink-200 transition-all duration-200 hover:bg-white/10 hover:text-white">Login</Link>
+                  <Link to={ROUTES.register} className="rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-4 py-2 text-[0.92rem] font-semibold text-white transition-all duration-200 hover:-translate-y-0.5">Register</Link>
+                </>
+              )}
               <Link to={ROUTES.home} className="flex items-center gap-2 rounded-full bg-gradient-to-r from-rose-500 to-amber-500 px-4 py-2 text-[0.92rem] font-semibold text-white transition-all duration-200 hover:-translate-y-0.5">
                 <span className="inline-flex h-2.5 w-2.5 animate-pulse rounded-full bg-white" />
                 Emergency
@@ -106,6 +122,20 @@ export function GlobalLayout({ children, activePage = 'Home' }: GlobalLayoutProp
                     {item.label}
                   </NavLink>
                 ))}
+                {auth.user ? (
+                  <NavLink to={ROUTES.profile} className="rounded-2xl border border-brand-400/30 bg-white/10 px-4 py-3 text-sm font-medium text-white" onClick={() => setMobileMenuOpen(false)}>
+                    {auth.user.email ? auth.user.email : 'Profile'}
+                  </NavLink>
+                ) : (
+                  <div className="mt-2 flex gap-2">
+                    <Button variant="secondary" fullWidth onClick={() => setMobileMenuOpen(false)}>
+                      <Link to={ROUTES.login} className="w-full">Login</Link>
+                    </Button>
+                    <Button variant="primary" fullWidth onClick={() => setMobileMenuOpen(false)}>
+                      <Link to={ROUTES.register} className="w-full">Register</Link>
+                    </Button>
+                  </div>
+                )}
               </nav>
             </LayoutContainer>
           </div>

@@ -178,6 +178,11 @@ function ResultPreview({ result, onReply, onReset }: { result: AgentResult; onRe
           {result.urgency}
         </Badge>
         <span className="text-[0.66rem] font-semibold uppercase tracking-[0.2em] text-ink-400">{result.meta.confidence} confidence</span>
+        {result.isDemoData ? (
+          <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-500/15 px-2 py-0.5 text-[0.62rem] font-semibold uppercase tracking-[0.15em] text-amber-200" title="No external provider configured — results are illustrative demo data.">
+            Demo data
+          </span>
+        ) : null}
         {result.meta.disclaimer ? (
           <span className="inline-flex items-center gap-1 text-[0.7rem] text-ink-400">
             <IconShield width={12} height={12} aria-hidden /> Guidance, not a diagnosis
@@ -216,6 +221,11 @@ function ResultPreview({ result, onReply, onReset }: { result: AgentResult; onRe
                   <span className="inline-flex items-center gap-1"><IconStar width={12} height={12} className="text-amber-300" aria-hidden /> <span className="font-semibold text-white">{h.rating.toFixed(1)}</span></span>
                   {h.route ? <span className="inline-flex items-center gap-1"><IconRoute width={12} height={12} aria-hidden /> {h.distanceKm.toFixed(1)} km · ~{h.estimatedTravelTimeMin} min</span> : null}
                 </div>
+                {h.rank && h.rank.reasons.length > 0 ? (
+                  <p className="mt-1.5 text-[0.68rem] leading-4 text-ink-400" title="Why this result?">
+                    <span className="font-semibold text-ink-300">Why: </span>{h.rank.reasons.map((r) => r.label).join(' · ')}
+                  </p>
+                ) : null}
                 <div className="mt-3 flex flex-wrap gap-2">
                   <a href={`${ROUTES.hospitals}/${h.detailSlug}`} className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">View Hospital</a>
                   <a href={ROUTES.appointments} className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-3 py-1.5 text-[0.78rem] font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">Book</a>

@@ -43,6 +43,7 @@ import {
   recoverySeed,
   newCheckIn,
 } from '../../data/mockData';
+import { buildMapsDirectionsUrl, buildMapsPlaceUrl } from '../../../../lib';
 
 const wait = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
 
@@ -195,6 +196,57 @@ export const mockMapsRouting: AgentAdapters['maps'] = {
 };
 
 /* ----------------------------------------------------------------------------
+ * Mock maps/directions/geocoding — uses static mock distances, never live data
+ * ------------------------------------------------------------------------- */
+
+export const mockMapsProvider: AgentAdapters['mapsProvider'] = {
+  name: 'Mock Maps',
+  directionsUrl: (params) => buildMapsDirectionsUrl(params),
+  placeUrl: (query) => buildMapsPlaceUrl(query),
+};
+
+export const mockDirectionsProvider: AgentAdapters['directions'] = {
+  available: false,
+  async route(_origin, _destination) {
+    await wait(120);
+    // Never fabricate live distance/ETA — return null so callers show mock data
+    // from the dataset instead of invented numbers.
+    return null;
+  },
+};
+
+export const mockGeocodingProvider: AgentAdapters['geocoding'] = {
+  available: false,
+  async geocode(_address) {
+    await wait(100);
+    return null;
+  },
+  async reverseGeocode(_coords) {
+    await wait(100);
+    return null;
+  },
+};
+
+/* ----------------------------------------------------------------------------
+ * Mock storage adapter — local blob URLs, never uploads to a real service
+ * ------------------------------------------------------------------------- */
+
+export const mockStorageProvider: AgentAdapters['storage'] = {
+  name: 'Local Storage (demo)',
+  available: false,
+  async upload(file) {
+    await wait(180);
+    const url = typeof URL !== 'undefined' && file.type.startsWith('image/') ? URL.createObjectURL(file) : '';
+    return {
+      url,
+      previewUrl: url || undefined,
+      providerMetadata: { mock: 'true', fileName: file.name },
+      source: 'mock',
+    };
+  },
+};
+
+/* ----------------------------------------------------------------------------
  * Mock appointment adapter — returns existing route URLs
  * ------------------------------------------------------------------------- */
 
@@ -326,6 +378,10 @@ export const mockAdapters: AgentAdapters = {
   pharmacies: mockPharmacySearch,
   labs: mockLabSearch,
   maps: mockMapsRouting,
+  mapsProvider: mockMapsProvider,
+  directions: mockDirectionsProvider,
+  geocoding: mockGeocodingProvider,
+  storage: mockStorageProvider,
   appointments: mockAppointmentService,
   documents: mockDocumentAnalysis,
   medicines: mockMedicineRecognition,
