@@ -1,10 +1,12 @@
 /**
  * Compact attachment preview shown on user messages in the conversation.
- * Smaller than the composer tray's AttachmentItem — just shows what was uploaded.
+ * Smaller than the composer tray's AttachmentItem — shows what was uploaded,
+ * with a processing-state chip (Uploading → Processing → Ready) and a demo
+ * badge so mock analysis is never mistaken for real cloud processing.
  */
 
 import { cn } from '../common/cn';
-import { IconReport, IconClose } from './AgentIcons';
+import { IconReport, IconClose, IconShield } from './AgentIcons';
 import type { AgentAttachment } from '../../services/agent/agentTypes';
 
 const formatBytes = (bytes: number): string => {
@@ -13,6 +15,24 @@ const formatBytes = (bytes: number): string => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
+function stateChip(att: AgentAttachment): { label: string; tone: string } | null {
+  switch (att.status) {
+    case 'uploading':
+      return { label: 'Uploading', tone: 'text-brand-200' };
+    case 'reading':
+    case 'extracting':
+    case 'organizing':
+    case 'preparing':
+      return { label: 'Processing', tone: 'text-brand-200' };
+    case 'ready':
+      return { label: 'Ready', tone: 'text-emerald-200' };
+    case 'error':
+      return { label: 'Failed', tone: 'text-rose-200' };
+    default:
+      return null;
+  }
+}
+
 interface Props {
   attachment: AgentAttachment;
   onRemove?: () => void;
@@ -20,6 +40,7 @@ interface Props {
 }
 
 export function AttachmentPreview({ attachment, onRemove, compact = false }: Props) {
+  const chip = stateChip(attachment);
   return (
     <div
       className={cn(
@@ -36,7 +57,16 @@ export function AttachmentPreview({ attachment, onRemove, compact = false }: Pro
       )}
       <div className="min-w-0">
         <p className="max-w-[140px] truncate text-[0.74rem] font-medium text-white">{attachment.fileName}</p>
-        <p className="text-[0.64rem] text-ink-400">{formatBytes(attachment.fileSize)}</p>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[0.64rem] text-ink-400">{formatBytes(attachment.fileSize)}</span>
+          {chip ? (
+            <span className={cn('inline-flex items-center gap-0.5 text-[0.62rem] font-medium', chip.tone)}>
+              {attachment.status === 'ready' ? <IconShield width={10} height={10} aria-hidden /> : null}
+              {chip.label}
+              <span className="text-ink-500">· demo</span>
+            </span>
+          ) : null}
+        </div>
       </div>
       {onRemove ? (
         <button

@@ -224,16 +224,34 @@ export const realCloudinaryStorage: StorageProvider = {
     if (options?.folder) form.append('folder', options.folder);
 
     const url = `https://api.cloudinary.com/v1_1/${env.cloudinary.cloudName}/auto/upload`;
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 30000);
+    const xhr = new XMLHttpRequest();
+    const timer = setTimeout(() => xhr.abort(), 30000);
     if (options?.signal) {
-      if (options.signal.aborted) controller.abort();
-      else options.signal.addEventListener('abort', () => controller.abort(), { once: true });
+      if (options.signal.aborted) xhr.abort();
+      else options.signal.addEventListener('abort', () => xhr.abort(), { once: true });
+    }
+    if (options?.onProgress) {
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          options.onProgress!({ progress: Math.min(99, Math.round((e.loaded / e.total) * 100)) });
+        }
+      };
     }
     try {
-      const res = await fetch(url, { method: 'POST', body: form, signal: controller.signal });
-      if (!res.ok) throw new Error(`upload status ${res.status}`);
-      const json = (await res.json()) as Record<string, unknown>;
+      const json = await new Promise<Record<string, unknown>>((resolve, reject) => {
+        xhr.open('POST', url, true);
+        xhr.responseType = 'json';
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve((xhr.response ?? {}) as Record<string, unknown>);
+          } else {
+            reject(new Error(`upload status ${xhr.status}`));
+          }
+        };
+        xhr.onerror = () => reject(new Error('upload network error'));
+        xhr.onabort = () => reject(new DOMException('Aborted', 'AbortError'));
+        xhr.send(form);
+      });
       const publicUrl = pickString(json, 'secure_url', 'url');
       const previewUrl = pickString(json, 'url');
       const providerMetadata: Record<string, string> = {};
@@ -243,16 +261,27 @@ export const realCloudinaryStorage: StorageProvider = {
       if (publicId) providerMetadata.publicId = publicId;
       if (format) providerMetadata.format = format;
       if (version) providerMetadata.version = String(version);
+      if (options?.onProgress) options.onProgress({ progress: 100 });
       const result: StorageUploadResult = {
         url: publicUrl,
         previewUrl: previewUrl || undefined,
         providerMetadata,
+        storageRef: { bucket: 'cloudinary', path: publicId || publicUrl },
         source: 'real',
       };
       return result;
     } finally {
       clearTimeout(timer);
     }
+  },
+  // Cloudinary signed-URL + delete require the API secret, which is NEVER
+  // exposed to the browser. These operations belong to the future server
+  // boundary; return null/false here so callers fall back to mock/local.
+  async signedUrl() {
+    return null;
+  },
+  async delete() {
+    return false;
   },
 };
 

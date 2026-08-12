@@ -15,14 +15,21 @@ import type {
   AgentLanguage,
   ConfidenceLevel,
   DocumentAnalysis,
+  DocumentAnalysisCategory,
+  DocumentAnalysisResult,
+  DocumentAttachment,
+  DocumentSafetyAssessment,
+  ExtractedMedicalValue,
   EmergencyAssessment,
   HealthDocument,
+  HealthDocumentKind,
   HospitalRecommendation,
   IntentClassification,
   LabRecommendation,
   MedicalReport,
   MedicalReportValue,
   MedicineInput,
+  MedicineRecognitionResult,
   MedicineResult,
   PatientContext,
   PharmacyRecommendation,
@@ -234,15 +241,31 @@ export const mockGeocodingProvider: AgentAdapters['geocoding'] = {
 export const mockStorageProvider: AgentAdapters['storage'] = {
   name: 'Local Storage (demo)',
   available: false,
-  async upload(file) {
-    await wait(180);
+  async upload(file, options) {
+    // Simulate progress reporting for a few frames so the UI exercises its
+    // progress bar even in demo mode.
+    const total = file.size;
+    for (let p = 25; p < 90; p += 25) {
+      if (options?.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+      if (options?.onProgress) options.onProgress({ progress: p });
+      // small await between ticks; keep below the abort check cadence
+      await new Promise<void>((r) => setTimeout(r, Math.min(60, total > 0 ? 40 : 20)));
+    }
     const url = typeof URL !== 'undefined' && file.type.startsWith('image/') ? URL.createObjectURL(file) : '';
+    if (options?.onProgress) options.onProgress({ progress: 100 });
     return {
       url,
       previewUrl: url || undefined,
       providerMetadata: { mock: 'true', fileName: file.name },
+      storageRef: { bucket: 'local', path: `local/${file.name}` },
       source: 'mock',
     };
+  },
+  async signedUrl() {
+    return null;
+  },
+  async delete() {
+    return true;
   },
 };
 
@@ -269,32 +292,117 @@ export const mockAppointmentService: AgentAdapters['appointments'] = {
  * Mock document analysis
  * ------------------------------------------------------------------------- */
 
+/**
+ * Non-diagnostic safety assessment over extracted values (Step 11 §safety).
+ * Never claims a diagnosis — only flags values outside reference ranges and
+ * routes to a clinician. Emergency indicators escalate to urgent-care guidance.
+ */
+function assessMockSafety(category: DocumentAnalysisCategory, attentionValues: ExtractedMedicalValue[]): DocumentSafetyAssessment {
+  const hasCritical = attentionValues.some((v) => v.abnormalFlag === 'critical-high' || v.abnormalFlag === 'critical-low');
+  const hasAbnormal = attentionValues.length > 0;
+  const hasEmergencyIndicator = hasCritical;
+  const concerns: string[] = attentionValues.map(
+    (v) => `${v.testName} (${v.value}${v.unit ? ` ${v.unit}` : ''}) sits outside the listed reference range${v.referenceRange ? ` of ${v.referenceRange}` : ''}.`,
+  );
+  const summary = hasCritical
+    ? 'One or more values are marked critical. This can have multiple causes — seek prompt professional evaluation.'
+    : hasAbnormal
+      ? 'Your report contains values outside the listed reference range. This can have multiple causes. Consider discussing it with a qualified clinician.'
+      : category === 'medicine-image'
+        ? 'The uploaded image could not be reliably identified. Do not act on an unverified identification.'
+        : 'No values requiring attention were flagged in this mock extraction.';
+  const recommendedActions: string[] = hasCritical
+    ? ['Seek urgent medical attention or contact emergency services if you feel unwell.', 'Share this report with a clinician immediately.']
+    : hasAbnormal
+      ? ['Share these results with your doctor to build a management plan.', 'Do not start, stop, or change medication without professional advice.']
+      : ['Keep this document for your records and review with your care team as needed.'];
+  return {
+    tier: hasCritical ? 'emergency' : hasAbnormal ? 'triage' : 'educational',
+    summary,
+    concerns,
+    recommendedActions,
+    hasEmergencyIndicator,
+    disclaimer: 'This is a mock, non-diagnostic assessment. CareLink has not performed real medical analysis. Treat all findings as illustrative and confirm with a licensed professional.',
+    isMock: true,
+  };
+}
+
+const MOCK_LAB_VALUES: ExtractedMedicalValue[] = [
+  { id: 'lv1', testName: 'Fasting Blood Sugar', value: '132', unit: 'mg/dL', referenceRange: '70–99', abnormalFlag: 'high', collectionDate: undefined, extractedFromDocument: false },
+  { id: 'lv2', testName: 'HbA1c', value: '6.8', unit: '%', referenceRange: '< 5.7%', abnormalFlag: 'high', extractedFromDocument: false },
+  { id: 'lv3', testName: 'Total Cholesterol', value: '212', unit: 'mg/dL', referenceRange: '< 200', abnormalFlag: 'high', extractedFromDocument: false },
+  { id: 'lv4', testName: 'LDL Cholesterol', value: '138', unit: 'mg/dL', referenceRange: '< 100', abnormalFlag: 'high', extractedFromDocument: false },
+  { id: 'lv5', testName: 'Hemoglobin', value: '14.2', unit: 'g/dL', referenceRange: '13.5–17.5', abnormalFlag: 'normal', extractedFromDocument: false },
+  { id: 'lv6', testName: 'WBC Count', value: '6.8', unit: '×10³/μL', referenceRange: '4.0–11.0', abnormalFlag: 'normal', extractedFromDocument: false },
+  { id: 'lv7', testName: 'Platelet Count', value: '250', unit: '×10³/μL', referenceRange: '150–400', abnormalFlag: 'normal', extractedFromDocument: false },
+];
+
+function classifyDocument(document: { fileName: string; kind: HealthDocumentKind; mime?: string }): DocumentAnalysisCategory {
+  const name = document.fileName.toLowerCase();
+  if (document.kind === 'image') return name.includes('med') || name.includes('tablet') || name.includes('pill') ? 'medicine-image' : 'imaging';
+  if (name.includes('prescription')) return 'prescription';
+  if (name.includes('discharge')) return 'discharge-summary';
+  if (document.kind === 'pdf' || name.includes('report') || name.includes('lab')) return 'lab-report';
+  return 'general-document';
+}
+
+const FINDINGS_BY_CATEGORY: Record<DocumentAnalysisCategory, string[]> = {
+  'lab-report': ['Fasting glucose and HbA1c above typical range', 'Cholesterol panel borderline-elevated', 'Hemoglobin, WBC, platelets within typical range'],
+  prescription: ['Prescribed medication listed', 'Dosage instructions present', 'Follow-up advised'],
+  'medicine-image': ['Round white tablet detected', 'Imprint partially visible', 'Confirm with pharmacist'],
+  'discharge-summary': ['Discharge medications listed', 'Follow-up appointment advised', 'Activity restrictions noted'],
+  imaging: ['Imaging study detected', 'Radiologist review recommended', 'Compare with prior studies if available'],
+  'general-document': ['Document received', 'Structured extraction pending real backend'],
+};
+
 export const mockDocumentAnalysis: AgentAdapters['documents'] = {
   async analyze(document) {
     await wait(200);
-    const name = document.fileName.toLowerCase();
-    let category: DocumentAnalysis['category'] = 'general-document';
-    if (document.kind === 'image') category = name.includes('med') || name.includes('tablet') || name.includes('pill') ? 'medicine-image' : 'imaging';
-    else if (name.includes('prescription')) category = 'prescription';
-    else if (name.includes('discharge')) category = 'discharge-summary';
-    else if (document.kind === 'pdf' || name.includes('report') || name.includes('lab')) category = 'lab-report';
-
-    const findings: Record<DocumentAnalysis['category'], string[]> = {
-      'lab-report': ['HbA1c 6.8%', 'Fasting glucose 132 mg/dL', 'Lipid panel borderline'],
-      prescription: ['Prescribed medication listed', 'Dosage instructions present', 'Follow-up advised'],
-      'medicine-image': ['Round white tablet detected', 'Imprint partially visible', 'Confirm with pharmacist'],
-      'discharge-summary': ['Discharge medications listed', 'Follow-up appointment advised', 'Activity restrictions noted'],
-      imaging: ['Imaging study detected', 'Radiologist review recommended', 'Compare with prior studies if available'],
-      'general-document': ['Document received', 'Structured extraction pending real backend'],
-    };
-
+    const category = classifyDocument(document);
     const analysis: DocumentAnalysis = {
       category,
       extractedTextPlaceholder: 'Extracted text will be populated by a real OCR/NLP layer in a future step.',
-      keyFindings: findings[category],
+      keyFindings: FINDINGS_BY_CATEGORY[category],
       isMock: true,
     };
     return analysis;
+  },
+  async analyzeDocument(document) {
+    await wait(260);
+    const category = classifyDocument(document);
+    const isLab = category === 'lab-report';
+    const isMed = category === 'medicine-image';
+    const result: DocumentAnalysisResult = {
+      category,
+      extractedTextPlaceholder: 'Extracted text will be populated by a real OCR/NLP layer in a future step. These values are illustrative demo data.',
+      keyFindings: FINDINGS_BY_CATEGORY[category],
+      labResult: isLab
+        ? {
+            reportTitle: document.fileName ? `Lab report — ${document.fileName}` : 'Lab report summary',
+            sourceFileName: document.fileName,
+            values: MOCK_LAB_VALUES,
+            valuesRequiringAttention: MOCK_LAB_VALUES.filter((v) => v.abnormalFlag !== 'normal'),
+            notes: 'Mock extraction. No real OCR has been performed on this document.',
+          }
+        : undefined,
+      medicine: isMed
+        ? {
+            id: 'med-mock-1',
+            name: 'Unconfirmed tablet',
+            dosageForm: 'tablet',
+            manufacturerPlaceholder: 'Manufacturer unavailable until a verified source is connected',
+            recognitionConfidence: 'low',
+            confidenceScore: 0.32,
+            commonPurpose: 'Unable to confirm the medicine from the image. Do not act on this identification.',
+            warningsPlaceholder: ['Do not ingest based on an unverified identification', 'Confirm with a pharmacist using the physical packaging'],
+            prescriptionRequired: undefined,
+            isMock: true,
+          }
+        : undefined,
+      safety: assessMockSafety(category, isLab ? MOCK_LAB_VALUES.filter((v) => v.abnormalFlag !== 'normal') : []),
+      isMock: true,
+    };
+    return result;
   },
 };
 
@@ -310,6 +418,35 @@ export const mockMedicineRecognition: AgentAdapters['medicines'] = {
       if (found) return found;
     }
     return null;
+  },
+  async recognizeMedicine(input) {
+    await wait(180);
+    const found = input.text ? findMedicine(input.text) : null;
+    if (found) {
+      return {
+        id: found.id,
+        name: found.name,
+        dosageForm: 'tablet',
+        manufacturerPlaceholder: 'Manufacturer unavailable until a verified source is connected',
+        recognitionConfidence: 'medium',
+        confidenceScore: 0.55,
+        commonPurpose: found.commonPurpose,
+        warningsPlaceholder: [found.importantSafetyInfo],
+        prescriptionRequired: found.prescriptionRequired,
+        isMock: true,
+      };
+    }
+    return {
+      id: 'med-photo-mock',
+      name: 'Unconfirmed medicine',
+      dosageForm: 'unknown',
+      manufacturerPlaceholder: 'Unavailable until a verified source is connected',
+      recognitionConfidence: 'low',
+      confidenceScore: 0.2,
+      commonPurpose: 'Unable to confirm the medicine from the image. Do not act on this identification.',
+      warningsPlaceholder: ['Do not ingest based on an unverified identification', 'Confirm with a pharmacist using the physical packaging'],
+      isMock: true,
+    };
   },
 };
 
@@ -398,6 +535,7 @@ export type {
   PharmacyRecommendation,
   LabRecommendation,
   MedicineResult,
+  MedicineRecognitionResult,
   MedicineInput,
   MedicalReport,
   MedicalReportValue,
@@ -405,6 +543,10 @@ export type {
   RecoveryTrend,
   EmergencyAssessment,
   HealthDocument,
+  DocumentAttachment,
   DocumentAnalysis,
+  DocumentAnalysisResult,
+  DocumentSafetyAssessment,
+  ExtractedMedicalValue,
   RouteRecommendation,
 };

@@ -11,6 +11,7 @@ import { AgentCommandCenterPage } from '../pages/Agent/AgentCommandCenterPage';
 import { LoginPage } from '../pages/Auth/LoginPage';
 import { RegisterPage } from '../pages/Auth/RegisterPage';
 import { ProfilePage } from '../pages/Auth/ProfilePage';
+import { DocumentsPage } from '../pages/Documents/DocumentsPage';
 import { ROUTES } from './routeConstants';
 import { PublicLayout } from './PublicLayout';
 import { ProtectedRoute } from '../components/ProtectedRoute';
@@ -44,6 +45,7 @@ export function AppRoutes() {
         <Route path={ROUTES.register} element={<RegisterPage />} />
         {/* Protected — requires an authenticated user. */}
         <Route path={ROUTES.profile} element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+        <Route path={ROUTES.documents} element={<ProtectedRoute><DocumentsPage /></ProtectedRoute>} />
         <Route path={ROUTES.about} element={<PlaceholderPage title="About" />} />
         <Route path={ROUTES.help} element={<PlaceholderPage title="Help" />} />
         <Route path={ROUTES.contact} element={<PlaceholderPage title="Contact" />} />

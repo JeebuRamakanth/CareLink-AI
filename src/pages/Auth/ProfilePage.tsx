@@ -215,6 +215,9 @@ export function ProfilePage() {
           <Link to={ROUTES.appointments} className={cn('rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm font-medium text-ink-200 transition-all hover:bg-white/10 hover:text-white')}>
             My appointments
           </Link>
+          <Link to={ROUTES.documents} className={cn('rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm font-medium text-ink-200 transition-all hover:bg-white/10 hover:text-white')}>
+            My documents
+          </Link>
           <Link to={ROUTES.agent} className={cn('rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm font-medium text-ink-200 transition-all hover:bg-white/10 hover:text-white')}>
             Open command center
           </Link>

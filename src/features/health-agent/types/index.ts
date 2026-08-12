@@ -110,6 +110,23 @@ export interface AgentAction {
 
 export type HealthDocumentKind = 'image' | 'pdf' | 'document' | 'camera' | 'unknown';
 
+/**
+ * Full processing-state machine for a document (Step 11 §pipeline).
+ * idle → validating → uploading → uploaded → processing → analyzed → failed/cancelled.
+ * The legacy `HealthDocumentStatus` (kept for the existing chat attachment flow)
+ * maps onto this superset.
+ */
+export type DocumentProcessingState =
+  | 'idle'
+  | 'validating'
+  | 'uploading'
+  | 'uploaded'
+  | 'processing'
+  | 'analyzed'
+  | 'failed'
+  | 'cancelled';
+
+/** Legacy processing-status labels used by the existing chat attachment UI. */
 export type HealthDocumentStatus =
   | 'queued'
   | 'uploading'
@@ -120,6 +137,8 @@ export type HealthDocumentStatus =
   | 'ready'
   | 'error';
 
+export type DocumentUploadState = 'pending' | 'uploading' | 'uploaded' | 'failed' | 'cancelled';
+
 export type DocumentAnalysisCategory =
   | 'lab-report'
   | 'prescription'
@@ -128,6 +147,47 @@ export type DocumentAnalysisCategory =
   | 'imaging'
   | 'general-document';
 
+/**
+ * A normalized document attachment carried through the agent pipeline.
+ * Backend-agnostic; never carries raw file bytes (only a local/blob or signed
+ * URL preview). Ownership + family-profile scoping is enforced at the service
+ * boundary, never trusted from the UI alone.
+ */
+export interface DocumentAttachment {
+  id: string;
+  /** Authenticated owner id (Supabase user id, or a local-dev sentinel in mock). */
+  ownerId?: string;
+  /** Selected patient/family profile the document belongs to. */
+  familyProfileId?: string | null;
+  fileName: string;
+  /** Sanitized filename used for storage paths (no path traversal). */
+  safeFileName: string;
+  fileSize: number;
+  mime: string;
+  kind: HealthDocumentKind;
+  source: 'upload' | 'camera' | 'drag-drop' | 'mobile-picker';
+  createdAt: string;
+  uploadState: DocumentUploadState;
+  processingState: DocumentProcessingState;
+  /** 0–100 progress across the upload + processing pipeline. */
+  progress: number;
+  /** Object URL (local) or signed URL for image preview. Never a public medical URL. */
+  previewUrl?: string;
+  /** Storage reference (bucket + path) when persisted to a real backend. */
+  storageRef?: { bucket: string; path: string };
+  /** Provider metadata (public id, format, version) — never secrets. */
+  providerMetadata?: Record<string, string>;
+  errorMessage?: string;
+  /** Populated by the document-analysis adapter. */
+  analysis?: DocumentAnalysisResult;
+  /** Whether this artifact came from a real provider or the mock/local adapter. */
+  dataSource: 'real' | 'mock' | 'fallback';
+}
+
+/**
+ * Backward-compatible HealthDocument shape consumed by the existing orchestrator.
+ * It is a slim view over {@link DocumentAttachment}.
+ */
 export interface HealthDocument {
   id: string;
   fileName: string;
@@ -142,8 +202,102 @@ export interface HealthDocument {
   errorMessage?: string;
   /** Populated by the document-analysis adapter (placeholder text for now). */
   analysis?: DocumentAnalysis;
+  /** Owner/family scoping (Step 11). */
+  ownerId?: string;
+  familyProfileId?: string | null;
+  uploadState?: DocumentUploadState;
+  processingState?: DocumentProcessingState;
 }
 
+/**
+ * Structured value extracted from a lab report (Step 11 §lab-report-support).
+ * The UI MUST distinguish "value extracted from document" from "AI explanation".
+ */
+export interface ExtractedMedicalValue {
+  id: string;
+  testName: string;
+  value: string;
+  unit?: string;
+  referenceRange?: string;
+  abnormalFlag: 'normal' | 'low' | 'high' | 'critical-high' | 'critical-low' | 'unknown';
+  /** ISO date the sample was collected, if present in the document. */
+  collectionDate?: string;
+  /** True when the value was read from the document vs. inferred (always false in mock). */
+  extractedFromDocument: boolean;
+}
+
+/** Normalized lab report extracted from a document. */
+export interface LabResult {
+  reportTitle: string;
+  sourceFileName?: string;
+  collectionDate?: string;
+  values: ExtractedMedicalValue[];
+  /** Values outside the reference range, surfaced for clinician review. */
+  valuesRequiringAttention: ExtractedMedicalValue[];
+  /** Free-text lab notes, if any were present. */
+  notes?: string;
+}
+
+/**
+ * Result of recognizing a medicine from a photo or text (Step 11 §medicine-intelligence).
+ * NEVER carries a dosage recommendation or prescription.
+ */
+export interface MedicineRecognitionResult {
+  id: string;
+  name: string;
+  strength?: string;
+  dosageForm?: 'tablet' | 'capsule' | 'syrup' | 'injection' | 'cream' | 'inhaler' | 'unknown';
+  /** Manufacturer placeholder — real verified data only when a real source is connected. */
+  manufacturerPlaceholder?: string;
+  recognitionConfidence: ConfidenceLevel;
+  /** 0–1 numeric confidence, when available. */
+  confidenceScore?: number;
+  commonPurpose?: string;
+  warningsPlaceholder?: string[];
+  prescriptionRequired?: boolean;
+  /** Always true until a real verified medicine data source is connected. */
+  isMock: true;
+}
+
+/**
+ * Safety assessment over extracted document values (Step 11 §safety).
+ * Never produces a diagnosis — only concern tiers + recommended actions.
+ */
+export interface DocumentSafetyAssessment {
+  /** Highest concern tier detected across the document. */
+  tier: InformationTier;
+  /** Human-readable, non-diagnostic summary. */
+  summary: string;
+  /** Non-diagnostic concern notes, e.g. "value outside reference range". */
+  concerns: string[];
+  /** Recommended next actions (navigate to a clinician / lab / emergency). */
+  recommendedActions: string[];
+  /** Whether an emergency indicator was detected (drives urgent-care UI). */
+  hasEmergencyIndicator: boolean;
+  /** Explicit disclaimer that this is not a diagnosis. */
+  disclaimer: string;
+  /** Always true until a real clinical interpretation backend exists. */
+  isMock: true;
+}
+
+/** Full analysis result returned by the document-analysis adapter. */
+export interface DocumentAnalysisResult {
+  category: DocumentAnalysisCategory;
+  /** Extracted text placeholder — a real OCR/NLP layer fills this later. */
+  extractedTextPlaceholder: string;
+  /** Key phrases the mock adapter surfaces as a demo. */
+  keyFindings: string[];
+  /** Structured lab values when the document is a lab report. */
+  labResult?: LabResult;
+  /** Recognized medicine when the document is a medicine image. */
+  medicine?: MedicineRecognitionResult;
+  /** Safety assessment over extracted values. */
+  safety?: DocumentSafetyAssessment;
+  /** Always true until a real analysis backend exists. */
+  isMock: true;
+}
+
+/** Legacy analysis shape (kept for the existing orchestrator/mock flow). */
 export interface DocumentAnalysis {
   category: DocumentAnalysisCategory;
   /** Extracted text placeholder — a real OCR/NLP layer fills this later. */
@@ -152,6 +306,8 @@ export interface DocumentAnalysis {
   keyFindings: string[];
   /** Always true until a real analysis backend exists. */
   isMock: true;
+  /** Full structured result (Step 11), when available. */
+  result?: DocumentAnalysisResult;
 }
 
 /* ----------------------------------------------------------------------------
