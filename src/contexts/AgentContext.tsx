@@ -7,7 +7,7 @@
  * per the "do not connect backend yet" constraint.
  */
 
-import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { sendAgentMessage } from '../services/agent';
@@ -16,6 +16,9 @@ import {
   agentPatientProfiles,
   agentRecoverySeed,
 } from '../services/agent/mockData';
+import { useOptionalAuth } from './AuthContext';
+import { listFamilyProfiles } from '../services/health-data';
+import type { FamilyProfileRow } from '../services/health-data';
 import type {
   AgentAttachment,
   AgentConversation,
@@ -143,7 +146,17 @@ const deriveTitleFromText = (text: string): string => {
   return trimmed.length > 38 ? `${trimmed.slice(0, 38)}…` : trimmed;
 };
 
+/** Convert a stored family-profile row into the agent's patient context shape. */
+const toPatientProfile = (row: FamilyProfileRow): PatientProfile => ({
+  id: row.id,
+  label: row.label,
+  relation: row.relation,
+  contextSummary: row.context_summary ?? '',
+  contextTags: row.context_tags ?? [],
+});
+
 export function AgentProvider({ children }: { children: ReactNode }) {
+  const auth = useOptionalAuth();
   const [conversations, setConversations] = useLocalStorage<AgentConversation[]>(
     AGENT_STORAGE_KEY,
     [createWelcomeConversation()]
@@ -155,6 +168,10 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   const [language, setLanguage] = useState<AgentLanguage>('en');
   const [status, setStatus] = useState<AgentStateStatus>({ status: 'initial' });
   const [attachments, setAttachments] = useState<AgentAttachment[]>([]);
+  // Patient/family profiles. Default to the mock set; replaced with the
+  // authenticated user's real family profiles when available (graceful
+  // fallback to mock when Supabase is unconfigured).
+  const [patientProfiles, setPatientProfiles] = useState<PatientProfile[]>(agentPatientProfiles);
   // Guards against React strict-mode double-invocation of the async pipeline.
   const pipelineLocks = useRef<Set<string>>(new Set());
 
@@ -168,9 +185,31 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   );
 
   const activeProfile = useMemo(
-    () => agentPatientProfiles.find((p) => p.id === activeProfileId) ?? agentPatientProfiles[0],
-    [activeProfileId]
+    () => patientProfiles.find((p) => p.id === activeProfileId) ?? patientProfiles[0],
+    [patientProfiles, activeProfileId]
   );
+
+  // Load authenticated family profiles into the agent context when a real user
+  // is signed in and Supabase is configured. Never silently reads another user's
+  // data — RLS scopes rows to owner_id = auth.uid().
+  useEffect(() => {
+    let cancelled = false;
+    if (!auth.user) {
+      setPatientProfiles(agentPatientProfiles);
+      return;
+    }
+    (async () => {
+      const rows = await listFamilyProfiles();
+      if (cancelled) return;
+      const mapped: PatientProfile[] = rows.map((row) => toPatientProfile(row));
+      // Always keep a "self" entry first; prepend real family members.
+      const selfProfile = agentPatientProfiles[0];
+      setPatientProfiles(mapped.length > 0 ? [selfProfile, ...mapped] : agentPatientProfiles);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [auth.user?.id]);
 
   const setActiveConversationId = useCallback((id: string) => {
     setActiveConversationIdState(id);
@@ -457,7 +496,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       startNewConversation,
       deleteConversation,
       clearActiveConversation,
-      patientProfiles: agentPatientProfiles,
+      patientProfiles,
       activeProfile,
       setActiveProfileId,
       language,
@@ -483,6 +522,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       startNewConversation,
       deleteConversation,
       clearActiveConversation,
+      patientProfiles,
       activeProfile,
       language,
       status,

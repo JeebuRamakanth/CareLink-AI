@@ -15,17 +15,22 @@
 import type {
   AgentAction,
   AgentIntent,
+  AgentLanguage,
   AgentOrchestratorRequest,
   AgentOrchestratorResponse,
   AgentResult,
   HealthDocument,
   MedicalReport,
   MedicalReportValue,
+  RankingContext,
   UrgencyLevel,
   InformationTier,
 } from '../types';
 import type { AgentAdapters } from './adapters/interfaces';
 import { mockAdapters } from './adapters/mockAdapters';
+import { adapters as resolvedAdapters, isAnyProviderReal } from './adapters/registry';
+import { rankHospitals, rankDoctors, rankPharmacies, rankLabs } from '../utils/ranking';
+import { DISCLOSURES } from '../utils/safety';
 import {
   buildRouteFromHospital,
   hospitalRecommendations,
@@ -35,10 +40,8 @@ import {
   vaccinationSchedules,
 } from '../data/mockData';
 
-const DISCLAIMER_MEDICAL =
-  'CareLink provides navigational guidance, not a medical diagnosis. For diagnosis or treatment, consult a licensed healthcare professional.';
-const DISCLAIMER_EMERGENCY =
-  'If this is a life-threatening emergency, call your local emergency number immediately. This guidance does not replace emergency services.';
+const DISCLAIMER_MEDICAL = DISCLOSURES.medical;
+const DISCLAIMER_EMERGENCY = DISCLOSURES.emergency;
 
 const ROUTES = {
   agent: '/agent',
@@ -48,6 +51,33 @@ const ROUTES = {
 } as const;
 
 const pickSpecialty = (entities: string[]): string | undefined => entities.find((e) => /^[A-Z]/.test(e));
+
+/** Build the ranking context used by all search-result builders. */
+function buildRankingContext(
+  language: AgentOrchestratorRequest['language'],
+  patientContext: AgentOrchestratorRequest['patientContext'],
+  entities: string[],
+): RankingContext {
+  const specialty = pickSpecialty(entities);
+  return {
+    patientLocation: patientContext.location,
+    requestedSpecialty: specialty,
+    requestedTreatment: patientContext.navigation?.requestedTreatment ?? specialty,
+    urgency: 'routine',
+    language,
+  };
+}
+
+/** Attach demo-data metadata to a result based on the active provider set. */
+function withProvenance(result: AgentResult): AgentResult {
+  const isDemo = !isAnyProviderReal();
+  return {
+    ...result,
+    dataSource: isDemo ? 'mock' : 'real',
+    isDemoData: isDemo,
+    sources: isDemo ? ['CareLink demo data (no provider configured)'] : result.sources,
+  };
+}
 
 const emptyResult = (intent: AgentIntent, overrides: Partial<AgentResult> = {}): AgentResult => ({
   id: `res-${Math.random().toString(36).slice(2, 9)}`,
@@ -123,62 +153,77 @@ function buildDiseaseResult(entities: string[], rawInput: string): AgentResult {
   });
 }
 
-async function buildHospitalResult(entities: string[], adapters: AgentAdapters): Promise<AgentResult> {
+async function buildHospitalResult(entities: string[], adapters: AgentAdapters, patientContext: AgentOrchestratorRequest['patientContext'], language: AgentLanguage): Promise<AgentResult> {
   const specialty = pickSpecialty(entities);
   const hospitals = specialty ? await adapters.hospitals.bySpecialty(specialty) : hospitalRecommendations.slice(0, 3);
-  return emptyResult('hospital', {
+  const ctx = buildRankingContext(language, patientContext, entities);
+  const ranked = rankHospitals(hospitals.map((h) => ({ ...h, route: buildRouteFromHospital(h) })), ctx);
+  return withProvenance(emptyResult('hospital', {
     summary: specialty ? `Hospitals for ${specialty}` : 'Hospitals near you',
     explanation: 'Hospitals from the CareLink network. Tap a card to view the full hospital profile.',
     urgency: 'routine',
     meta: { confidence: 'high', urgency: 'routine', tier: 'next-action', disclaimer: 'Availability is indicative — confirm directly with the hospital.' },
     recommendedNextSteps: ['Compare profiles and pick the closest facility that matches your needs.'],
-    hospitals: hospitals.map((h) => ({ ...h, route: buildRouteFromHospital(h) })),
-    sources: ['CareLink hospital network (mock)'],
-    actions: [{ type: 'find-hospital', label: 'Browse all hospitals', href: ROUTES.hospitals, icon: 'find-hospital' }],
+    hospitals: ranked,
+    sources: ['CareLink hospital network'],
+    actions: [
+      { type: 'find-hospital', label: 'Browse all hospitals', href: ROUTES.hospitals, icon: 'find-hospital' },
+      ...(ranked[0] ? [{ type: 'view-hospital' as const, label: `View ${ranked[0].name}`, href: `${ROUTES.hospitals}/${ranked[0].detailSlug}`, icon: 'view-hospital' as const }] : []),
+    ],
     suggestedReplies: ['Find a doctor', 'Get directions', 'Book an appointment'],
-  });
+  }));
 }
 
-async function buildDoctorResult(entities: string[], adapters: AgentAdapters): Promise<AgentResult> {
+async function buildDoctorResult(entities: string[], adapters: AgentAdapters, patientContext: AgentOrchestratorRequest['patientContext'], language: AgentLanguage): Promise<AgentResult> {
   const specialty = pickSpecialty(entities);
   const doctors = specialty ? await adapters.doctors.bySpecialty(specialty) : doctorRecommendations.slice(0, 3);
-  return emptyResult('doctor', {
+  const ctx = buildRankingContext(language, patientContext, entities);
+  const ranked = rankDoctors(doctors, ctx);
+  return withProvenance(emptyResult('doctor', {
     summary: specialty ? `${specialty} specialists` : 'Doctors for your needs',
     explanation: 'Verified specialists from the CareLink network. Tap a card to view the doctor profile.',
     urgency: 'routine',
     meta: { confidence: 'high', urgency: 'routine', tier: 'next-action', disclaimer: 'Slot availability is indicative — confirm during booking.' },
     recommendedNextSteps: ['Review profiles and book a consultation.'],
-    doctors,
-    sources: ['CareLink doctor network (mock)'],
-    actions: [{ type: 'view-appointments', label: 'Book an appointment', href: ROUTES.appointments, icon: 'book-appointment' }],
+    doctors: ranked,
+    sources: ['CareLink doctor network'],
+    actions: [
+      { type: 'view-appointments', label: 'Book an appointment', href: ROUTES.appointments, icon: 'book-appointment' },
+      ...(ranked[0] ? [{ type: 'view-doctor' as const, label: `View ${ranked[0].fullName}`, href: `${ROUTES.doctors}/${ranked[0].detailSlug}`, icon: 'view-doctor' as const }] : []),
+    ],
     suggestedReplies: ['Find a hospital', 'Book an appointment', 'What should I do next?'],
-  });
+  }));
 }
 
-async function buildPharmacyResult(adapters: AgentAdapters): Promise<AgentResult> {
-  return emptyResult('pharmacy', {
+async function buildPharmacyResult(adapters: AgentAdapters, patientContext: AgentOrchestratorRequest['patientContext'], language: AgentLanguage, rawInput: string): Promise<AgentResult> {
+  const ctx = buildRankingContext(language, patientContext, []);
+  const pharmacies = await adapters.pharmacies.search(rawInput, patientContext);
+  const ranked = rankPharmacies(pharmacies, ctx);
+  return withProvenance(emptyResult('pharmacy', {
     summary: 'Pharmacies near you',
     explanation: 'Nearby pharmacies from the CareLink network.',
     urgency: 'routine',
     meta: { confidence: 'medium', urgency: 'routine', tier: 'next-action', disclaimer: 'Stock availability shown is a placeholder — confirm directly with the pharmacy before visiting.' },
     recommendedNextSteps: ['Call ahead to confirm the medicine is in stock before you travel.'],
-    pharmacies: await adapters.pharmacies.search('', { activeProfileId: 'self', profile: { id: 'self', label: 'Self', relation: 'self', contextSummary: '', contextTags: [] } }),
-    sources: ['CareLink pharmacy network (mock)'],
+    pharmacies: ranked,
+    sources: ['CareLink pharmacy network'],
     suggestedReplies: ['Find a hospital', 'Upload a prescription', 'Find a doctor'],
-  });
+  }));
 }
 
-function buildLabResult(): AgentResult {
-  return emptyResult('lab', {
+function buildLabResult(patientContext: AgentOrchestratorRequest['patientContext'], language: AgentLanguage): AgentResult {
+  const ctx = buildRankingContext(language, patientContext, []);
+  const ranked = rankLabs(labRecommendations, ctx);
+  return withProvenance(emptyResult('lab', {
     summary: 'Diagnostic & lab centers',
     explanation: 'Diagnostic and lab centers from the CareLink network. Home collection is indicated where available.',
     urgency: 'routine',
     meta: { confidence: 'medium', urgency: 'routine', tier: 'next-action', disclaimer: 'Test availability is indicative — confirm directly with the lab.' },
     recommendedNextSteps: ['Choose a lab and call to confirm test availability.'],
-    labs: labRecommendations,
-    sources: ['CareLink lab network (mock)'],
+    labs: ranked,
+    sources: ['CareLink lab network'],
     suggestedReplies: ['Upload a lab report', 'Find a doctor', 'What should I do next?'],
-  });
+  }));
 }
 
 async function buildMedicineResult(rawInput: string, adapters: AgentAdapters): Promise<AgentResult> {
@@ -405,8 +450,8 @@ function buildGeneralResult(): AgentResult {
   });
 }
 
-async function buildEmergencyResult(adapters: AgentAdapters, input: string): Promise<AgentResult> {
-  const assessment = await adapters.emergency.assess(input, { activeProfileId: 'self', profile: { id: 'self', label: 'Self', relation: 'self', contextSummary: '', contextTags: [] } });
+async function buildEmergencyResult(adapters: AgentAdapters, input: string, patientContext: AgentOrchestratorRequest['patientContext']): Promise<AgentResult> {
+  const assessment = await adapters.emergency.assess(input, patientContext);
   return emptyResult('emergency', {
     summary: 'This may need urgent attention',
     explanation: 'Based on what you described, this could be serious. Please treat this as urgent and consider immediate professional care.',
@@ -437,13 +482,13 @@ export interface AgentOrchestrator {
   handle(request: AgentOrchestratorRequest): Promise<AgentOrchestratorResponse>;
 }
 
-export function createAgentOrchestrator(adapters: AgentAdapters = mockAdapters): AgentOrchestrator {
+export function createAgentOrchestrator(adapters: AgentAdapters = resolvedAdapters): AgentOrchestrator {
   const handle = async (request: AgentOrchestratorRequest): Promise<AgentOrchestratorResponse> => {
     const classification = await adapters.ai.classify(request.text, request.patientContext);
 
-    // Emergency short-circuits everything — always escalate.
+    // Emergency short-circuits everything — always escalate (Step 9 §8).
     if (classification.intent === 'emergency') {
-      const result = await buildEmergencyResult(adapters, request.text);
+      const result = withProvenance(await buildEmergencyResult(adapters, request.text, request.patientContext));
       return { result, classification };
     }
 
@@ -456,16 +501,16 @@ export function createAgentOrchestrator(adapters: AgentAdapters = mockAdapters):
         result = buildDiseaseResult(classification.entities, request.text);
         break;
       case 'hospital':
-        result = await buildHospitalResult(classification.entities, adapters);
+        result = await buildHospitalResult(classification.entities, adapters, request.patientContext, request.language);
         break;
       case 'doctor':
-        result = await buildDoctorResult(classification.entities, adapters);
+        result = await buildDoctorResult(classification.entities, adapters, request.patientContext, request.language);
         break;
       case 'pharmacy':
-        result = await buildPharmacyResult(adapters);
+        result = await buildPharmacyResult(adapters, request.patientContext, request.language, request.text);
         break;
       case 'lab':
-        result = buildLabResult();
+        result = buildLabResult(request.patientContext, request.language);
         break;
       case 'medicine':
         result = await buildMedicineResult(request.text, adapters);
@@ -504,7 +549,7 @@ export function createAgentOrchestrator(adapters: AgentAdapters = mockAdapters):
         result = buildGeneralResult();
     }
 
-    return { result, classification };
+    return { result: withProvenance(result), classification };
   };
 
   return { handle };

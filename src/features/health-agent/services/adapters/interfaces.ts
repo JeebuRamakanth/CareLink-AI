@@ -24,6 +24,8 @@ import type {
   DoctorRecommendation,
   RecoveryTrend,
   RouteRecommendation,
+  RouteTargetKind,
+  TransportMode,
 } from '../../types';
 
 /* ----------------------------------------------------------------------------
@@ -62,8 +64,36 @@ export interface LaboratorySearchAdapter {
  * Maps / routing
  * ------------------------------------------------------------------------- */
 
+export interface RouteRecommendationLike {
+  deepLink?: { kind: RouteTargetKind; id: string };
+}
+
 export interface MapsRoutingAdapter {
-  routeTo(destinationId: string, kind: RouteRecommendation['deepLink'] extends infer K ? K extends { kind: infer C } ? C : never : never): Promise<RouteRecommendation | null>;
+  routeTo(destinationId: string, kind: RouteTargetKind): Promise<RouteRecommendation | null>;
+}
+
+export interface MapsProvider {
+  /** Build a directions deep-link URL (no key required for public maps URL). */
+  directionsUrl(params: { destination: string; origin?: { label: string; lat?: number; lng?: number }; mode?: TransportMode }): string;
+  /** Build a place-search deep-link URL. */
+  placeUrl(query: string): string;
+  /** Name for badges/logging. */
+  readonly name: string;
+}
+
+export interface DirectionsProvider {
+  /** Live route data; returns null when no real provider is available. */
+  route(origin: { lat?: number; lng?: number; label?: string }, destination: { lat?: number; lng?: number; label?: string }): Promise<RouteRecommendation | null>;
+  /** Whether the provider can compute live distance/ETA right now. */
+  readonly available: boolean;
+}
+
+export interface GeocodingProvider {
+  /** Resolve a free-text address to coordinates; null when unavailable. */
+  geocode(address: string): Promise<{ lat: number; lng: number; label: string } | null>;
+  /** Reverse-geocode coordinates to a human address; null when unavailable. */
+  reverseGeocode(coords: { lat: number; lng: number }): Promise<string | null>;
+  readonly available: boolean;
 }
 
 /* ----------------------------------------------------------------------------
@@ -111,6 +141,28 @@ export interface EmergencyServiceAdapter {
 }
 
 /* ----------------------------------------------------------------------------
+ * Storage (Cloudinary-style) — upload boundary for images/documents
+ * ------------------------------------------------------------------------- */
+
+export interface StorageUploadResult {
+  /** Public URL of the stored asset, or a local blob URL in mock mode. */
+  url: string;
+  /** Optional optimized/preview URL for the UI. */
+  previewUrl?: string;
+  /** Provider-side metadata (public id, version, format). */
+  providerMetadata?: Record<string, string>;
+  /** Whether this came from a real provider or the mock/local adapter. */
+  source: 'real' | 'mock';
+}
+
+export interface StorageProvider {
+  upload(file: File, options?: { folder?: string; signal?: AbortSignal }): Promise<StorageUploadResult>;
+  /** Whether a real storage backend is configured. */
+  readonly available: boolean;
+  readonly name: string;
+}
+
+/* ----------------------------------------------------------------------------
  * Registry — the orchestrator depends on this bag of adapters, not concrete impls.
  * ------------------------------------------------------------------------- */
 
@@ -121,6 +173,10 @@ export interface AgentAdapters {
   pharmacies: PharmacySearchAdapter;
   labs: LaboratorySearchAdapter;
   maps: MapsRoutingAdapter;
+  mapsProvider: MapsProvider;
+  directions: DirectionsProvider;
+  geocoding: GeocodingProvider;
+  storage: StorageProvider;
   appointments: AppointmentServiceAdapter;
   documents: DocumentAnalysisAdapter;
   medicines: MedicineRecognitionAdapter;

@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
+import { AuthProvider } from '../contexts/AuthContext';
 import { AppointmentProvider } from '../contexts/AppointmentContext';
 import { AgentProvider } from '../contexts/AgentContext';
+import { NavigationProvider } from '../contexts/NavigationContext';
 
 interface AppProvidersProps {
   children: ReactNode;
@@ -8,8 +10,12 @@ interface AppProvidersProps {
 
 export function AppProviders({ children }: AppProvidersProps) {
   return (
-    <AppointmentProvider>
-      <AgentProvider>{children}</AgentProvider>
-    </AppointmentProvider>
+    <AuthProvider>
+      <AppointmentProvider>
+        <NavigationProvider>
+          <AgentProvider>{children}</AgentProvider>
+        </NavigationProvider>
+      </AppointmentProvider>
+    </AuthProvider>
   );
 }

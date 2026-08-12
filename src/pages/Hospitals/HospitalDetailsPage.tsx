@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useOptionalNavigationContext } from '../../contexts/NavigationContext';
 import { Container } from '../../components/ui/Container';
 import { Button } from '../../components/ui/Button';
 import { HospitalHero } from './components/HospitalHero';
@@ -23,7 +24,16 @@ export function HospitalDetailsPage() {
   const hospital = useMemo(() => (hospitalId ? getHospitalDetailById(hospitalId) : undefined), [hospitalId]);
   const doctorsSectionRef = useRef<HTMLDivElement | null>(null);
   const locationSectionRef = useRef<HTMLDivElement | null>(null);
-  const [selectedDoctorTopic, setSelectedDoctorTopic] = useState<HospitalDoctorTopic>('All');
+  const [searchParams] = useSearchParams();
+  const navContext = useOptionalNavigationContext();
+  const [selectedDoctorTopic, setSelectedDoctorTopic] = useState<HospitalDoctorTopic>(() => {
+    // Context propagation (Step 9 §7): if the agent seeded a specialty/topic
+    // (or one was passed via ?q=), pre-select it so the hospital page shows
+    // doctors related to the user's original query instead of every doctor.
+    const fromQuery = searchParams.get('q') ?? navContext.requestedSpecialty ?? navContext.diseaseTopic;
+    const match = doctorTopics.find((t) => t !== 'All' && fromQuery?.toLowerCase().includes(t.toLowerCase()));
+    return (match as HospitalDoctorTopic) ?? 'All';
+  });
   const [selectedReviewFilter, setSelectedReviewFilter] = useState<ReviewFilterOption>('All');
 
   const filteredDoctors = useMemo(() => {

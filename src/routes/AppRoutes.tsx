@@ -8,8 +8,12 @@ import { HospitalDetailsPage } from '../pages/Hospitals/HospitalDetailsPage';
 import { AppointmentsPage } from '../pages/Appointments/AppointmentsPage';
 import { AppointmentDetailPage } from '../pages/Appointments/AppointmentDetailPage';
 import { AgentCommandCenterPage } from '../pages/Agent/AgentCommandCenterPage';
+import { LoginPage } from '../pages/Auth/LoginPage';
+import { RegisterPage } from '../pages/Auth/RegisterPage';
+import { ProfilePage } from '../pages/Auth/ProfilePage';
 import { ROUTES } from './routeConstants';
 import { PublicLayout } from './PublicLayout';
+import { ProtectedRoute } from '../components/ProtectedRoute';
 
 function PlaceholderPage({ title }: { title: string }) {
   return (
@@ -36,11 +40,13 @@ export function AppRoutes() {
         <Route path={ROUTES.hospitalDetail} element={<HospitalDetailsPage />} />
         <Route path={ROUTES.appointments} element={<AppointmentsPage />} />
         <Route path={ROUTES.appointmentDetail} element={<AppointmentDetailPage />} />
+        <Route path={ROUTES.login} element={<LoginPage />} />
+        <Route path={ROUTES.register} element={<RegisterPage />} />
+        {/* Protected — requires an authenticated user. */}
+        <Route path={ROUTES.profile} element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
         <Route path={ROUTES.about} element={<PlaceholderPage title="About" />} />
         <Route path={ROUTES.help} element={<PlaceholderPage title="Help" />} />
         <Route path={ROUTES.contact} element={<PlaceholderPage title="Contact" />} />
-        <Route path={ROUTES.login} element={<PlaceholderPage title="Login" />} />
-        <Route path={ROUTES.register} element={<PlaceholderPage title="Register" />} />
       </Route>
       <Route path="*" element={<Navigate to={ROUTES.home} replace />} />
     </Routes>

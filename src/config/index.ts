@@ -1,9 +1,18 @@
+/**
+ * Legacy app config — kept for backward compatibility with existing imports.
+ * The authoritative, validated environment lives in `./env` (Step 9). Prefer
+ * importing `env` for new code; `appConfig` is a thin view over the same data.
+ */
+import { env } from './env';
+export { env };
+export type { Env } from './env';
+
 export const appConfig = {
   appName: 'CareLink.AI',
-  environment: import.meta.env.MODE,
-  apiBaseUrl: import.meta.env.VITE_API_BASE_URL ?? '/api',
-  supabaseUrl: import.meta.env.VITE_SUPABASE_URL ?? '',
-  supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY ?? '',
-  googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '',
-  cloudinaryCloudName: import.meta.env.VITE_CLOUDINARY_CLOUD_NAME ?? '',
+  environment: env.mode,
+  apiBaseUrl: env.apiBaseUrl,
+  supabaseUrl: env.supabase.url,
+  supabaseAnonKey: env.supabase.anonKey,
+  googleMapsApiKey: env.maps.apiKey,
+  cloudinaryCloudName: env.cloudinary.cloudName,
 } as const;

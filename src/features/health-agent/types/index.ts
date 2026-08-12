@@ -81,6 +81,10 @@ export type AgentActionType =
   | 'cancel-appointment'
   | 'view-appointments'
   | 'get-directions'
+  | 'open-map'
+  | 'view-distance'
+  | 'view-eta'
+  | 'call-facility'
   | 'call-emergency'
   | 'find-pharmacy'
   | 'find-doctor'
@@ -163,6 +167,46 @@ export interface RouteRecommendation {
   deepLink?: { kind: RouteTargetKind; id: string };
 }
 
+/* ----------------------------------------------------------------------------
+ * Smart healthcare search — explainable ranking ("Why this result?")
+ * ------------------------------------------------------------------------- */
+
+export type RankReasonTag =
+  | 'near-you'
+  | 'highly-rated'
+  | 'relevant-specialty'
+  | 'doctor-availability'
+  | 'open-now'
+  | 'matches-treatment'
+  | 'accepts-new-patients';
+
+export interface RankReason {
+  tag: RankReasonTag;
+  /** Human label, e.g. "Highly rated (4.8)". */
+  label: string;
+  /** 0..1 relative weight contribution for this reason. */
+  weight: number;
+}
+
+export interface RankingContext {
+  patientLocation?: { label: string; lat?: number; lng?: number };
+  requestedSpecialty?: string;
+  requestedTreatment?: string;
+  urgency: UrgencyLevel;
+  language: AgentLanguage;
+}
+
+/** A ranked recommendation carries its score + human-readable reasons. */
+export interface RankedRecommendation {
+  score: number;
+  reasons: RankReason[];
+}
+
+/** Composite score field attachable to any recommendation list item. */
+export interface WithRanking {
+  rank?: RankedRecommendation;
+}
+
 export interface HospitalRecommendation {
   id: string;
   /** Id used by the EXISTING route /hospitals/:hospitalId. */
@@ -178,6 +222,7 @@ export interface HospitalRecommendation {
   address: string;
   city: string;
   route?: RouteRecommendation;
+  rank?: RankedRecommendation;
 }
 
 export interface DoctorRecommendation {
@@ -197,6 +242,7 @@ export interface DoctorRecommendation {
   consultationFee?: string;
   acceptsNewPatients: boolean;
   route?: RouteRecommendation;
+  rank?: RankedRecommendation;
 }
 
 export interface PharmacyRecommendation {
@@ -211,6 +257,7 @@ export interface PharmacyRecommendation {
   estimatedPrice?: string;
   address: string;
   route?: RouteRecommendation;
+  rank?: RankedRecommendation;
 }
 
 export interface LabRecommendation {
@@ -223,6 +270,7 @@ export interface LabRecommendation {
   homeCollectionAvailable: boolean;
   address: string;
   route?: RouteRecommendation;
+  rank?: RankedRecommendation;
 }
 
 /* ----------------------------------------------------------------------------
@@ -347,11 +395,28 @@ export interface PatientProfile {
   contextTags: string[];
 }
 
+export interface AgentNavigationContext {
+  symptoms?: string[];
+  diseaseTopic?: string;
+  medicine?: string;
+  ageProfile?: string;
+  familyMember?: string;
+  urgency?: UrgencyLevel;
+  location?: { label: string; lat?: number; lng?: number };
+  selectedHospitalSlug?: string;
+  selectedDoctorSlug?: string;
+  appointmentIntent?: 'book' | 'reschedule' | 'cancel' | 'view';
+  requestedSpecialty?: string;
+  requestedTreatment?: string;
+}
+
 export interface PatientContext {
   activeProfileId: string;
   profile: PatientProfile;
   /** Optional location-aware context for location-sensitive intents. */
   location?: { label: string; lat?: number; lng?: number };
+  /** Structured context carried across navigation steps (Step 9 §7). */
+  navigation?: AgentNavigationContext;
 }
 
 /* ----------------------------------------------------------------------------
@@ -414,6 +479,10 @@ export interface AgentResult {
   emergency?: EmergencyAssessment;
   recovery?: RecoveryStatus;
   warnings: string[];
+  /** Whether the result came from real providers, mock, or fallback (demo). */
+  dataSource?: 'real' | 'mock' | 'fallback';
+  /** True when any part of the result is demo/mock data (drives UI badge). */
+  isDemoData?: boolean;
   /** Provenance / verification metadata. */
   sources: string[];
   /** Clarifying prompts to keep the conversation moving. */

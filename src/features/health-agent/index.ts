@@ -13,7 +13,29 @@ export type { HealthCommandCenterHandle } from './components/HealthCommandCenter
 export { createAgentOrchestrator } from './services/agentOrchestrator';
 export type { AgentOrchestrator } from './services/agentOrchestrator';
 export { mockAdapters } from './services/adapters/mockAdapters';
-export type { AgentAdapters, AIProvider, HospitalSearchAdapter, DoctorSearchAdapter, PharmacySearchAdapter, LaboratorySearchAdapter, MapsRoutingAdapter, AppointmentServiceAdapter, DocumentAnalysisAdapter, MedicineRecognitionAdapter, RecoveryServiceAdapter, EmergencyServiceAdapter } from './services/adapters/interfaces';
+export { adapters, isAnyProviderReal } from './services/adapters/registry';
+export { rankHospitals, rankDoctors, rankPharmacies, rankLabs } from './utils/ranking';
+export { DISCLOSURES, tierForIntent, urgencyForIntent, isEmergencyIntent, tierLabel } from './utils/safety';
+export type {
+  AgentAdapters,
+  AIProvider,
+  HospitalSearchAdapter,
+  DoctorSearchAdapter,
+  PharmacySearchAdapter,
+  LaboratorySearchAdapter,
+  MapsRoutingAdapter,
+  MapsProvider,
+  DirectionsProvider,
+  GeocodingProvider,
+  StorageProvider,
+  StorageUploadResult,
+  AppointmentServiceAdapter,
+  DocumentAnalysisAdapter,
+  MedicineRecognitionAdapter,
+  RecoveryServiceAdapter,
+  EmergencyServiceAdapter,
+} from './services/adapters/interfaces';
+export type { RankReason, RankReasonTag, RankedRecommendation, RankingContext, InformationTier } from './types';
 export {
   ACCEPT_ATTR,
   detectDocumentKind,

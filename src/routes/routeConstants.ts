@@ -13,4 +13,5 @@ export const ROUTES = {
   reviews: '/reviews',
   login: '/login',
   register: '/register',
+  profile: '/profile',
 } as const;
