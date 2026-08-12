@@ -15,6 +15,7 @@
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { cn } from '../../../components/common/cn';
 import { Badge } from '../../../components/ui/Badge';
@@ -48,6 +49,7 @@ import {
 } from '../utils/helpers';
 import { useHealthAgent } from '../hooks/useHealthAgent';
 import type { HealthAgentStatus } from '../hooks/useHealthAgent';
+import { setPendingHandoff } from '../services/pendingHandoff';
 import type { AgentAction, AgentLanguage, AgentResult } from '../types';
 
 /**
@@ -394,6 +396,7 @@ function StateDot({ status }: { status: HealthAgentStatus }) {
 
 export const HealthCommandCenter = forwardRef<HealthCommandCenterHandle>(function HealthCommandCenter(_props, ref) {
   const agent = useHealthAgent();
+  const navigate = useNavigate();
   const [text, setText] = useState('');
   const [focused, setFocused] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
@@ -404,15 +407,22 @@ export const HealthCommandCenter = forwardRef<HealthCommandCenterHandle>(functio
 
   const isEmergency = agent.status === 'emergency';
   const isThinking = agent.status === 'thinking' || agent.status === 'processing';
+  // Hero hands off to /ai on send, so an inline result rarely shows here.
   const showResult = (agent.status === 'result' || agent.status === 'emergency') && agent.result;
+
+  // Hand the prompt (and any attachments) to the dedicated /ai chat page.
+  const handoffToChat = useCallback((value: string) => {
+    setPendingHandoff(value, agent.documents);
+    navigate(ROUTES.ai);
+  }, [agent.documents, navigate]);
 
   const handleSubmit = useCallback((e?: React.FormEvent) => {
     e?.preventDefault();
     const value = text.trim();
     if (!value && agent.documents.length === 0) return;
-    void agent.submit(value || 'uploaded document');
     setText('');
-  }, [text, agent]);
+    handoffToChat(value || 'uploaded document');
+  }, [text, agent.documents, handoffToChat]);
 
   const handleFiles = (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -422,20 +432,20 @@ export const HealthCommandCenter = forwardRef<HealthCommandCenterHandle>(functio
 
   const handlePrompt = (prompt: string) => {
     setText('');
-    void agent.submit(prompt);
+    handoffToChat(prompt);
   };
 
   const focus = useCallback(() => {
     inputRef.current?.focus();
   }, []);
 
-  // Imperative handle: hero CTAs drive the agent without lifting state.
+  // Imperative handle: hero CTAs drive the agent by opening the chat page.
   useImperativeHandle(ref, () => ({
     focus,
     ask: (prompt: string) => {
-      void agent.submit(prompt);
+      handoffToChat(prompt);
     },
-  }), [focus, agent]);
+  }), [focus, handoffToChat]);
 
   // Close the language menu on outside click / Escape (keyboard accessible).
   useEffect(() => {

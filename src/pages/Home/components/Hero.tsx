@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { motion } from 'framer-motion';
+import { motion, MotionConfig } from 'framer-motion';
 import { Button } from '../../../components/ui/Button';
 import { ROUTES } from '../../../routes/routeConstants';
 import {
@@ -26,6 +26,7 @@ export function Hero() {
   const findCareNearMe = () => agentRef.current?.ask('Find a hospital near me');
 
   return (
+    <MotionConfig reducedMotion="user">
     <section className="relative overflow-hidden">
       {/* Ambient gradients */}
       <div
@@ -114,5 +115,6 @@ export function Hero() {
         </motion.div>
       </div>
     </section>
+    </MotionConfig>
   );
 }

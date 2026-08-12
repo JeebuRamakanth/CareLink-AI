@@ -158,6 +158,25 @@ export interface DocumentAnalysis {
  * Recommendation models (carry deep-link ids to existing routes)
  * ------------------------------------------------------------------------- */
 
+/* ----------------------------------------------------------------------------
+ * Explainability — every scored recommendation carries why it was picked.
+ * ------------------------------------------------------------------------- */
+
+/**
+ * Why a single recommendation was selected and how strongly. Rendered as a
+ * human-readable rationale ("Recommended #1 because…"). Kept on the model so a
+ * future backend can populate the same fields — the ranking engine fills these
+ * for the mock today.
+ */
+export interface RecommendationReason {
+  /** 0–100 normalized score across all ranking factors. */
+  recommendationScore: number;
+  /** Short human-readable reasons, e.g. "2.3 km away", "rated 4.8/5". */
+  matchedReasons: string[];
+  /** The single strongest factor, surfaced as the headline reason. */
+  topReason?: string;
+}
+
 export interface RouteRecommendation {
   destinationName: string;
   destinationAddress: string;
@@ -208,6 +227,16 @@ export interface WithRanking {
 }
 
 export interface HospitalRecommendation {
+
+/**
+ * Mixin helper: any recommendation can carry explainability. Declared as an
+ * optional intersection on each concrete recommendation type below so the UI
+ * can render `recommendationScore` / `matchedReasons` when present.
+ */
+export type Explainable<T> = T & Partial<RecommendationReason>;
+
+export interface HospitalRecommendation extends Explainable<{
+>>>>>>> home-hero-ai-command-center
   id: string;
   /** Id used by the EXISTING route /hospitals/:hospitalId. */
   detailSlug: string;
@@ -224,8 +253,10 @@ export interface HospitalRecommendation {
   route?: RouteRecommendation;
   rank?: RankedRecommendation;
 }
+}> {}
+>>>>>>> home-hero-ai-command-center
 
-export interface DoctorRecommendation {
+export interface DoctorRecommendation extends Explainable<{
   id: string;
   /** Id used by the EXISTING route /doctors/:doctorId. */
   detailSlug: string;
@@ -244,8 +275,10 @@ export interface DoctorRecommendation {
   route?: RouteRecommendation;
   rank?: RankedRecommendation;
 }
+}> {}
+>>>>>>> home-hero-ai-command-center
 
-export interface PharmacyRecommendation {
+export interface PharmacyRecommendation extends Explainable<{
   id: string;
   name: string;
   medicineName?: string;
@@ -259,8 +292,10 @@ export interface PharmacyRecommendation {
   route?: RouteRecommendation;
   rank?: RankedRecommendation;
 }
+}> {}
+>>>>>>> home-hero-ai-command-center
 
-export interface LabRecommendation {
+export interface LabRecommendation extends Explainable<{
   id: string;
   name: string;
   testsOffered: string[];
@@ -272,6 +307,8 @@ export interface LabRecommendation {
   route?: RouteRecommendation;
   rank?: RankedRecommendation;
 }
+}> {}
+>>>>>>> home-hero-ai-command-center
 
 /* ----------------------------------------------------------------------------
  * Medicine + medical report models (mock, clearly labelled)
@@ -494,6 +531,33 @@ export interface AgentResult {
 }
 
 /* ----------------------------------------------------------------------------
+ * Conversation context memory
+ * ------------------------------------------------------------------------- */
+
+/**
+ * Accumulated conversational context derived from prior turns by the
+ * ContextManager. Lets "Hospital kavali" carry forward the diabetes context
+ * from "Naaku diabetes undi" without the user repeating themselves.
+ *
+ * SAFETY: this is navigational context only (conditions, specialties, intents).
+ * It never stores a diagnosis — only tags that help route the next query.
+ */
+export interface ConversationContext {
+  /** Conditions mentioned across the conversation (diabetes, hypertension…). */
+  conditions: string[];
+  /** Clinical specialties inferred (Cardiology, Endocrinology…). */
+  specialties: string[];
+  /** Medicines mentioned (metformin, paracetamol…). */
+  medicines: string[];
+  /** Recent intents, most-recent-first (capped). */
+  recentIntents: AgentIntent[];
+  /** Human-readable summary used to seed explainability and follow-ups. */
+  summary: string;
+  /** True once a condition/specialty context has been established. */
+  hasContext: boolean;
+}
+
+/* ----------------------------------------------------------------------------
  * Orchestrator request
  * ------------------------------------------------------------------------- */
 
@@ -502,9 +566,15 @@ export interface AgentOrchestratorRequest {
   documents: HealthDocument[];
   patientContext: PatientContext;
   language: AgentLanguage;
+  /** Prior turns (most-recent-last) for multi-turn context memory. */
+  history?: AgentMessage[];
+  /** Accumulated context from earlier turns (ContextManager output). */
+  conversationContext?: ConversationContext;
 }
 
 export interface AgentOrchestratorResponse {
   result: AgentResult;
   classification: IntentClassification;
+  /** Updated conversation context to carry into the next turn. */
+  context: ConversationContext;
 }

@@ -11,6 +11,7 @@ import { AgentCommandCenterPage } from '../pages/Agent/AgentCommandCenterPage';
 import { LoginPage } from '../pages/Auth/LoginPage';
 import { RegisterPage } from '../pages/Auth/RegisterPage';
 import { ProfilePage } from '../pages/Auth/ProfilePage';
+import { AIChatPage } from '../features/health-agent';
 import { ROUTES } from './routeConstants';
 import { PublicLayout } from './PublicLayout';
 import { ProtectedRoute } from '../components/ProtectedRoute';
@@ -29,6 +30,8 @@ function PlaceholderPage({ title }: { title: string }) {
 export function AppRoutes() {
   return (
     <Routes>
+      {/* Dedicated AI chat experience — full-screen, own chrome. */}
+      <Route path={ROUTES.ai} element={<AIChatPage />} />
       {/* Agent command center is a full-screen workspace with its own chrome. */}
       <Route path={ROUTES.agent} element={<AgentCommandCenterPage />} />
       <Route element={<PublicLayout />}>

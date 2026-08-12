@@ -8,10 +8,17 @@
 export * from './types';
 export { useHealthAgent } from './hooks/useHealthAgent';
 export type { UseHealthAgent, HealthAgentState, HealthAgentStatus } from './hooks/useHealthAgent';
+export { useAgentConversation } from './hooks/useAgentConversation';
+export type { UseAgentConversation, ChatStatus } from './hooks/useAgentConversation';
 export { HealthCommandCenter } from './components/HealthCommandCenter';
 export type { HealthCommandCenterHandle } from './components/HealthCommandCenter';
+export { AIChatPage } from './components/AIChatPage';
 export { createAgentOrchestrator } from './services/agentOrchestrator';
 export type { AgentOrchestrator } from './services/agentOrchestrator';
+export { accumulateContext, emptyContext, resolveSpecialtyFromContext, hospitalFocusTopic } from './services/contextManager';
+export { rankHospitals, rankDoctors, rankPharmacies, rankLabs, explainRecommendation } from './services/recommendationRanking';
+export { setPendingHandoff, drainPendingHandoff, hasPendingHandoff, clearPendingHandoff } from './services/pendingHandoff';
+export type { PendingHandoff } from './services/pendingHandoff';
 export { mockAdapters } from './services/adapters/mockAdapters';
 export { adapters, isAnyProviderReal } from './services/adapters/registry';
 export { rankHospitals, rankDoctors, rankPharmacies, rankLabs } from './utils/ranking';
