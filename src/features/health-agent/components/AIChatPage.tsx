@@ -48,6 +48,7 @@ import {
   IconStar,
 } from '../../../components/agent/AgentIcons';
 import { useAgentConversation } from '../hooks/useAgentConversation';
+import { AgentDocumentAnalysisPanel } from './AgentDocumentAnalysisPanel';
 import {
   ACCEPT_ATTR,
   LANGUAGE_LABELS,
@@ -782,6 +783,13 @@ export function AIChatPage() {
               ) : null}
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Step 11 — secure document analysis (additive, non-breaking) */}
+      <div className="border-t border-white/10 bg-slate-950/40 px-3 py-3 sm:px-4">
+        <div className="mx-auto max-w-3xl">
+          <AgentDocumentAnalysisPanel activeProfileId={conv.activeProfileId === 'self' ? null : conv.activeProfileId} />
         </div>
       </div>
 

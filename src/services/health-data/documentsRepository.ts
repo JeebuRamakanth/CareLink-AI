@@ -1,9 +1,15 @@
 /**
- * CareLink-AI — medical documents metadata repository (Step 10).
+ * CareLink-AI — medical documents metadata repository (Step 10 / Step 11).
  *
  * Stores file metadata in the `medical_documents` table. The binary object is
- * uploaded separately via the storage boundary (supabaseStorage.ts). The public
- * URL is NEVER stored here — access is via signed URLs only.
+ * uploaded separately via the storage boundary (supabaseStorage.ts / Cloudinary).
+ * The public URL is NEVER stored here — access is via signed URLs only.
+ *
+ * Step 11 additions:
+ * - `listDocumentsForProfile` scopes reads to the selected family profile so
+ *   documents are never mixed across family members.
+ * - `updateAnalysisStatus` records the analysis outcome without storing raw PHI.
+ * - `getDocument` performs an ownership-safe single read (RLS enforces it too).
  *
  * Returns null/empty when Supabase is unavailable; callers keep using the
  * existing local-preview attachment flow.
@@ -20,6 +26,35 @@ export async function listDocuments(): Promise<MedicalDocumentRow[]> {
     return (res.data as MedicalDocumentRow[]) ?? [];
   });
   return data ?? [];
+}
+
+/**
+ * List documents for a specific family profile (RLS-scoped to owner_id).
+ * Pass `null` for the user's "self" documents. Never mixes profiles.
+ */
+export async function listDocumentsForProfile(familyProfileId: string | null): Promise<MedicalDocumentRow[]> {
+  const { data } = await withClient(async (client: SupabaseClient) => {
+    let query = client.from('medical_documents').select('*');
+    if (familyProfileId) {
+      query = query.eq('family_profile_id', familyProfileId);
+    } else {
+      query = query.is('family_profile_id', null);
+    }
+    const res = await query.order('created_at', { ascending: false });
+    if (res.error) throw res.error;
+    return (res.data as MedicalDocumentRow[]) ?? [];
+  });
+  return data ?? [];
+}
+
+/** Ownership-safe single-document read (RLS also enforces ownership). */
+export async function getDocument(id: string): Promise<MedicalDocumentRow | null> {
+  const { data } = await withClient(async (client: SupabaseClient) => {
+    const res = await client.from('medical_documents').select('*').eq('id', id).maybeSingle();
+    if (res.error) throw res.error;
+    return (res.data as MedicalDocumentRow | null) ?? null;
+  });
+  return data;
 }
 
 export interface DocumentMetadataInput {
@@ -68,9 +103,16 @@ export async function createDocument(
   return data;
 }
 
+export interface DocumentStatusPatch {
+  upload_status?: DocumentUploadStatus;
+  processing_status?: DocumentProcessingStatus;
+  extracted_text_placeholder?: string | null;
+  provider_metadata?: Record<string, unknown> | null;
+}
+
 export async function updateDocumentStatus(
   id: string,
-  patch: { upload_status?: DocumentUploadStatus; processing_status?: DocumentProcessingStatus; extracted_text_placeholder?: string | null }
+  patch: DocumentStatusPatch
 ): Promise<MedicalDocumentRow | null> {
   const { data } = await withClient(async (client: SupabaseClient) => {
     const res = await client.from('medical_documents').update(patch).eq('id', id).select('*').maybeSingle();
@@ -78,6 +120,19 @@ export async function updateDocumentStatus(
     return res.data as MedicalDocumentRow | null;
   });
   return data;
+}
+
+/**
+ * Record the analysis outcome (Step 11). Stores only a safe short placeholder +
+ * processing status — never the full extracted medical content. The structured
+ * analysis result itself lives in the (RLS-scoped) `medical_reports` table via
+ * the report repository, not on the document row.
+ */
+export async function updateAnalysisStatus(
+  id: string,
+  patch: { processing_status?: DocumentProcessingStatus; extracted_text_placeholder?: string | null; provider_metadata?: Record<string, unknown> | null }
+): Promise<MedicalDocumentRow | null> {
+  return updateDocumentStatus(id, patch);
 }
 
 export async function deleteDocument(id: string): Promise<boolean> {

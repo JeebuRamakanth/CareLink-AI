@@ -15,7 +15,6 @@
 import type {
   AgentAction,
   AgentIntent,
-  AgentLanguage,
   AgentOrchestratorRequest,
   AgentOrchestratorResponse,
   AgentResult,
@@ -23,16 +22,13 @@ import type {
   HealthDocument,
   MedicalReport,
   MedicalReportValue,
-  RankingContext,
   PharmacyRecommendation,
->>>>>>> home-hero-ai-command-center
   UrgencyLevel,
   InformationTier,
 } from '../types';
 import type { AgentAdapters } from './adapters/interfaces';
 import { mockAdapters } from './adapters/mockAdapters';
-import { adapters as resolvedAdapters, isAnyProviderReal } from './adapters/registry';
-import { rankHospitals, rankDoctors, rankPharmacies, rankLabs } from '../utils/ranking';
+import { adapters as resolvedAdapters } from './adapters/registry';
 import { DISCLOSURES } from '../utils/safety';
 import {
   buildRouteFromHospital,
@@ -86,33 +82,6 @@ const rankInput = (
 
 /** Full pharmacy pool minus the medicine's own discovery pharmacy, for richer medicine results. */
 const pharmacyNeighbors = (): PharmacyRecommendation[] => pharmacyRecommendations;
-
-/** Build the ranking context used by all search-result builders. */
-function buildRankingContext(
-  language: AgentOrchestratorRequest['language'],
-  patientContext: AgentOrchestratorRequest['patientContext'],
-  entities: string[],
-): RankingContext {
-  const specialty = pickSpecialty(entities);
-  return {
-    patientLocation: patientContext.location,
-    requestedSpecialty: specialty,
-    requestedTreatment: patientContext.navigation?.requestedTreatment ?? specialty,
-    urgency: 'routine',
-    language,
-  };
-}
-
-/** Attach demo-data metadata to a result based on the active provider set. */
-function withProvenance(result: AgentResult): AgentResult {
-  const isDemo = !isAnyProviderReal();
-  return {
-    ...result,
-    dataSource: isDemo ? 'mock' : 'real',
-    isDemoData: isDemo,
-    sources: isDemo ? ['CareLink demo data (no provider configured)'] : result.sources,
-  };
-}
 
 const emptyResult = (intent: AgentIntent, overrides: Partial<AgentResult> = {}): AgentResult => ({
   id: `res-${Math.random().toString(36).slice(2, 9)}`,
@@ -197,14 +166,6 @@ function buildDiseaseResult(entities: string[], rawInput: string, context?: Conv
   });
 }
 
-<<<<<<< HEAD
-async function buildHospitalResult(entities: string[], adapters: AgentAdapters, patientContext: AgentOrchestratorRequest['patientContext'], language: AgentLanguage): Promise<AgentResult> {
-  const specialty = pickSpecialty(entities);
-  const hospitals = specialty ? await adapters.hospitals.bySpecialty(specialty) : hospitalRecommendations.slice(0, 3);
-  const ctx = buildRankingContext(language, patientContext, entities);
-  const ranked = rankHospitals(hospitals.map((h) => ({ ...h, route: buildRouteFromHospital(h) })), ctx);
-  return withProvenance(emptyResult('hospital', {
-=======
 async function buildHospitalResult(entities: string[], adapters: AgentAdapters, context?: ConversationContext): Promise<AgentResult> {
   const specialty = activeSpecialty(entities, context);
   const focus = hospitalFocusTopic(context ?? emptyContext());
@@ -214,80 +175,39 @@ async function buildHospitalResult(entities: string[], adapters: AgentAdapters, 
   // Pre-filter relevant doctors on the hospital page when a condition/specialty context exists.
   const hospitalHref = (slug: string) => focus ? `${ROUTES.hospitals}/${slug}?focus=${encodeURIComponent(focus)}` : `${ROUTES.hospitals}/${slug}`;
   return emptyResult('hospital', {
->>>>>>> home-hero-ai-command-center
     summary: specialty ? `Hospitals for ${specialty}` : 'Hospitals near you',
     explanation: 'Hospitals from the CareLink network, ranked by distance, rating, relevance and availability. Tap a card to view the full hospital profile.',
     urgency: 'routine',
     meta: { confidence: 'high', urgency: 'routine', tier: 'next-action', disclaimer: 'Availability is indicative — confirm directly with the hospital.' },
     recommendedNextSteps: ['Compare profiles and pick the closest facility that matches your needs.'],
-<<<<<<< HEAD
-    hospitals: ranked,
-    sources: ['CareLink hospital network'],
-    actions: [
-      { type: 'find-hospital', label: 'Browse all hospitals', href: ROUTES.hospitals, icon: 'find-hospital' },
-      ...(ranked[0] ? [{ type: 'view-hospital' as const, label: `View ${ranked[0].name}`, href: `${ROUTES.hospitals}/${ranked[0].detailSlug}`, icon: 'view-hospital' as const }] : []),
-=======
     hospitals,
     sources: ['CareLink hospital network (mock)'],
     actions: [
       { type: 'view-hospital', label: 'View relevant doctors', href: hospitalHref(hospitals[0]?.detailSlug ?? ''), icon: 'view-doctor' },
       { type: 'find-hospital', label: 'Browse all hospitals', href: ROUTES.hospitals, icon: 'find-hospital' },
->>>>>>> home-hero-ai-command-center
     ],
     suggestedReplies: ['Find a doctor', 'Get directions', 'Book an appointment'],
-  }));
+  });
 }
 
-<<<<<<< HEAD
-async function buildDoctorResult(entities: string[], adapters: AgentAdapters, patientContext: AgentOrchestratorRequest['patientContext'], language: AgentLanguage): Promise<AgentResult> {
-  const specialty = pickSpecialty(entities);
-  const doctors = specialty ? await adapters.doctors.bySpecialty(specialty) : doctorRecommendations.slice(0, 3);
-  const ctx = buildRankingContext(language, patientContext, entities);
-  const ranked = rankDoctors(doctors, ctx);
-  return withProvenance(emptyResult('doctor', {
-=======
 async function buildDoctorResult(entities: string[], adapters: AgentAdapters, context?: ConversationContext): Promise<AgentResult> {
   const specialty = activeSpecialty(entities, context);
   const input = rankInput('routine', specialty, context);
   const raw = specialty ? await adapters.doctors.bySpecialty(specialty) : doctorRecommendations.slice(0, 4);
   const doctors = rankDoctors(raw, input).slice(0, 4);
   return emptyResult('doctor', {
->>>>>>> home-hero-ai-command-center
     summary: specialty ? `${specialty} specialists` : 'Doctors for your needs',
     explanation: 'Verified specialists from the CareLink network, ranked by relevance, availability, rating and distance. Tap a card to view the doctor profile.',
     urgency: 'routine',
     meta: { confidence: 'high', urgency: 'routine', tier: 'next-action', disclaimer: 'Slot availability is indicative — confirm during booking.' },
     recommendedNextSteps: ['Review profiles and book a consultation.'],
-<<<<<<< HEAD
-    doctors: ranked,
-    sources: ['CareLink doctor network'],
-    actions: [
-      { type: 'view-appointments', label: 'Book an appointment', href: ROUTES.appointments, icon: 'book-appointment' },
-      ...(ranked[0] ? [{ type: 'view-doctor' as const, label: `View ${ranked[0].fullName}`, href: `${ROUTES.doctors}/${ranked[0].detailSlug}`, icon: 'view-doctor' as const }] : []),
-    ],
-=======
     doctors,
     sources: ['CareLink doctor network (mock)'],
     actions: [{ type: 'book-appointment', label: 'Book an appointment', href: ROUTES.appointments, icon: 'book-appointment' }],
->>>>>>> home-hero-ai-command-center
     suggestedReplies: ['Find a hospital', 'Book an appointment', 'What should I do next?'],
-  }));
+  });
 }
 
-<<<<<<< HEAD
-async function buildPharmacyResult(adapters: AgentAdapters, patientContext: AgentOrchestratorRequest['patientContext'], language: AgentLanguage, rawInput: string): Promise<AgentResult> {
-  const ctx = buildRankingContext(language, patientContext, []);
-  const pharmacies = await adapters.pharmacies.search(rawInput, patientContext);
-  const ranked = rankPharmacies(pharmacies, ctx);
-  return withProvenance(emptyResult('pharmacy', {
-    summary: 'Pharmacies near you',
-    explanation: 'Nearby pharmacies from the CareLink network.',
-    urgency: 'routine',
-    meta: { confidence: 'medium', urgency: 'routine', tier: 'next-action', disclaimer: 'Stock availability shown is a placeholder — confirm directly with the pharmacy before visiting.' },
-    recommendedNextSteps: ['Call ahead to confirm the medicine is in stock before you travel.'],
-    pharmacies: ranked,
-    sources: ['CareLink pharmacy network'],
-=======
 async function buildPharmacyResult(adapters: AgentAdapters, context?: ConversationContext, medicine?: string): Promise<AgentResult> {
   const input = rankInput('routine', undefined, context);
   input.specialty = medicine;
@@ -303,36 +223,23 @@ async function buildPharmacyResult(adapters: AgentAdapters, context?: Conversati
     recommendedNextSteps: ['Call ahead to confirm the medicine is in stock before you travel.'],
     pharmacies,
     sources: ['CareLink pharmacy network (mock)'],
->>>>>>> home-hero-ai-command-center
     suggestedReplies: ['Find a hospital', 'Upload a prescription', 'Find a doctor'],
-  }));
+  });
 }
 
-<<<<<<< HEAD
-function buildLabResult(patientContext: AgentOrchestratorRequest['patientContext'], language: AgentLanguage): AgentResult {
-  const ctx = buildRankingContext(language, patientContext, []);
-  const ranked = rankLabs(labRecommendations, ctx);
-  return withProvenance(emptyResult('lab', {
-=======
 function buildLabResult(context?: ConversationContext): AgentResult {
   const input = rankInput('routine', undefined, context);
   const labs = rankLabs(labRecommendations, input).slice(0, 4);
   return emptyResult('lab', {
->>>>>>> home-hero-ai-command-center
     summary: 'Diagnostic & lab centers',
     explanation: 'Diagnostic and lab centers from the CareLink network, ranked by distance, home collection and relevance. Home collection is indicated where available.',
     urgency: 'routine',
     meta: { confidence: 'medium', urgency: 'routine', tier: 'next-action', disclaimer: 'Test availability is indicative — confirm directly with the lab.' },
     recommendedNextSteps: ['Choose a lab and call to confirm test availability.'],
-<<<<<<< HEAD
-    labs: ranked,
-    sources: ['CareLink lab network'],
-=======
     labs,
     sources: ['CareLink lab network (mock)'],
->>>>>>> home-hero-ai-command-center
     suggestedReplies: ['Upload a lab report', 'Find a doctor', 'What should I do next?'],
-  }));
+  });
 }
 
 async function buildMedicineResult(rawInput: string, adapters: AgentAdapters, context?: ConversationContext): Promise<AgentResult> {
@@ -566,10 +473,6 @@ function buildGeneralResult(): AgentResult {
   });
 }
 
-<<<<<<< HEAD
-async function buildEmergencyResult(adapters: AgentAdapters, input: string, patientContext: AgentOrchestratorRequest['patientContext']): Promise<AgentResult> {
-  const assessment = await adapters.emergency.assess(input, patientContext);
-=======
 async function buildEmergencyResult(adapters: AgentAdapters, input: string, context?: ConversationContext): Promise<AgentResult> {
   const assessment = await adapters.emergency.assess(input, { activeProfileId: 'self', profile: { id: 'self', label: 'Self', relation: 'self', contextSummary: '', contextTags: [] } });
   const input2 = rankInput('emergency', undefined, context);
@@ -581,7 +484,6 @@ async function buildEmergencyResult(adapters: AgentAdapters, input: string, cont
     })),
     input2
   );
->>>>>>> home-hero-ai-command-center
   return emptyResult('emergency', {
     summary: 'This may need urgent attention',
     explanation: 'Based on what you described, this could be serious. Please treat this as urgent and consider immediate professional care.',
@@ -613,12 +515,6 @@ export function createAgentOrchestrator(adapters: AgentAdapters = resolvedAdapte
     const priorContext = request.conversationContext ?? emptyContext();
     const classification = await adapters.ai.classify(request.text, request.patientContext);
 
-<<<<<<< HEAD
-    // Emergency short-circuits everything — always escalate (Step 9 §8).
-    if (classification.intent === 'emergency') {
-      const result = withProvenance(await buildEmergencyResult(adapters, request.text, request.patientContext));
-      return { result, classification };
-=======
     // Emergency short-circuits everything — always escalate. Severity is never
     // "remembered away"; each emergency-pattern input is re-evaluated fresh.
     if (classification.intent === 'emergency') {
@@ -629,7 +525,6 @@ export function createAgentOrchestrator(adapters: AgentAdapters = resolvedAdapte
         classification.intent
       );
       return { result, classification, context };
->>>>>>> home-hero-ai-command-center
     }
 
     let result: AgentResult;
@@ -641,18 +536,6 @@ export function createAgentOrchestrator(adapters: AgentAdapters = resolvedAdapte
         result = buildDiseaseResult(classification.entities, request.text, priorContext);
         break;
       case 'hospital':
-<<<<<<< HEAD
-        result = await buildHospitalResult(classification.entities, adapters, request.patientContext, request.language);
-        break;
-      case 'doctor':
-        result = await buildDoctorResult(classification.entities, adapters, request.patientContext, request.language);
-        break;
-      case 'pharmacy':
-        result = await buildPharmacyResult(adapters, request.patientContext, request.language, request.text);
-        break;
-      case 'lab':
-        result = buildLabResult(request.patientContext, request.language);
-=======
         result = await buildHospitalResult(classification.entities, adapters, priorContext);
         break;
       case 'doctor':
@@ -663,7 +546,6 @@ export function createAgentOrchestrator(adapters: AgentAdapters = resolvedAdapte
         break;
       case 'lab':
         result = buildLabResult(priorContext);
->>>>>>> home-hero-ai-command-center
         break;
       case 'medicine':
         result = await buildMedicineResult(request.text, adapters, priorContext);
@@ -702,9 +584,6 @@ export function createAgentOrchestrator(adapters: AgentAdapters = resolvedAdapte
         result = buildGeneralResult();
     }
 
-<<<<<<< HEAD
-    return { result: withProvenance(result), classification };
-=======
     const context = accumulateContext(
       { ...priorContext },
       { id: 'u', role: 'user', content: request.text, createdAt: new Date().toISOString(), documents: request.documents, contextTags: [], patientProfileId: request.patientContext.activeProfileId },
@@ -712,7 +591,6 @@ export function createAgentOrchestrator(adapters: AgentAdapters = resolvedAdapte
     );
 
     return { result, classification, context };
->>>>>>> home-hero-ai-command-center
   };
 
   return { handle };

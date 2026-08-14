@@ -13,6 +13,7 @@ export type { UseAgentConversation, ChatStatus } from './hooks/useAgentConversat
 export { HealthCommandCenter } from './components/HealthCommandCenter';
 export type { HealthCommandCenterHandle } from './components/HealthCommandCenter';
 export { AIChatPage } from './components/AIChatPage';
+export { AgentDocumentAnalysisPanel } from './components/AgentDocumentAnalysisPanel';
 export { createAgentOrchestrator } from './services/agentOrchestrator';
 export type { AgentOrchestrator } from './services/agentOrchestrator';
 export { accumulateContext, emptyContext, resolveSpecialtyFromContext, hospitalFocusTopic } from './services/contextManager';
@@ -21,7 +22,6 @@ export { setPendingHandoff, drainPendingHandoff, hasPendingHandoff, clearPending
 export type { PendingHandoff } from './services/pendingHandoff';
 export { mockAdapters } from './services/adapters/mockAdapters';
 export { adapters, isAnyProviderReal } from './services/adapters/registry';
-export { rankHospitals, rankDoctors, rankPharmacies, rankLabs } from './utils/ranking';
 export { DISCLOSURES, tierForIntent, urgencyForIntent, isEmergencyIntent, tierLabel } from './utils/safety';
 export type {
   AgentAdapters,
