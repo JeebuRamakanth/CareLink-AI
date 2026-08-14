@@ -9,6 +9,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { createAgentOrchestrator } from '../services/agentOrchestrator';
 import { mockAdapters } from '../services/adapters/mockAdapters';
+import { useOptionalLocationContext } from '../../../contexts/LocationContext';
 import type {
   AgentLanguage,
   AgentOrchestratorResponse,
@@ -95,7 +96,15 @@ export function useHealthAgent(): UseHealthAgent {
   const [activeProfileId, setActiveProfileId] = useState<string>('self');
   const [recovery, setRecovery] = useState(recoverySeed);
 
-  const activeProfile = useMemo(() => activePatientContext(activeProfileId), [activeProfileId]);
+  const locationCtx = useOptionalLocationContext();
+  const activeProfile = useMemo<PatientContext>(() => {
+    const base = activePatientContext(activeProfileId);
+    const loc = locationCtx?.location;
+    const location = loc && typeof loc.lat === 'number' && typeof loc.lng === 'number'
+      ? { label: loc.label, lat: loc.lat, lng: loc.lng }
+      : undefined;
+    return { ...base, location };
+  }, [activeProfileId, locationCtx]);
 
   const addDocuments = useCallback((files: File[]): HealthDocument[] => {
     const valid: HealthDocument[] = [];

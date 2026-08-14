@@ -336,7 +336,22 @@ export const mockRecoveryService: AgentAdapters['recovery'] = {
 export const mockEmergencyService: AgentAdapters['emergency'] = {
   async assess(_input) {
     await wait(100);
-    const facility = hospitalRecommendations[0];
+    // Return ALL emergency-capable hospitals, ranked by distance — never just the
+    // first. Emergency relevance overrides normal rating-based ranking; the caller
+    // (orchestrator) re-ranks with emergency urgency so the nearest suitable
+    // facility wins over a higher-rated non-emergency clinic.
+    const emergencyHospitals = hospitalRecommendations
+      .filter((h) => h.hasEmergency)
+      .sort((a, b) => a.distanceKm - b.distanceKm);
+    const facilities = emergencyHospitals.map((facility) => ({
+      id: facility.id,
+      detailSlug: facility.detailSlug,
+      name: facility.name,
+      distanceKm: facility.distanceKm,
+      estimatedTravelTimeMin: facility.estimatedTravelTimeMin,
+      address: `${facility.address}, ${facility.city}`,
+      route: buildRouteFromHospital(facility),
+    }));
     const assessment: EmergencyAssessment = {
       severity: 'emergency',
       indicatorLabel: 'EMERGENCY',
@@ -346,17 +361,7 @@ export const mockEmergencyService: AgentAdapters['emergency'] = {
         'Stay calm, sit or lie down in a safe position, and keep your phone nearby.',
       ],
       recommendedNextAction: 'Head to the nearest emergency facility or call emergency services immediately.',
-      nearbyFacilities: [
-        {
-          id: facility.id,
-          detailSlug: facility.detailSlug,
-          name: facility.name,
-          distanceKm: facility.distanceKm,
-          estimatedTravelTimeMin: facility.estimatedTravelTimeMin,
-          address: `${facility.address}, ${facility.city}`,
-          route: buildRouteFromHospital(facility),
-        },
-      ],
+      nearbyFacilities: facilities,
       contacts: [
         { label: 'Emergency services', phone: '911', href: 'tel:911' },
         { label: 'Local emergency helpline', phone: '112', href: 'tel:112' },
