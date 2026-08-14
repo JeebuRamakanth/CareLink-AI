@@ -10,6 +10,7 @@ import { ResponseCardShell, CardActionButton, NextStepRow, SuggestedReplies } fr
 import { IconHospital, IconLocation, IconStar, IconRoute, IconCalendar } from '../AgentIcons';
 import type { HospitalRecommendation } from '../../../services/agent/agentTypes';
 import { ROUTES } from '../../../routes/routeConstants';
+import { directionsUrl } from '../../../services/maps/mapsService';
 
 interface Props {
   data: HospitalRecommendation[];
@@ -26,10 +27,15 @@ export function HospitalResponseCard({ data, title, explanation, suggestedReplie
   const handleDirections = (hospital: HospitalRecommendation) => {
     if (onGetDirections) {
       onGetDirections(hospital);
-    } else if (hospital.route) {
-      // Abstracted: a real maps provider (Google/Mapbox) can hook in here later.
-      window.alert(`Directions to ${hospital.name} (mock): ${hospital.route.distanceKm} km · ~${hospital.route.estimatedTravelTimeMin} min`);
+      return;
     }
+    // Open the maps provider directions deep-link (origin omitted — no patient
+    // coordinates are sent unless a provider action supplies them). Never alerts.
+    const url = directionsUrl({
+      destination: `${hospital.name}, ${hospital.address}, ${hospital.city}`,
+      mode: 'driving',
+    });
+    if (typeof window !== 'undefined') window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   return (

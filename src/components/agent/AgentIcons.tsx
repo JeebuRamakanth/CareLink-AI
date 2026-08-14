@@ -168,6 +168,12 @@ export const IconClose = (p: IconProps) => (
   </svg>
 );
 
+export const IconUpload = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M12 16V4M7 9l5-5 5 5M5 20h14" />
+  </svg>
+);
+
 export const IconArrowRight = (p: IconProps) => (
   <svg {...base(p)}>
     <path d="M5 12h14M13 6l6 6-6 6" />

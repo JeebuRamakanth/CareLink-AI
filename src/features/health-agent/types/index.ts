@@ -226,8 +226,6 @@ export interface WithRanking {
   rank?: RankedRecommendation;
 }
 
-export interface HospitalRecommendation {
-
 /**
  * Mixin helper: any recommendation can carry explainability. Declared as an
  * optional intersection on each concrete recommendation type below so the UI
@@ -236,7 +234,6 @@ export interface HospitalRecommendation {
 export type Explainable<T> = T & Partial<RecommendationReason>;
 
 export interface HospitalRecommendation extends Explainable<{
->>>>>>> home-hero-ai-command-center
   id: string;
   /** Id used by the EXISTING route /hospitals/:hospitalId. */
   detailSlug: string;
@@ -252,9 +249,7 @@ export interface HospitalRecommendation extends Explainable<{
   city: string;
   route?: RouteRecommendation;
   rank?: RankedRecommendation;
-}
 }> {}
->>>>>>> home-hero-ai-command-center
 
 export interface DoctorRecommendation extends Explainable<{
   id: string;
@@ -274,9 +269,7 @@ export interface DoctorRecommendation extends Explainable<{
   acceptsNewPatients: boolean;
   route?: RouteRecommendation;
   rank?: RankedRecommendation;
-}
 }> {}
->>>>>>> home-hero-ai-command-center
 
 export interface PharmacyRecommendation extends Explainable<{
   id: string;
@@ -291,9 +284,7 @@ export interface PharmacyRecommendation extends Explainable<{
   address: string;
   route?: RouteRecommendation;
   rank?: RankedRecommendation;
-}
 }> {}
->>>>>>> home-hero-ai-command-center
 
 export interface LabRecommendation extends Explainable<{
   id: string;
@@ -306,9 +297,7 @@ export interface LabRecommendation extends Explainable<{
   address: string;
   route?: RouteRecommendation;
   rank?: RankedRecommendation;
-}
 }> {}
->>>>>>> home-hero-ai-command-center
 
 /* ----------------------------------------------------------------------------
  * Medicine + medical report models (mock, clearly labelled)

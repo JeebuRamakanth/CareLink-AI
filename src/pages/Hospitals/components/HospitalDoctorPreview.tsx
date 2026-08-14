@@ -38,6 +38,16 @@ export function HospitalDoctorPreview({ doctors, topics, selectedTopic, onTopicC
             <p className="mt-2 max-w-2xl text-sm text-ink-300">
               Showing top specialists matched to {activeTopicLabel}. Use the filter buttons to refine your care match by treatment focus.
             </p>
+            {selectedTopic !== 'All' ? (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-brand-400/25 bg-brand-500/12 px-3 py-1 text-[0.72rem] font-semibold text-brand-100">
+                  Relevant to your search
+                </span>
+                <Button type="button" variant="ghost" size="sm" onClick={() => onTopicChange('All')}>
+                  Show all doctors
+                </Button>
+              </div>
+            ) : null}
           </div>
           <div className="flex flex-wrap gap-2">
             {topics.map((topic) => (

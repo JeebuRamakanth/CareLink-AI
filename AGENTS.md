@@ -103,3 +103,93 @@ The agent lives inside the Home hero, not a separate middle-page section:
   width, vertical) → agent. CTAs go side-by-side ≥768.
 - Navbar breakpoint is `xl` (not `lg`) in `GlobalLayout.tsx` so the hamburger
   shows at 1024 instead of overflowing.
+
+## Step 11 — Secure medical documents + Cloudinary + image intelligence (VERIFIED)
+Service/UI/agent foundation for uploading, validating, storing, and analyzing
+medical documents (blood/lab reports, prescriptions, medicine photos, PDFs,
+DOC/DOCX, images) integrated into the existing Health Agent.
+
+### Architecture boundaries (UI never calls storage/API directly)
+- `src/features/documents/services/fileValidation.ts` — MIME, extension, size,
+  filename, duplicate, malformed checks; `sanitizePublicIdSlug()` (user
+  filename NEVER used as public id), `detectDocumentKind()`, `formatFileSize()`.
+- `src/features/documents/services/storageService.ts` — storage boundary.
+  Precedence: Cloudinary (unsigned) → Supabase private storage → local mock.
+  `getStorageMode()` → 'real'|'mock'|'unavailable'; `storageModeLabel()` →
+  "Cloudinary"|"Supabase Storage"|"Local (demo)". Reuses Step 9
+  `realCloudinaryStorage` (upload_preset only, NO api secret) and Step 10
+  `supabaseStorage.ts` (signed URLs, owner-scoped paths `<owner>/<doc>/<file>`).
+- `src/features/documents/services/documentService.ts` — upload pipeline:
+  validate → upload → persist metadata → process → analyze. Pipeline states:
+  idle/validating/uploading/uploaded/processing/analyzing/completed/failed/cancelled.
+  Cancel/retry/remove supported.
+- `src/features/documents/services/documentAnalysisService.ts` — structured
+  lab extraction (test name, value, unit, ref range, abnormal flag, collection
+  date), safety assessment, schema-validated output. Mock always tagged.
+- `src/features/documents/services/medicineRecognitionService.ts` — name,
+  strength, dosage form, confidence, safety warning. NEVER invents dosage.
+- `src/features/documents/types.ts` — HealthDocument, DocumentAttachment,
+  DocumentProcessingState, DocumentAnalysisResult, MedicalReport, LabResult,
+  MedicineInput, MedicineRecognitionResult, ExtractedMedicalValue,
+  DocumentSafetyAssessment.
+- Metadata persistence: `documentsRepository.ts` extends Step 10
+  (createDocument/getDocument/listDocumentsForProfile/updateAnalysisStatus/
+  updateDocumentStatus/deleteDocument). Returns null/empty → localStorage
+  fallback. RLS-compatible, owner-scoped queries, NO raw medical content in rows.
+
+### UI components
+- `src/features/documents/components/` — DocumentUploadZone (drag-drop +
+  camera + browse), DocumentUploadCard (preview/progress/retry/remove),
+  DocumentLibrary (filter chips All/Reports/Lab/Prescriptions/Medicines/Other,
+  family-profile switcher, View/Analyze/Delete).
+- `DocumentAnalysisResultCard.tsx` — extracted-vs-explained distinction.
+- `src/features/health-agent/components/AgentDocumentAnalysisPanel.tsx` —
+  "Secure document analysis" panel in AIChatPage (/ai route).
+- Page: `src/pages/Documents/DocumentsLibraryPage.tsx`, route `/documents`
+  (added to GlobalLayout nav + routeConstants + AppRoutes).
+
+### Agent integration (no unsafe diagnosis)
+- AIChatPage renders AgentDocumentAnalysisPanel below conversation.
+- agentOrchestrator handles report/lab/medicine intents with mock lab values
+  (FBS 132, HbA1c 6.8%, Total Cholesterol 212, LDL 138), explicit mock label,
+  "Guidance, not a diagnosis", action cards → existing routes
+  (/doctors?q=Endocrinology, /hospitals, /appointments).
+- Context propagation: active patient, document id/type, health intent kept
+  across turns ("Remembered context: Diabetes — Endocrinology focus").
+  No sensitive health details in URL params.
+
+### Family-profile isolation
+Documents belong to the selected AgentContext profile (Self/Parent/Child/
+Spouse/Family member). `useDocumentLibrary` reads `agent.activeProfile.id`
+from the shared `useAgent()` context — switching profiles swaps the document
+list. Cross-profile leakage prevented at the repository query level.
+
+### Security measures
+- No API secrets / service-role keys in frontend; Cloudinary unsigned preset only.
+- No public medical-document URLs; signed/controlled access; owner-scoped refs.
+- MIME + size + filename validation + sanitization before upload.
+- Safe deletion, safe errors, no document contents in logs.
+- AI output schema-validated before render; no unsafe HTML from OCR/AI.
+- Mock always labelled; never claims real AI analysis.
+
+### Verification (all green)
+- `npm run build`: 680 modules, 0 errors.
+- `npm run lint`: 0 errors, 12 pre-existing warnings (none in Step 11 files).
+- Smoketest (node ESM): 30/30 pass — validation, lab/medicine/prescription
+  pipelines, mock tagging, schema validation, family isolation, secure storage
+  refs, delete. File-validation test: valid PDF accepted; .exe/oversized/
+  duplicate rejected.
+- Browser: Home + hero agent, /ai conversation (mock lab card + action cards
+  → /doctors?q=Endocrinology), /documents (upload zone, filters, profile
+  switching Self→Parent), /hospitals + detail, /doctors + profile,
+  /appointments, /login, /profile (protected redirect). Documents nav link in
+  GlobalLayout. No console/runtime errors.
+
+### Gotchas
+- Smoketest runs against transpiled JS in /tmp/docbuild (use
+  `node --import /tmp/register-hooks.mjs` — the loader's `resolve` hook needs
+  `register()` from node:module, not bare `--import`, to resolve extensionless
+  directory imports like `'../../../lib'`).
+- docbuild must be re-transpiled after source changes or smoketest is stale.
+- Without Cloudinary/Supabase credentials, `storageModeLabel()` = "Local
+  (demo)" and the pipeline runs end-to-end against localStorage + blob URLs.

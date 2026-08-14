@@ -11,6 +11,7 @@ import { AgentCommandCenterPage } from '../pages/Agent/AgentCommandCenterPage';
 import { LoginPage } from '../pages/Auth/LoginPage';
 import { RegisterPage } from '../pages/Auth/RegisterPage';
 import { ProfilePage } from '../pages/Auth/ProfilePage';
+import { DocumentsLibraryPage } from '../pages/Documents/DocumentsLibraryPage';
 import { AIChatPage } from '../features/health-agent';
 import { ROUTES } from './routeConstants';
 import { PublicLayout } from './PublicLayout';
@@ -43,6 +44,7 @@ export function AppRoutes() {
         <Route path={ROUTES.hospitalDetail} element={<HospitalDetailsPage />} />
         <Route path={ROUTES.appointments} element={<AppointmentsPage />} />
         <Route path={ROUTES.appointmentDetail} element={<AppointmentDetailPage />} />
+        <Route path={ROUTES.documents} element={<DocumentsLibraryPage />} />
         <Route path={ROUTES.login} element={<LoginPage />} />
         <Route path={ROUTES.register} element={<RegisterPage />} />
         {/* Protected — requires an authenticated user. */}

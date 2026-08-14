@@ -419,6 +419,36 @@ export const findMedicine = (text: string): MedicineResult | null => {
   return null;
 };
 
+/* ----------------------------------------------------------------------------
+ * Facility coordinates — for distance/ETA recomputation from a patient location.
+ * Separate map so the existing recommendation shapes stay unchanged; the
+ * discovery service overlays real distance/ETA only when a patient location is
+ * available (Step 12).
+ * ------------------------------------------------------------------------- */
+
+export const hospitalCoordinates: Record<string, { lat: number; lng: number }> = {
+  'aurora-medical-center': { lat: 47.6062, lng: -122.3321 },
+  'beacon-heart-institute': { lat: 37.7749, lng: -122.4194 },
+  'luma-children-hospital': { lat: 43.6532, lng: -79.3832 },
+  'northside-health-pavilion': { lat: 51.5074, lng: -0.1278 },
+  'crescent-wellness-campus': { lat: 41.8781, lng: -87.6298 },
+};
+
+export const pharmacyCoordinates: Record<string, { lat: number; lng: number }> = {
+  'pharm-1': { lat: 17.385, lng: 78.4867 },
+  'pharm-2': { lat: 17.4399, lng: 78.4982 },
+  'pharm-3': { lat: 17.4483, lng: 78.3742 },
+};
+
+export const labCoordinates: Record<string, { lat: number; lng: number }> = {
+  'lab-1': { lat: 17.4102, lng: 78.4563 },
+  'lab-2': { lat: 17.4399, lng: 78.4982 },
+  // lab-3 is a home-collection service — no fixed coordinates.
+};
+
+/** Default reference point (Hyderabad) used when no patient location is set. */
+export const DEFAULT_REFERENCE_POINT: { lat: number; lng: number } = { lat: 17.385, lng: 78.4867 };
+
 export const newCheckIn = (trend: RecoveryTrend, note?: string) => ({
   id: `rec-${Math.random().toString(36).slice(2, 9)}`,
   trend,

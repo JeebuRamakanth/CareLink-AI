@@ -18,6 +18,7 @@ import { createAgentOrchestrator } from '../services/agentOrchestrator';
 import { mockAdapters } from '../services/adapters/mockAdapters';
 import { emptyContext } from '../services/contextManager';
 import { drainPendingHandoff } from '../services/pendingHandoff';
+import { useOptionalLocationContext } from '../../../contexts/LocationContext';
 import type {
   AgentLanguage,
   AgentMessage,
@@ -112,10 +113,19 @@ export function useAgentConversation(): UseAgentConversation {
   const [recovery, setRecovery] = useState(recoverySeed);
   const [lastResult, setLastResult] = useState<AgentResult | null>(null);
 
+  const locationCtx = useOptionalLocationContext();
+
   const activeProfile = useMemo<PatientContext>(() => {
     const profile = patientProfiles.find((p) => p.id === activeProfileId) ?? patientProfiles[0];
-    return { activeProfileId: profile.id, profile };
-  }, [activeProfileId]);
+    const loc = locationCtx?.location;
+    // Only pass coordinates when a real location is available (geolocation or
+    // manual with coords). The default label-only location carries no lat/lng,
+    // so discovery falls back to dataset distances rather than fabricating.
+    const location = loc && typeof loc.lat === 'number' && typeof loc.lng === 'number'
+      ? { label: loc.label, lat: loc.lat, lng: loc.lng }
+      : undefined;
+    return { activeProfileId: profile.id, profile, location };
+  }, [activeProfileId, locationCtx]);
 
   const addDocuments = useCallback((files: File[]): HealthDocument[] => {
     const valid: HealthDocument[] = [];

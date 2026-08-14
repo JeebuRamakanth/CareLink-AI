@@ -1,9 +1,8 @@
 import { useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-<<<<<<< HEAD
 import { useOptionalNavigationContext } from '../../contexts/NavigationContext';
-=======
->>>>>>> home-hero-ai-command-center
+import { useOptionalLocationContext } from '../../contexts/LocationContext';
+import { directionsUrl } from '../../services/maps/mapsService';
 import { Container } from '../../components/ui/Container';
 import { Button } from '../../components/ui/Button';
 import { HospitalHero } from './components/HospitalHero';
@@ -28,23 +27,17 @@ export function HospitalDetailsPage() {
   const hospital = useMemo(() => (hospitalId ? getHospitalDetailById(hospitalId) : undefined), [hospitalId]);
   const doctorsSectionRef = useRef<HTMLDivElement | null>(null);
   const locationSectionRef = useRef<HTMLDivElement | null>(null);
-<<<<<<< HEAD
-  const [searchParams] = useSearchParams();
   const navContext = useOptionalNavigationContext();
+  const locationCtx = useOptionalLocationContext();
   const [selectedDoctorTopic, setSelectedDoctorTopic] = useState<HospitalDoctorTopic>(() => {
-    // Context propagation (Step 9 §7): if the agent seeded a specialty/topic
-    // (or one was passed via ?q=), pre-select it so the hospital page shows
-    // doctors related to the user's original query instead of every doctor.
-    const fromQuery = searchParams.get('q') ?? navContext.requestedSpecialty ?? navContext.diseaseTopic;
+    // Context propagation (Step 9 §7, Step 12 §12): if the agent seeded a
+    // specialty/topic (or one was passed via ?focus= or ?q=), pre-select it so
+    // the hospital page shows doctors related to the user's original query
+    // instead of every doctor.
+    const fromQuery = searchParams.get('focus') ?? searchParams.get('q') ?? navContext.requestedSpecialty ?? navContext.diseaseTopic;
     const match = doctorTopics.find((t) => t !== 'All' && fromQuery?.toLowerCase().includes(t.toLowerCase()));
     return (match as HospitalDoctorTopic) ?? 'All';
   });
-=======
-  // Pre-filter relevant doctors when the AI deep-links with ?focus=<topic>.
-  const focusTopic = searchParams.get('focus');
-  const initialTopic: HospitalDoctorTopic = (doctorTopics.includes(focusTopic as HospitalDoctorTopic) ? focusTopic : 'All') as HospitalDoctorTopic;
-  const [selectedDoctorTopic, setSelectedDoctorTopic] = useState<HospitalDoctorTopic>(initialTopic);
->>>>>>> home-hero-ai-command-center
   const [selectedReviewFilter, setSelectedReviewFilter] = useState<ReviewFilterOption>('All');
 
   const filteredDoctors = useMemo(() => {
@@ -80,7 +73,19 @@ export function HospitalDetailsPage() {
   };
 
   const handleGetDirections = () => {
-    window.alert('Mock directions ready. This area is prepared for map integration.');
+    if (!hospital) return;
+    // Open the maps provider's directions deep-link in a new tab. The patient
+    // origin is included only when a real location is available — never
+    // fabricated. Destination is the hospital address (no patient health data).
+    const origin = locationCtx?.location && typeof locationCtx.location.lat === 'number'
+      ? { label: locationCtx.location.label, lat: locationCtx.location.lat, lng: locationCtx.location.lng }
+      : undefined;
+    const url = directionsUrl({
+      destination: `${hospital.name}, ${hospital.address}`,
+      origin,
+      mode: 'driving',
+    });
+    if (typeof window !== 'undefined') window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   const handleContact = () => {

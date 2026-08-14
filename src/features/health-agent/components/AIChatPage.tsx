@@ -48,6 +48,10 @@ import {
   IconStar,
 } from '../../../components/agent/AgentIcons';
 import { useAgentConversation } from '../hooks/useAgentConversation';
+import { AgentDocumentAnalysisPanel } from './AgentDocumentAnalysisPanel';
+import { useOptionalLocationContext } from '../../../contexts/LocationContext';
+import { useOptionalNavigationContext } from '../../../contexts/NavigationContext';
+import { directionsUrl } from '../../../services/maps/mapsService';
 import {
   ACCEPT_ATTR,
   LANGUAGE_LABELS,
@@ -56,6 +60,7 @@ import {
   statusLabel,
 } from '../utils/helpers';
 import { explainRecommendation } from '../services/recommendationRanking';
+import { hospitalFocusTopic } from '../services/contextManager';
 import '../../../components/agent/agent.css';
 import type {
   AgentAction,
@@ -63,14 +68,13 @@ import type {
   AgentMessage,
   AgentResult,
   HealthDocument,
+  HospitalRecommendation,
   RecoveryTrend,
 } from '../types';
 
 /* ----------------------------------------------------------------------------
  * Small presentational pieces
  * ------------------------------------------------------------------------- */
-
-const LOCATION_LABEL = 'Hyderabad · 500032';
 
 function formatTime(iso: string): string {
   try {
@@ -168,8 +172,25 @@ function DocumentChips({ documents, onRemove }: { documents: HealthDocument[]; o
  * Result card — renders the structured AgentResult inside a chat bubble
  * ------------------------------------------------------------------------- */
 
-function ResultCard({ result, onReply }: { result: AgentResult; onReply: (r: string) => void }) {
+interface ResultCardProps {
+  result: AgentResult;
+  onReply: (r: string) => void;
+  focusTopic?: string;
+  patientOrigin?: { label: string; lat?: number; lng?: number };
+}
+
+function ResultCard({ result, onReply, focusTopic, patientOrigin }: ResultCardProps) {
   const isEmergency = result.urgency === 'emergency';
+
+  const hospitalDirectionsHref = (h: HospitalRecommendation): string =>
+    directionsUrl({
+      destination: `${h.name}, ${h.address}, ${h.city}`,
+      origin: patientOrigin && typeof patientOrigin.lat === 'number'
+        ? { label: patientOrigin.label, lat: patientOrigin.lat, lng: patientOrigin.lng }
+        : undefined,
+      mode: 'driving',
+    });
+
   return (
     <div className={cn(
       'mt-2 overflow-hidden rounded-[1.1rem] border backdrop-blur-xl',
@@ -179,6 +200,11 @@ function ResultCard({ result, onReply }: { result: AgentResult; onReply: (r: str
       <div className="flex flex-wrap items-center gap-2 border-b border-white/8 px-4 py-2.5">
         <Badge tone={isEmergency ? 'warning' : result.urgency === 'attention' ? 'brand' : 'neutral'}>{result.urgency}</Badge>
         <span className="text-[0.66rem] font-semibold uppercase tracking-[0.2em] text-ink-400">{result.meta.confidence} confidence</span>
+        {result.dataSource ? (
+          <span className={cn('inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.16em]', result.dataSource === 'real' ? 'border-emerald-400/25 bg-emerald-500/12 text-emerald-200' : 'border-amber-400/25 bg-amber-500/12 text-amber-200')}>
+            {result.dataSource === 'real' ? 'Real data' : 'Demo data'}
+          </span>
+        ) : null}
         {result.meta.disclaimer ? (
           <span className="inline-flex items-center gap-1 text-[0.7rem] text-ink-400"><IconShield width={12} height={12} aria-hidden /> Guidance, not a diagnosis</span>
         ) : null}
@@ -238,7 +264,8 @@ function ResultCard({ result, onReply }: { result: AgentResult; onReply: (r: str
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap gap-2">
                     <a href={`${ROUTES.hospitals}/${h.detailSlug}`} className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">View Hospital</a>
-                    <a href={`${ROUTES.hospitals}/${h.detailSlug}?focus=All`} className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">View Doctors</a>
+                    <a href={`${ROUTES.hospitals}/${h.detailSlug}?focus=${encodeURIComponent(focusTopic ?? 'All')}`} className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">View Doctors</a>
+                    <a href={hospitalDirectionsHref(h)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">Directions</a>
                     <a href={`${ROUTES.appointments}?hosp=${h.detailSlug}`} className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-3 py-1.5 text-[0.78rem] font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">Book</a>
                   </div>
                   {h.recommendationScore != null ? <ScoreBadge score={h.recommendationScore} /> : null}
@@ -298,9 +325,7 @@ function ResultCard({ result, onReply }: { result: AgentResult; onReply: (r: str
                 </div>
                 <p className="mt-1.5 text-[0.7rem] text-ink-400">{p.availabilityPlaceholder}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <a href={ROUTES.hospitals} className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">View Pharmacy</a>
-                  <a href={`tel:`} className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">Call</a>
-                  <a href={ROUTES.hospitals} className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">Directions</a>
+                  <a href={directionsUrl({ destination: `${p.name}, ${p.address}`, origin: patientOrigin && typeof patientOrigin.lat === 'number' ? { label: patientOrigin.label, lat: patientOrigin.lat, lng: patientOrigin.lng } : undefined, mode: 'driving' })} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">Directions</a>
                 </div>
               </article>
             ))}
@@ -329,7 +354,7 @@ function ResultCard({ result, onReply }: { result: AgentResult; onReply: (r: str
                   ))}
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <a href={ROUTES.hospitals} className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">View Lab</a>
+                  <a href={directionsUrl({ destination: `${l.name}, ${l.address}`, origin: patientOrigin && typeof patientOrigin.lat === 'number' ? { label: patientOrigin.label, lat: patientOrigin.lat, lng: patientOrigin.lng } : undefined, mode: 'driving' })} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">Directions</a>
                   <a href={`${ROUTES.appointments}?lab=${l.id}`} className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-3 py-1.5 text-[0.78rem] font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">Book Test</a>
                 </div>
               </article>
@@ -434,7 +459,7 @@ function ResultCard({ result, onReply }: { result: AgentResult; onReply: (r: str
  * Message bubble
  * ------------------------------------------------------------------------- */
 
-function MessageBubble({ message, onReply }: { message: AgentMessage; onReply: (r: string) => void }) {
+function MessageBubble({ message, onReply, focusTopic, patientOrigin }: { message: AgentMessage; onReply: (r: string) => void; focusTopic?: string; patientOrigin?: { label: string; lat?: number; lng?: number } }) {
   const isUser = message.role === 'user';
   if (message.id === 'welcome') {
     return (
@@ -472,7 +497,7 @@ function MessageBubble({ message, onReply }: { message: AgentMessage; onReply: (
             {message.documents.length > 0 ? <div className="mb-2"><DocumentChips documents={message.documents} /></div> : null}
             <p className="text-[0.86rem] leading-6 text-ink-100">{message.content}</p>
           </div>
-          {message.result ? <ResultCard result={message.result} onReply={onReply} /> : null}
+          {message.result ? <ResultCard result={message.result} onReply={onReply} focusTopic={focusTopic} patientOrigin={patientOrigin} /> : null}
           <span className="mt-1 px-1 text-[0.62rem] text-ink-400">{formatTime(message.createdAt)}</span>
         </div>
       </div>
@@ -514,6 +539,7 @@ function WelcomeState({ prompts, onPick }: { prompts: { label: string }[]; onPic
 
 function ChatComposer({
   value, onChange, onSubmit, disabled, documents, onFiles, onRemoveDoc, recoveryCheckIn,
+  locationLabel, locationState, onUseLocation, onClearLocation,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -523,6 +549,10 @@ function ChatComposer({
   onFiles: (files: FileList | null) => void;
   onRemoveDoc: (id: string) => void;
   recoveryCheckIn: (trend: RecoveryTrend, note?: string) => void;
+  locationLabel: string;
+  locationState: { permission: string; isResolving: boolean; hasCoordinates: boolean };
+  onUseLocation: () => void;
+  onClearLocation: () => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -576,10 +606,19 @@ function ChatComposer({
           </button>
         </div>
       </div>
-      <p className="mx-auto mt-1.5 max-w-3xl text-center text-[0.62rem] text-ink-400">
+      <p className="mx-auto mt-1.5 flex max-w-3xl flex-wrap items-center justify-center gap-1.5 text-[0.62rem] text-ink-400">
+        <button
+          type="button"
+          onClick={locationState.hasCoordinates ? onClearLocation : onUseLocation}
+          disabled={locationState.isResolving}
+          title={locationState.hasCoordinates ? 'Using your current location — click to reset' : 'Share my location for nearby care'}
+          className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2 py-1 font-semibold text-ink-200 transition hover:border-brand-400/40 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40 disabled:opacity-50"
+        >
+          <IconLocation width={11} height={11} aria-hidden />
+          {locationState.isResolving ? 'Locating…' : locationLabel}
+        </button>
+        <span className="mx-1 opacity-40">·</span>
         <span className="inline-flex items-center gap-1.5">
-          <IconLocation width={11} height={11} aria-hidden /> {LOCATION_LABEL}
-          <span className="mx-1 opacity-40">·</span>
           <IconShield width={11} height={11} aria-hidden /> Guidance, not a diagnosis · In an emergency, call your local emergency number.
         </span>
       </p>
@@ -669,8 +708,18 @@ function ChatHeader({
 
 export function AIChatPage() {
   const conv = useAgentConversation();
+  const locationCtx = useOptionalLocationContext();
+  const navContext = useOptionalNavigationContext();
   const [text, setText] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Disease/specialty topic propagated from the conversation context so hospital
+  // deep-links pre-filter to relevant doctors. Coordinates are passed only when a
+  // real location is available — never fabricated.
+  const focusTopic = navContext.diseaseTopic ?? navContext.requestedSpecialty ?? hospitalFocusTopic(conv.context);
+  const patientOrigin = locationCtx?.location && typeof locationCtx.location.lat === 'number'
+    ? { label: locationCtx.location.label, lat: locationCtx.location.lat, lng: locationCtx.location.lng }
+    : undefined;
 
   // Drain any pending handoff from the Home hero on mount.
   useEffect(() => {
@@ -760,7 +809,7 @@ export function AIChatPage() {
           ) : (
             <div className="space-y-4">
               {conv.messages.map((m) => (
-                <MessageBubble key={m.id} message={m} onReply={handlePickPrompt} />
+                <MessageBubble key={m.id} message={m} onReply={handlePickPrompt} focusTopic={focusTopic} patientOrigin={patientOrigin} />
               ))}
               {conv.isThinking ? (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
@@ -785,6 +834,13 @@ export function AIChatPage() {
         </div>
       </div>
 
+      {/* Step 11 — secure document analysis (additive, non-breaking) */}
+      <div className="border-t border-white/10 bg-slate-950/40 px-3 py-3 sm:px-4">
+        <div className="mx-auto max-w-3xl">
+          <AgentDocumentAnalysisPanel activeProfileId={conv.activeProfileId === 'self' ? null : conv.activeProfileId} />
+        </div>
+      </div>
+
       <ChatComposer
         value={text}
         onChange={setText}
@@ -794,6 +850,14 @@ export function AIChatPage() {
         onFiles={handleFiles}
         onRemoveDoc={conv.removeDocument}
         recoveryCheckIn={conv.recoveryCheckIn}
+        locationLabel={locationCtx?.location?.label ?? 'Set your location'}
+        locationState={{
+          permission: locationCtx?.permission ?? 'unknown',
+          isResolving: locationCtx?.isResolving ?? false,
+          hasCoordinates: !!(locationCtx?.location && typeof locationCtx.location.lat === 'number'),
+        }}
+        onUseLocation={() => locationCtx?.requestCurrentLocation()}
+        onClearLocation={() => locationCtx?.clearLocation()}
       />
     </div>
     </MotionConfig>
