@@ -12,12 +12,45 @@ const navItems = [
   { label: 'Home', href: ROUTES.home },
   { label: 'Hospitals', href: ROUTES.hospitals },
   { label: 'Doctors', href: ROUTES.doctors },
-  { label: 'Appointments', href: ROUTES.appointments },
-  { label: 'Documents', href: ROUTES.documents },
   { label: 'Reviews', href: ROUTES.reviews },
-  { label: 'About', href: ROUTES.about },
-  { label: 'Help', href: ROUTES.help },
-  { label: 'Contact', href: ROUTES.contact }
+  { label: 'Appointments', href: ROUTES.appointments },
+  { label: 'Documents', href: ROUTES.documents }
+];
+
+const footerGroups: { heading: string; links: { label: string; href: string }[] }[] = [
+  {
+    heading: 'Product',
+    links: [
+      { label: 'Hospitals', href: ROUTES.hospitals },
+      { label: 'Doctors', href: ROUTES.doctors },
+      { label: 'Reviews', href: ROUTES.reviews },
+      { label: 'Appointments', href: ROUTES.appointments },
+      { label: 'Ask CareLink AI', href: ROUTES.ai }
+    ]
+  },
+  {
+    heading: 'CareLink',
+    links: [
+      { label: 'About', href: ROUTES.about },
+      { label: 'Our Healthcare Mission', href: `${ROUTES.about}#mission` }
+    ]
+  },
+  {
+    heading: 'Support',
+    links: [
+      { label: 'Help Center', href: ROUTES.help },
+      { label: 'Contact', href: ROUTES.contact }
+    ]
+  },
+  {
+    heading: 'Trust & Safety',
+    links: [
+      { label: 'Privacy', href: `${ROUTES.help}#privacy` },
+      { label: 'Terms', href: `${ROUTES.help}#terms` },
+      { label: 'Medical Disclaimer', href: `${ROUTES.help}#medical-disclaimer` },
+      { label: 'Emergency Disclaimer', href: `${ROUTES.help}#emergency-disclaimer` }
+    ]
+  }
 ];
 
 interface GlobalLayoutProps {
@@ -86,9 +119,9 @@ export function GlobalLayout({ children, activePage = 'Home' }: GlobalLayoutProp
                   <Link to={ROUTES.register} className="rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-4 py-2 text-[0.92rem] font-semibold text-white transition-all duration-200 hover:-translate-y-0.5">Register</Link>
                 </>
               )}
-              <Link to={ROUTES.home} className="flex items-center gap-2 rounded-full bg-gradient-to-r from-rose-500 to-amber-500 px-4 py-2 text-[0.92rem] font-semibold text-white transition-all duration-200 hover:-translate-y-0.5">
+              <Link to={ROUTES.ai} className="flex items-center gap-2 rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-4 py-2 text-[0.92rem] font-semibold text-white shadow-[0_16px_40px_-20px_rgba(77,132,255,0.8)] transition-all duration-200 hover:-translate-y-0.5">
                 <span className="inline-flex h-2.5 w-2.5 animate-pulse rounded-full bg-white" />
-                Emergency
+                Ask CareLink AI
               </Link>
             </div>
 
@@ -113,6 +146,14 @@ export function GlobalLayout({ children, activePage = 'Home' }: GlobalLayoutProp
           <div className="border-t border-white/10 bg-slate-950/85 backdrop-blur-xl xl:hidden">
             <LayoutContainer className="py-4">
               <nav className="flex flex-col gap-2" aria-label="Mobile navigation">
+                <NavLink
+                  to={ROUTES.ai}
+                  className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-brand-500 to-accent-500 px-4 py-3 text-sm font-semibold text-white transition-all duration-200"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <span className="inline-flex h-2.5 w-2.5 animate-pulse rounded-full bg-white" />
+                  Ask CareLink AI
+                </NavLink>
                 {navItems.map((item) => (
                   <NavLink
                     key={item.label}
@@ -151,65 +192,48 @@ export function GlobalLayout({ children, activePage = 'Home' }: GlobalLayoutProp
 
       <footer className="border-t border-white/10 bg-slate-950/70 backdrop-blur-2xl">
         <LayoutContainer className="py-12 sm:py-16">
-          <div className="grid gap-10 lg:grid-cols-[1.1fr_0.7fr_0.7fr_0.8fr]">
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
+          <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.3fr_1fr_1fr_1fr_1.1fr] lg:gap-8">
+            <div className="space-y-4 sm:col-span-2 lg:col-span-1">
+              <Link to={ROUTES.home} className="flex w-fit items-center gap-3" aria-label="CareLink.AI home">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full border border-brand-400/30 bg-gradient-to-br from-brand-500/30 to-accent-500/20 text-sm font-semibold text-white">
                   C
                 </div>
                 <div>
                   <p className="text-sm font-semibold tracking-[0.24em] text-white uppercase">CareLink.AI</p>
-                  <p className="text-xs text-ink-400">Focused on seamless care access</p>
+                  <p className="text-xs text-ink-400">Your healthcare command center</p>
                 </div>
-              </div>
-              <p className="max-w-md text-sm leading-7 text-ink-300">
-                A premium digital layer for hospitals, doctors, and patients to connect with speed, trust, and clarity.
+              </Link>
+              <p className="max-w-sm text-sm leading-7 text-ink-300">
+                An AI-first healthcare companion that helps you find hospitals, doctors, and care — with guidance you can trust.
               </p>
-              <div className="flex gap-3">
-                {['in', 'x', 'f'].map((social) => (
-                  <a key={social} href="#social" className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/10 text-sm text-ink-200 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/15">
-                    {social}
-                  </a>
-                ))}
-              </div>
+              <p className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-ink-300">
+                <span className="inline-flex h-1.5 w-1.5 rounded-full bg-accent-400" />
+                Guidance, not a diagnosis
+              </p>
             </div>
 
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold uppercase tracking-[0.24em] text-white">Quick Links</h3>
-              <ul className="space-y-3 text-sm text-ink-300">
-                {['Home', 'Hospitals', 'Doctors', 'Reviews'].map((item) => (
-                  <li key={item}><a href="#" className="transition-colors duration-200 hover:text-white">{item}</a></li>
-                ))}
-              </ul>
-            </div>
-
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold uppercase tracking-[0.24em] text-white">Resources</h3>
-              <ul className="space-y-3 text-sm text-ink-300">
-                {['About', 'Help', 'Contact', 'Support'].map((item) => (
-                  <li key={item}><a href="#" className="transition-colors duration-200 hover:text-white">{item}</a></li>
-                ))}
-              </ul>
-            </div>
-
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold uppercase tracking-[0.24em] text-white">Emergency Contact</h3>
-              <div className="space-y-2 text-sm text-ink-300">
-                <p>24/7 assistance</p>
-                <p className="font-semibold text-white">+1 (800) 555-0199</p>
-                <p>emergency@carelink.ai</p>
-              </div>
-            </div>
+            {footerGroups.map((group) => (
+              <nav key={group.heading} className="space-y-4" aria-label={`Footer — ${group.heading}`}>
+                <h3 className="text-xs font-semibold uppercase tracking-[0.24em] text-white">{group.heading}</h3>
+                <ul className="space-y-2.5 text-sm text-ink-300">
+                  {group.links.map((link) => (
+                    <li key={link.label}>
+                      <Link to={link.href} className="transition-colors duration-200 hover:text-white">
+                        {link.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+            ))}
           </div>
 
-          <div className="mt-10 border-t border-white/10 pt-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mt-12 border-t border-white/10 pt-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-ink-400">© 2026 CareLink.AI. All rights reserved.</p>
-              <div className="flex flex-wrap gap-4 text-sm text-ink-400">
-                <a href="#privacy" className="transition-colors duration-200 hover:text-white">Privacy</a>
-                <a href="#terms" className="transition-colors duration-200 hover:text-white">Terms</a>
-                <a href="#accessibility" className="transition-colors duration-200 hover:text-white">Accessibility</a>
-              </div>
+              <p className="max-w-xl text-xs leading-5 text-ink-500">
+                CareLink.AI provides healthcare navigation and general guidance. It is not a medical provider and does not replace professional medical advice, diagnosis, or treatment.
+              </p>
             </div>
           </div>
         </LayoutContainer>

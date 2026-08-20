@@ -193,3 +193,24 @@ list. Cross-profile leakage prevented at the repository query level.
 - docbuild must be re-transpiled after source changes or smoketest is stale.
 - Without Cloudinary/Supabase credentials, `storageModeLabel()` = "Local
   (demo)" and the pipeline runs end-to-end against localStorage + blob URLs.
+
+## Step 13 — Nav cleanup + About/Help/Contact (VERIFIED)
+- Primary nav (GlobalLayout `navItems`): Home, Hospitals, Doctors, Reviews,
+  Appointments, Documents only. About/Help/Contact live ONLY in the footer
+  (grouped: Product / CareLink / Support / Trust & Safety). Header CTA is
+  "Ask CareLink AI" → `/ai` (desktop + top of mobile menu).
+- Footer Trust & Safety links are hash links into HelpPage sections:
+  `/help#privacy|terms|medical-disclaimer|emergency-disclaimer`; HelpPage
+  scrolls via `location.hash` + `scrollIntoView` (cards have `scroll-mt-28`).
+  `/about#mission` targets the mission section.
+- Pages: `src/pages/About/AboutPage.tsx`, `src/pages/Help/HelpPage.tsx`
+  (+ `helpData.ts` — 18 FAQ articles, searchable, category chips, accessible
+  accordion), `src/pages/Contact/ContactPage.tsx` (5 topic cards, validated
+  form, DEMO-ONLY mock submit — no backend, success state explicitly says
+  "No email has been sent").
+- Page metadata: `src/hooks/useDocumentTitle.ts` sets `document.title` +
+  meta description per page (no react-helmet in project).
+- `Card` accepts an optional `id` prop (used for footer hash anchors).
+- Verification gotcha: the OpenHands browser tool reports the STATIC
+  index.html `<title>`; verify live titles with headless chromium
+  (`--dump-dom`) or CDP instead.
