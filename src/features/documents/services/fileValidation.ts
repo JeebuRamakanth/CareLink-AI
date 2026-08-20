@@ -38,11 +38,16 @@ export const DOCUMENT_ACCEPT_ATTR =
   'application/msword,' +
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
+/** Max files accepted in a single upload batch (abuse control). */
+export const MAX_DOCUMENTS_PER_BATCH = 8;
+
 export type DocumentValidationCode =
   | 'file-too-large'
   | 'unsupported-type'
+  | 'type-mismatch'
   | 'empty-file'
   | 'malformed-filename'
+  | 'too-many-files'
   | 'duplicate';
 
 export interface DocumentValidationIssue {
@@ -65,21 +70,45 @@ export function detectDocumentKind(file: File): DocumentKind {
  * safe, UI-ready issue. Checks size, MIME, extension, and filename shape.
  */
 export function validateDocumentFile(file: File): DocumentValidationIssue | null {
+  const displayName = sanitizeDisplayName(file.name || 'file');
   if (!file.name || file.name.trim().length === 0) {
-    return { fileName: file.name || 'file', code: 'malformed-filename', message: 'This file has no name and cannot be uploaded.' };
+    return { fileName: 'file', code: 'malformed-filename', message: 'This file has no name and cannot be uploaded.' };
+  }
+  // Path-traversal / suspicious filename: reject outright rather than relying
+  // on downstream sanitization (defense in depth at the trust boundary).
+  if (/[/\\]/.test(file.name) || file.name.includes('..') || /^\.+$/.test(file.name.trim())) {
+    return { fileName: displayName, code: 'malformed-filename', message: 'This filename is not allowed.' };
   }
   if (file.size <= 0) {
-    return { fileName: file.name, code: 'empty-file', message: `${file.name} is empty.` };
+    return { fileName: displayName, code: 'empty-file', message: `${displayName} is empty.` };
   }
   if (file.size > MAX_DOCUMENT_SIZE_BYTES) {
-    return { fileName: file.name, code: 'file-too-large', message: `${file.name} exceeds the 10 MB limit.` };
+    return { fileName: displayName, code: 'file-too-large', message: `${displayName} exceeds the 10 MB limit.` };
   }
-  const mimeOk = !file.type || ALLOWED_DOCUMENT_MIMES.has(file.type);
   const extOk = ALLOWED_DOCUMENT_EXTENSIONS.test(file.name);
-  if (!mimeOk && !extOk) {
-    return { fileName: file.name, code: 'unsupported-type', message: `${file.name} is not a supported format. Use JPG, PNG, WEBP, PDF, DOC, or DOCX.` };
+  if (!extOk) {
+    return { fileName: displayName, code: 'unsupported-type', message: `${displayName} is not a supported format. Use JPG, PNG, WEBP, PDF, DOC, or DOCX.` };
+  }
+  // MIME/extension must AGREE when a MIME type is declared — a renamed
+  // executable (evil.exe → evil.pdf with a spoofed type, or a .exe carrying
+  // an image MIME) is rejected instead of trusted.
+  if (file.type && !ALLOWED_DOCUMENT_MIMES.has(file.type)) {
+    return { fileName: displayName, code: 'type-mismatch', message: `${displayName} has a file type that does not match a supported document format.` };
+  }
+  if (file.type && !mimeMatchesExtension(file.type, file.name)) {
+    return { fileName: displayName, code: 'type-mismatch', message: `${displayName} has a file type that does not match its extension.` };
   }
   return null;
+}
+
+/** MIME family must agree with the extension family (image vs pdf vs doc). */
+function mimeMatchesExtension(mime: string, name: string): boolean {
+  const ext = (name.split('.').pop() ?? '').toLowerCase();
+  if (mime.startsWith('image/')) return ['jpg', 'jpeg', 'png', 'webp'].includes(ext);
+  if (mime === 'application/pdf') return ext === 'pdf';
+  if (mime === 'application/msword') return ext === 'doc';
+  if (mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') return ext === 'docx';
+  return false;
 }
 
 export interface DocumentValidationResult {
@@ -102,10 +131,19 @@ export function validateDocumentBatch(
   const list = Array.from(files);
   const seen = new Set(existing.map((f) => `${f.fileName}|${f.fileSize}`));
 
+  if (list.length + existing.length > MAX_DOCUMENTS_PER_BATCH) {
+    issues.push({
+      fileName: 'batch',
+      code: 'too-many-files',
+      message: `You can attach up to ${MAX_DOCUMENTS_PER_BATCH} files at a time.`,
+    });
+    return { accepted, issues };
+  }
+
   for (const file of list) {
     const dupKey = `${file.name}|${file.size}`;
     if (seen.has(dupKey)) {
-      issues.push({ fileName: file.name, code: 'duplicate', message: `${file.name} is already added.` });
+      issues.push({ fileName: sanitizeDisplayName(file.name), code: 'duplicate', message: `${sanitizeDisplayName(file.name)} is already added.` });
       continue;
     }
     const issue = validateDocumentFile(file);

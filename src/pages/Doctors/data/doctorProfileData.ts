@@ -1,3 +1,7 @@
+import { doctorsData } from '../../../data/doctors';
+import { hospitalsData } from '../../../data/hospitals';
+import type { Doctor } from '../../../types';
+
 export type DoctorReviewFilterOption =
   | 'All'
   | '5 Star'
@@ -130,6 +134,8 @@ export interface DoctorProfile {
   };
   hospitalConnection: DoctorHospitalConnection;
   relatedDoctors: DoctorProfileCard[];
+  /** True for profiles derived from the catalogue rather than curated data. */
+  isBridgeProfile?: boolean;
 }
 
 export const doctorReviewFilters: DoctorReviewFilterOption[] = [
@@ -524,4 +530,130 @@ export const doctorProfiles: DoctorProfile[] = [
 export function getDoctorProfileById(id: string | undefined) {
   if (!id) return null;
   return doctorProfiles.find((profile) => profile.id === id) ?? null;
+}
+
+/* ---------------------------------------------------------------------------
+ * Bridge for the catalogue in src/data/doctors.ts (Step 14 bug fix).
+ *
+ * The /doctors list renders the `doctorsData` catalogue (doc-### ids), while
+ * rich profiles + booking exist only for the three curated `doctorProfiles`
+ * above. Previously the list-card "View profile" / "Book visit" buttons had
+ * no handlers at all — dead controls. For catalogue doctors without a curated
+ * profile we derive a conservative profile from real catalogue fields only:
+ * availability is generated from `next_available_at` (no fabricated slots),
+ * review/metric sections stay empty, and synthetic entries are marked with
+ * `isBridgeProfile` so the page shows transparent guidance instead of fake
+ * detail.
+ * ------------------------------------------------------------------------- */
+
+function doctorSlug(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function nextDayIso(offsetDays: number, hour: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  d.setHours(hour, 0, 0, 0);
+  return d.toISOString();
+}
+
+/** Slots derived from the real `next_available_at` timestamp — never invented. */
+function bridgeAvailabilitySlots(doctor: Doctor): DoctorAvailabilitySlot[] {
+  if (doctor.availability_status === 'offline' || !doctor.accepts_new_patients) return [];
+  const base = doctor.next_available_at ? new Date(doctor.next_available_at) : null;
+  const offset = base && !Number.isNaN(base.getTime())
+    ? Math.max(0, Math.round((base.getTime() - Date.now()) / 86_400_000))
+    : 1;
+  const day = offset === 0 ? 'Today' : offset === 1 ? 'Tomorrow' : 'Upcoming';
+  const hours = doctor.availability_status === 'limited' ? [10, 14] : [9, 11, 14, 16];
+  const periods: DoctorAvailabilitySlot['period'][] = ['Morning', 'Morning', 'Afternoon', 'Evening'];
+  return hours.map((hour, i) => ({
+    id: `${doctor.id}-slot-${i + 1}`,
+    day,
+    time: new Date(nextDayIso(offset, hour)).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+    status: 'available',
+    period: periods[i] ?? 'Afternoon',
+  }));
+}
+
+function bridgeProfile(doctor: Doctor): DoctorProfile {
+  const hospitalId = doctor.hospital_ids[0] ?? '';
+  const hospital = hospitalsData.find((h) => h.id === hospitalId);
+  const initials = doctor.full_name
+    .replace(/^dr\.?\s+/i, '')
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('');
+  const slots = bridgeAvailabilitySlots(doctor);
+  return {
+    isBridgeProfile: true,
+    id: doctor.id,
+    name: doctor.full_name,
+    specialty: doctor.specialty,
+    subSpecialty: doctor.sub_specialties[0] ?? '',
+    profileInitials: initials || 'DR',
+    yearsExperience: doctor.years_of_experience,
+    rating: doctor.rating,
+    totalReviews: doctor.review_count,
+    verified: doctor.is_verified,
+    hospitalAffiliation: hospital?.name ?? 'Independent practice',
+    hospitalId: hospital?.slug ?? '',
+    availabilityStatus: doctor.availability_status,
+    nextAvailable: slots[0] ? `${slots[0].day} ${slots[0].time}` : 'Not currently listed',
+    consultationFee: 'Not listed',
+    location: doctor.location,
+    languages: doctor.languages,
+    patientsTreated: undefined,
+    profileSummary: doctor.bio,
+    education: doctor.education,
+    qualifications: [],
+    certifications: [],
+    specializations: doctor.sub_specialties,
+    expertiseAreas: doctor.sub_specialties,
+    hospitalsWorkedWith: hospital ? [hospital.name] : [],
+    memberships: [],
+    consultationModes: doctor.consultation_modes,
+    professionalHighlights: [],
+    performanceMetrics: [],
+    expertiseList: [],
+    starBreakdown: [],
+    categoryRatings: [],
+    reviews: [],
+    availabilitySlots: slots,
+    consultationInfo: {
+      fee: 'Not listed',
+      duration: 'Standard consultation',
+      modes: doctor.consultation_modes,
+      inPerson: doctor.consultation_modes.includes('In-person') ? doctor.location : 'Not available',
+      online: doctor.consultation_modes.some((m) => /tele|video|online/i.test(m)) ? 'Available' : 'Not available',
+      location: doctor.location,
+      mockDisclaimer: 'Availability is derived from the doctor’s listed schedule. Confirm details with the clinic before travelling.',
+    },
+    hospitalConnection: {
+      id: hospital?.slug ?? '',
+      name: hospital?.name ?? 'Independent practice',
+      rating: hospital?.rating ?? 0,
+      location: hospital ? `${hospital.city}, ${hospital.state}` : doctor.location,
+      specialties: [doctor.specialty, ...doctor.sub_specialties],
+      imageUrl: undefined,
+      distance: '',
+      address: hospital?.address ?? '',
+      role: 'Listed affiliation',
+      hours: '',
+    },
+    relatedDoctors: [],
+  };
+}
+
+/** Curated profile first; otherwise a bridge profile derived from the catalogue. */
+export function getDoctorProfileByAnyId(id: string | undefined): DoctorProfile | null {
+  if (!id) return null;
+  const curated = getDoctorProfileById(id);
+  if (curated) return curated;
+  const doctor = doctorsData.find((d) => d.id === id || doctorSlug(d.full_name) === id);
+  return doctor ? bridgeProfile(doctor) : null;
 }

@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { BaseCard } from '../../../components/cards/BaseCard';
 import { CardActions } from '../../../components/cards/CardActions';
 import { CardBadge } from '../../../components/cards/CardBadge';
@@ -25,6 +26,14 @@ const availabilityLabel: Record<Doctor['availability_status'], string> = {
   limited: 'Limited',
   offline: 'Offline',
 };
+
+/** Matches the slug resolution in doctorProfileData.getDoctorProfileByAnyId. */
+function doctorSlug(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
 
 export function DoctorCard({ doctor, className = '' }: DoctorCardProps) {
   const availability = availabilityLabel[doctor.availability_status];
@@ -66,12 +75,20 @@ export function DoctorCard({ doctor, className = '' }: DoctorCardProps) {
         </CardActions>
       </CardBody>
       <CardFooter>
-        <button type="button" className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-ink-200">
+        <Link
+          to={`/doctors/${doctorSlug(doctor.full_name)}`}
+          className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-ink-200 transition hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300"
+          aria-label={`View profile of ${doctor.full_name}`}
+        >
           View profile
-        </button>
-        <button type="button" className="rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-3 py-2 text-sm font-semibold text-white">
+        </Link>
+        <Link
+          to={`/doctors/${doctorSlug(doctor.full_name)}?book=1`}
+          className="rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-3 py-2 text-sm font-semibold text-white transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300"
+          aria-label={`Book a visit with ${doctor.full_name}`}
+        >
           Book visit
-        </button>
+        </Link>
       </CardFooter>
     </BaseCard>
   );

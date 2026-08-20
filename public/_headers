@@ -1,0 +1,15 @@
+# CareLink-AI — production HTTP security headers (Step 14 §13).
+# Netlify/Cloudflare-Pages style `_headers` file. On other hosts, configure
+# the equivalent response headers at the CDN/server layer. The CSP below
+# mirrors the build-time meta tag injected by vite.config.ts — keep both in
+# sync. frame-ancestors and X-Content-Type-Options can ONLY be set as real
+# HTTP headers (meta tags are ignored for them).
+
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https: wss:; font-src 'self' data:; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; worker-src 'self' blob:; upgrade-insecure-requests
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(self), microphone=(self), geolocation=(self), payment=(), usb=(), interest-cohort=()
+  X-Frame-Options: DENY
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Resource-Policy: same-origin

@@ -56,7 +56,12 @@ export function clampNonNegativeInt(value: unknown, max: number, fallback = 0): 
   return Math.min(n, max);
 }
 
-/** Trim + collapse internal whitespace, with a max length guard. */
+/** Strip control chars, trim, collapse whitespace, with a max length guard. */
 export function sanitizeText(value: string, maxLength = 2000): string {
-  return value.replace(/\s+/g, ' ').trim().slice(0, maxLength);
+  return value
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, maxLength);
 }

@@ -60,7 +60,7 @@ export async function signUp(email: string, password: string): Promise<{ result?
     const existing = readMockUsers();
     if (existing[cleanEmail]) return { error: safeError('An account with this email already exists.', 'email-in-use') };
     const user: CareLinkUser = { id: createMockId(), email: cleanEmail, source: 'mock' };
-    existing[cleanEmail] = { password, user };
+    existing[cleanEmail] = { password: await hashMockPassword(password), user };
     writeMockUsers(existing);
     persistMockSession(user);
     log.info( 'auth', 'mock signup', { email: cleanEmail });
@@ -88,7 +88,11 @@ export async function signIn(email: string, password: string): Promise<{ result?
   if (!isSupabaseConfigured()) {
     const users = readMockUsers();
     const record = users[cleanEmail];
-    if (!record || record.password !== password) {
+    if (!record) {
+      return { error: safeError('Invalid email or password.', 'invalid-credentials') };
+    }
+    const passwordOk = await verifyMockPassword(record, password);
+    if (!passwordOk) {
       return { error: safeError('Invalid email or password.', 'invalid-credentials') };
     }
     persistMockSession(record.user);
@@ -218,12 +222,54 @@ function isStrongPassword(password: string): boolean {
 }
 
 // --- Mock (local-development) storage helpers ------------------------------
-// These only run when Supabase is NOT configured. They never store real
-// production credentials.
+// These only run when Supabase is NOT configured. Passwords are stored as
+// salted SHA-256 hashes — never plaintext — so a localStorage dump does not
+// reveal what the user typed (users often reuse real passwords even in demos).
 
 interface MockUserRecord {
+  /** Salted hash ("<salt>:<sha256hex>") or legacy plaintext (upgraded on next sign-in). */
   password: string;
   user: CareLinkUser;
+}
+
+const MOCK_HASH_PATTERN = /^[a-f0-9]{16}:[a-f0-9]{64}$/;
+
+async function sha256Hex(text: string): Promise<string> {
+  if (typeof crypto !== 'undefined' && crypto.subtle) {
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+    return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+  // Non-secure-context fallback (HTTP localhost): FNV-1a style mixing. Weaker
+  // than SHA-256 but still avoids plaintext at rest; mock mode only.
+  let h1 = 0x811c9dc5;
+  let h2 = 0x01000193;
+  for (let i = 0; i < text.length; i += 1) {
+    h1 = Math.imul(h1 ^ text.charCodeAt(i), 0x01000193) >>> 0;
+    h2 = Math.imul(h2 ^ text.charCodeAt(text.length - 1 - i), 0x85ebca6b) >>> 0;
+  }
+  return `${h1.toString(16).padStart(8, '0')}${h2.toString(16).padStart(8, '0')}`.repeat(4).slice(0, 64);
+}
+
+async function hashMockPassword(password: string): Promise<string> {
+  const salt = createMockId().replace(/[^a-f0-9]/gi, '').slice(0, 16).padEnd(16, '0');
+  return `${salt}:${await sha256Hex(`${salt}:${password}`)}`;
+}
+
+async function verifyMockPassword(record: MockUserRecord, password: string): Promise<boolean> {
+  if (MOCK_HASH_PATTERN.test(record.password)) {
+    const [salt] = record.password.split(':');
+    return record.password === `${salt}:${await sha256Hex(`${salt}:${password}`)}`;
+  }
+  // Legacy plaintext record (pre-Step-14): verify directly, then upgrade to a
+  // hash so plaintext does not remain at rest.
+  if (record.password === password) {
+    record.password = await hashMockPassword(password);
+    const users = readMockUsers();
+    users[record.user.email] = record;
+    writeMockUsers(users);
+    return true;
+  }
+  return false;
 }
 
 function readMockUsers(): Record<string, MockUserRecord> {

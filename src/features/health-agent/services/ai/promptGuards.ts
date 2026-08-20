@@ -23,9 +23,19 @@ const INJECTION_PATTERNS = [
   /you are now (a|an) /i,
   /act as (a|an) (?!doctor|clinician)/i,
   /reveal (all|your|the) (patient|user|system|hidden|secret)/i,
+  /\breveal\b.{0,40}\b(api[-_ ]?key|secret|token|password|credential)s?\b/i,
   /print (your|the) (system|initial) (prompt|instructions)/i,
+  /\b(system|developer|hidden) prompt\b/i,
   /\bdo not follow (your|the) (rules|guidelines)/i,
   /override (safety|security|access)/i,
+  /\b(disable|bypass|turn off|switch off)\s+(the\s+)?(safety|security|guardrails?|filters?|restrictions?)\b/i,
+  /\bshow (me )?(all|every|any)\s+(of the\s+)?(patient|user|member)s?\s+(data|records?|reports?|documents?|info)/i,
+  /\b(another|other)\s+patient'?s?\s+(data|records?|reports?|documents?|results?)\b/i,
+  /\b(run|execute|perform)\s+(sql|a query|queries)\b/i,
+  /\b(drop|truncate|alter)\s+table\b/i,
+  /\bselect\s+.+\s+from\s+\w+/i,
+  /\b(open|fetch|visit|load|navigate to)\s+(this\s+|the\s+|an?\s+)?(url|link|website|endpoint)\b/i,
+  /\bwhat (are|is) your (instructions|rules|system prompt)\b/i,
 ];
 
 export interface InjectionScreen {

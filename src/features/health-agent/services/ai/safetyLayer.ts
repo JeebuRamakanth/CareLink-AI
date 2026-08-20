@@ -29,9 +29,16 @@ const DIAGNOSTIC_OVERCLAIM = [
   /\bthis confirms (you have|that you have)\b/i,
   /\byou are suffering from\b/i,
   /\bi diagnose (you|this) (as|with)\b/i,
+  // Bare diagnostic certainty about a specific condition ("You have diabetes").
+  /\byou have (diabetes|hypertension|hypothyroidism|hyperthyroidism|anemia|anaemia|asthma|copd|depression|anxiety disorder|cancer|pneumonia|kidney disease|liver disease|heart disease|arthritis|high cholesterol|a stroke|a heart attack)\b/i,
+  /\byou are (diabetic|hypertensive|anemic|anaemic|asthmatic)\b/i,
+  // Imperative dosage instructions ("Take 500mg metformin daily").
   /\byou (must|should) take \d+\s?(mg|ml|tablets?|pills?)\b/i,
+  /\btake \d+\s?(mg|ml|tablets?|pills?)\b/i,
+  /\b\d+\s?(mg|ml)\s+(once|twice|thrice|three times) (a|per) day\b/i,
   /\b(increase|decrease|stop|double) (your )?(dose|dosage)\b/i,
   /\bprescri(be|bed|bing) (you )?\w+/i,
+  /\byou (need|require) (immediate\s+)?(surgery|hospitalization|hospitalisation)\b/i,
   /\bguaranteed (cure|recovery|outcome)\b/i,
 ];
 

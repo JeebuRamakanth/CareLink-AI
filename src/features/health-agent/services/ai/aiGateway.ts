@@ -16,6 +16,7 @@
 
 import { postJson, IntegrationError } from '../../../../lib';
 import { env } from '../../../../config';
+import { getSupabaseClient, isSupabaseConfigured } from '../../../../services/supabase/client';
 import type { AIChatRequest, AIChatResponse, AIEngineOutcome } from './aiTypes';
 import { validateAIChatResponse } from './aiSchemas';
 
@@ -84,7 +85,26 @@ export function aiGatewayMode(): AIGatewayMode {
 
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
+/**
+ * Resolve the caller's Supabase access token for the gateway's JWT check.
+ * The edge function requires a verified user JWT — anonymous gateway calls
+ * are rejected server-side. Returns null when signed out / not configured.
+ */
+async function resolveGatewayAuthToken(): Promise<string | null> {
+  if (!isSupabaseConfigured()) return null;
+  try {
+    const client = await getSupabaseClient();
+    if (!client) return null;
+    const { data } = await client.auth.getSession();
+    return data.session?.access_token ?? null;
+  } catch {
+    return null;
+  }
+}
+
 async function callGateway(url: string, request: AIChatRequest, signal?: AbortSignal): Promise<unknown> {
+  const token = await resolveGatewayAuthToken();
+  const headers: Record<string, string> = token ? { authorization: `Bearer ${token}` } : {};
   let attempt = 0;
   // Bounded retry: at most MAX_RETRIES additional attempts, only for
   // retryable errors (timeout/network/rate-limit/unavailable).
@@ -94,6 +114,7 @@ async function callGateway(url: string, request: AIChatRequest, signal?: AbortSi
         timeoutMs: GATEWAY_TIMEOUT_MS,
         signal,
         maxBodyBytes: 48 * 1024,
+        headers,
       });
     } catch (err) {
       const retryable = err instanceof IntegrationError && err.retryable;

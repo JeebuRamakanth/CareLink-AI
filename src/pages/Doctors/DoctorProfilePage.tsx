@@ -1,5 +1,5 @@
-import { useMemo, useState, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useMemo, useState, useRef } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Container } from '../../components/ui/Container';
 import { Button } from '../../components/ui/Button';
 import { useAppointmentContext } from '../../contexts/AppointmentContext';
@@ -17,7 +17,7 @@ import { HospitalConnection } from './components/HospitalConnection';
 import { RelatedDoctors } from './components/RelatedDoctors';
 import { DoctorBookingModal } from './components/DoctorBookingModal';
 import { AppointmentSuccessModal } from '../Appointments/components/AppointmentSuccessModal';
-import { getDoctorProfileById, doctorReviewFilters } from './data/doctorProfileData';
+import { getDoctorProfileByAnyId, doctorReviewFilters } from './data/doctorProfileData';
 import type { DoctorReviewFilterOption } from './data/doctorProfileData';
 import type { AppointmentRecord } from '../Appointments/data/appointmentsData';
 import { ROUTES } from '../../routes/routeConstants';
@@ -25,7 +25,8 @@ import { ROUTES } from '../../routes/routeConstants';
 export function DoctorProfilePage() {
   const { doctorId } = useParams<{ doctorId: string }>();
   const navigate = useNavigate();
-  const doctor = useMemo(() => getDoctorProfileById(doctorId), [doctorId]);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const doctor = useMemo(() => getDoctorProfileByAnyId(doctorId), [doctorId]);
   const [selectedReviewFilter, setSelectedReviewFilter] = useState<DoctorReviewFilterOption>('All');
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [isBookingOpen, setIsBookingOpen] = useState(false);
@@ -36,6 +37,15 @@ export function DoctorProfilePage() {
   const { addAppointment } = useAppointmentContext();
 
   const patientProfiles = useMemo(() => ['Myself', 'Child (age 4)', 'Family member'], []);
+
+  // Deep-link from directory cards: /doctors/:id?book=1 opens the booking flow.
+  useEffect(() => {
+    if (doctor && searchParams.get('book') === '1') {
+      setIsBookingOpen(true);
+      searchParams.delete('book');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [doctor, searchParams, setSearchParams]);
 
   const filteredReviews = useMemo(() => {
     if (!doctor) return [];
@@ -86,6 +96,12 @@ export function DoctorProfilePage() {
   return (
     <Container className="py-8 sm:py-10 lg:py-16">
       <div className="space-y-10" ref={topSectionRef}>
+        {doctor.isBridgeProfile ? (
+          <div className="rounded-[1.5rem] border border-brand-400/20 bg-brand-400/10 p-4 text-sm leading-6 text-brand-100">
+            This profile is shown from directory data — availability is derived from the doctor’s listed schedule.
+            Detailed credentials, verified reviews and hospital affiliations are confirmed during onboarding.
+          </div>
+        ) : null}
         <DoctorHero doctor={doctor} onBack={() => navigate(-1)} />
         <DoctorQuickActions
           onBookAppointment={() => setIsBookingOpen(true)}

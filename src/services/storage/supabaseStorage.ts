@@ -34,6 +34,21 @@ export interface StoredFile {
 }
 
 /**
+ * Reduce a user filename's extension to a short alphanumeric token so a
+ * crafted filename can never inject path separators or extra segments into
+ * the storage path (defense in depth under the owner-scoped RLS prefix).
+ */
+const STORAGE_EXT_ALLOWLIST = new Set(['jpg', 'jpeg', 'png', 'webp', 'pdf', 'doc', 'docx']);
+
+export function safeStorageExtension(fileName: string | undefined): string {
+  if (!fileName || !fileName.includes('.')) return 'bin';
+  const rawExt = (fileName.split('.').pop() ?? '').toLowerCase();
+  // Allowlist-only: a crafted filename can never inject separators or smuggle
+  // an executable extension into the storage path.
+  return STORAGE_EXT_ALLOWLIST.has(rawExt) ? rawExt : 'bin';
+}
+
+/**
  * Upload a medical file privately. The path is namespaced by the owner id so
  * RLS can authorize it. Never returns a public URL.
  */
@@ -46,8 +61,8 @@ export async function uploadMedicalFile(
   const client = await getSupabaseClient();
   if (!client) return null;
 
-  const ext = (file instanceof File && file.name) ? file.name.split('.').pop() : 'bin';
-  const path = `${ownerId}/${documentId}/${documentId}.${ext || 'bin'}`;
+  const ext = safeStorageExtension(file instanceof File ? file.name : undefined);
+  const path = `${ownerId}/${documentId}/${documentId}.${ext}`;
   try {
     const { error } = await client.storage.from(MEDICAL_BUCKET).upload(path, file, {
       upsert: true,
