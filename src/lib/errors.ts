@@ -19,6 +19,7 @@ export type IntegrationErrorCode =
   | 'network'
   | 'malformed-response'
   | 'missing-fields'
+  | 'payload-too-large'
   | 'unavailable'
   | 'aborted'
   | 'unknown';

@@ -27,12 +27,15 @@ import {
 import {
   realCloudinaryStorage,
   realDirectionsProvider,
+  realDocumentAnalysis,
   realGeocodingProvider,
   realHospitalSearch,
   realLabSearch,
   realMapsProvider,
+  realMedicineRecognition,
   realPharmacySearch,
 } from './realAdapters';
+import type { DocumentAnalysisAdapter, MedicineRecognitionAdapter } from './interfaces';
 
 /* ----------------------------------------------------------------------------
  * Fallback-wrapped search adapters: real first, mock on failure, truth-tagged.
@@ -84,9 +87,40 @@ const labSearch: LaboratorySearchAdapter = {
 };
 
 /* ----------------------------------------------------------------------------
- * Resolved registry. Mock-only providers (AI, recovery, emergency, medicines,
- * documents, appointments, mapsRouting) keep their mock impls; the search +
- * maps/storage/directions/geocoding providers are switched by env availability.
+ * Document analysis + medicine recognition (Step 13): real server-adapter
+ * endpoints when configured, schema-validated, mock fallback on any failure.
+ * ------------------------------------------------------------------------- */
+
+const documentAnalysis: DocumentAnalysisAdapter = {
+  async analyze(document) {
+    const result = await runWithFallback({
+      provider: 'document-analysis',
+      configured: env.documents.configured,
+      real: () => realDocumentAnalysis.analyze(document),
+      mock: () => mockAdapters.documents.analyze(document),
+    });
+    return result.data;
+  },
+};
+
+const medicineRecognition: MedicineRecognitionAdapter = {
+  async recognize(input) {
+    const result = await runWithFallback({
+      provider: 'medicine-recognition',
+      configured: env.medicine.configured,
+      real: () => realMedicineRecognition.recognize(input),
+      mock: () => mockAdapters.medicines.recognize(input),
+    });
+    return result.data;
+  },
+};
+
+/* ----------------------------------------------------------------------------
+ * Resolved registry. Mock-only providers (AI classify, recovery, emergency,
+ * appointments, mapsRouting) keep their mock impls; the search + maps/storage/
+ * directions/geocoding/documents/medicines providers are switched by env
+ * availability. The structured AI engine (services/ai) resolves its own
+ * REAL/MOCK/UNAVAILABLE mode via the secure gateway.
  * ------------------------------------------------------------------------- */
 
 export const adapters: AgentAdapters = {
@@ -94,6 +128,8 @@ export const adapters: AgentAdapters = {
   hospitals: hospitalSearch,
   pharmacies: pharmacySearch,
   labs: labSearch,
+  documents: documentAnalysis,
+  medicines: medicineRecognition,
   mapsProvider: env.maps.configured ? realMapsProvider : mockMapsProvider,
   directions: env.maps.configured ? realDirectionsProvider : mockDirectionsProvider,
   geocoding: env.maps.configured ? realGeocodingProvider : mockGeocodingProvider,

@@ -99,7 +99,9 @@ const fileToDocument = (file: File): HealthDocument => {
 };
 
 export function useAgentConversation(): UseAgentConversation {
-  const orchestrator = useRef(createAgentOrchestrator(mockAdapters));
+  // Resolved registry (Step 9/13): real providers engage when configured,
+  // mock fallback otherwise — never a hardcoded mock-only pipeline.
+  const orchestrator = useRef(createAgentOrchestrator());
   const pipelineLocks = useRef<Set<string>>(new Set());
   const handoffDrained = useRef(false);
 

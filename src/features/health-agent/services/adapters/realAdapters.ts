@@ -12,7 +12,7 @@
  * defaulted rather than thrown.
  */
 
-import { getJson } from '../../../../lib';
+import { getJson, postJson } from '../../../../lib';
 import { buildMapsDirectionsUrl, buildMapsPlaceUrl } from '../../../../lib';
 import {
   asArray,
@@ -31,14 +31,17 @@ import type {
 } from '../../types';
 import type {
   DirectionsProvider,
+  DocumentAnalysisAdapter,
   GeocodingProvider,
   HospitalSearchAdapter,
   LaboratorySearchAdapter,
   MapsProvider,
+  MedicineRecognitionAdapter,
   PharmacySearchAdapter,
   StorageProvider,
   StorageUploadResult,
 } from './interfaces';
+import { validateDocumentAnalysisPayload, validateMedicinePayload } from '../ai/aiSchemas';
 
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -310,6 +313,43 @@ export async function analyzeDocumentRemotely(file: File, documentId: string): P
     return null;
   }
 }
+
+/* ----------------------------------------------------------------------------
+ * Real document-analysis adapter (Step 13 §7/§8) — schema-validated responses
+ * with extraction provenance. The OCR/NLP secret stays server-side; the
+ * browser sends document metadata to the server adapter endpoint.
+ * ------------------------------------------------------------------------- */
+
+export const realDocumentAnalysis: DocumentAnalysisAdapter = {
+  async analyze(document) {
+    if (!env.documents.configured) throw new Error('document analysis not configured');
+    const raw = await postJson<unknown>(`${env.documents.baseUrl}/analyze-ref`, {
+      documentId: document.id,
+      fileName: document.fileName,
+      mime: document.mime,
+      kind: document.kind,
+    });
+    const validated = validateDocumentAnalysisPayload(raw, document.id);
+    if (!validated) throw new Error('malformed document analysis response');
+    return validated;
+  },
+};
+
+/* ----------------------------------------------------------------------------
+ * Real medicine-recognition adapter (Step 13 §9) — validated payloads, no
+ * invented dosage, low-confidence results marked uncertain.
+ * ------------------------------------------------------------------------- */
+
+export const realMedicineRecognition: MedicineRecognitionAdapter = {
+  async recognize(input) {
+    if (!env.medicine.configured) throw new Error('medicine intelligence not configured');
+    const raw = await postJson<unknown>(`${env.medicine.baseUrl}/recognize`, {
+      text: input.text?.slice(0, 200),
+      documentId: input.documentId,
+    });
+    return validateMedicinePayload(raw);
+  },
+};
 
 export { wait, normalizeHospital, pickBoolean, pickNumber, pickString };
 export type { RouteRecommendation };

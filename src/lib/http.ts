@@ -17,6 +17,11 @@ export interface HttpOptions {
   /** External abort signal to also honor. */
   signal?: AbortSignal;
   headers?: Record<string, string>;
+  method?: 'GET' | 'POST';
+  /** Serialized request body (POST only). */
+  body?: string;
+  /** Max accepted request-body size in bytes (POST only). Default 64 KB. */
+  maxBodyBytes?: number;
 }
 
 const DEFAULT_TIMEOUT_MS = 8000;
@@ -34,8 +39,9 @@ async function fetchWithTimeout(url: string, options: HttpOptions = {}): Promise
 
   try {
     return await fetch(url, {
-      method: 'GET',
+      method: options.method ?? 'GET',
       headers: options.headers,
+      body: options.body,
       signal: controller.signal,
     });
   } finally {
@@ -43,14 +49,7 @@ async function fetchWithTimeout(url: string, options: HttpOptions = {}): Promise
   }
 }
 
-export async function getJson<T>(url: string, options: HttpOptions = {}): Promise<T> {
-  let response: Response;
-  try {
-    response = await fetchWithTimeout(url, options);
-  } catch (err) {
-    throw toIntegrationError(err, 'http');
-  }
-
+async function parseJsonResponse<T>(response: Response): Promise<T> {
   if (response.status === 401) {
     throw toIntegrationError(new Error('unauthorized'), 'http');
   }
@@ -74,6 +73,43 @@ export async function getJson<T>(url: string, options: HttpOptions = {}): Promis
   } catch {
     throw new IntegrationError({ code: 'malformed-response', provider: 'http' });
   }
+}
+
+export async function getJson<T>(url: string, options: HttpOptions = {}): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetchWithTimeout(url, options);
+  } catch (err) {
+    throw toIntegrationError(err, 'http');
+  }
+  return parseJsonResponse<T>(response);
+}
+
+const DEFAULT_MAX_BODY_BYTES = 64 * 1024;
+
+/**
+ * POST a JSON body and parse a JSON response. Enforces a request-size cap so
+ * abusive/oversized payloads never leave the browser. The body must already be
+ * serialized; headers are merged with a JSON content type.
+ */
+export async function postJson<T>(url: string, payload: unknown, options: HttpOptions = {}): Promise<T> {
+  const body = JSON.stringify(payload);
+  const maxBodyBytes = options.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES;
+  if (body.length > maxBodyBytes) {
+    throw new IntegrationError({ code: 'payload-too-large', provider: 'http', message: 'request body too large' });
+  }
+  let response: Response;
+  try {
+    response = await fetchWithTimeout(url, {
+      ...options,
+      method: 'POST',
+      body,
+      headers: { 'content-type': 'application/json', ...options.headers },
+    });
+  } catch (err) {
+    throw toIntegrationError(err, 'http');
+  }
+  return parseJsonResponse<T>(response);
 }
 
 export { toIntegrationError };

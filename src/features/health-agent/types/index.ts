@@ -30,6 +30,26 @@ export type InformationTier =
   | 'emergency' // urgent-care escalation
   | 'professional'; // explicit "ask a clinician"
 
+/**
+ * Medical safety level the AI safety layer assigns to every response
+ * (Step 13 §4). Drives badges, escalation and disclaimer selection.
+ */
+export type SafetyLevel =
+  | 'educational'
+  | 'possible-concern'
+  | 'urgent'
+  | 'emergency'
+  | 'professional-care';
+
+/** mock/live/unavailable provenance for any provider-derived payload. */
+export interface AIProvenance {
+  mode: 'real' | 'mock' | 'unavailable';
+  provider: string;
+  fetchedAt: string;
+  /** verification status of the payload (schema-validated or fallback). */
+  verification: 'validated' | 'fallback' | 'unverified';
+}
+
 export type RouteTargetKind = 'hospital' | 'doctor' | 'pharmacy' | 'lab';
 
 /* ----------------------------------------------------------------------------
@@ -144,14 +164,30 @@ export interface HealthDocument {
   analysis?: DocumentAnalysis;
 }
 
+/** Provenance for a single extracted value or an entire analysis payload. */
+export interface ExtractionProvenance {
+  /** Id of the source document the value came from. */
+  sourceDocumentId?: string;
+  /** Page/section locator when the processor provides one. */
+  locator?: string;
+  /** 0..1 extraction confidence; omitted when the processor cannot score it. */
+  confidence?: number;
+  /** ISO timestamp of processing. */
+  processedAt?: string;
+  /** Provider name ("mock" in demo mode). */
+  provider?: string;
+}
+
 export interface DocumentAnalysis {
   category: DocumentAnalysisCategory;
   /** Extracted text placeholder — a real OCR/NLP layer fills this later. */
   extractedTextPlaceholder: string;
   /** Key phrases the mock adapter surfaces as a demo. */
   keyFindings: string[];
-  /** Always true until a real analysis backend exists. */
-  isMock: true;
+  /** True whenever any part of the analysis is demo/mock data. */
+  isMock: boolean;
+  /** Provenance for the extraction (mock analyses tag provider "mock"). */
+  provenance?: ExtractionProvenance;
 }
 
 /* ----------------------------------------------------------------------------
@@ -311,6 +347,16 @@ export interface MedicineResult {
   prescriptionRequired: boolean;
   interactionWarningPlaceholder: string;
   pharmacyDiscoveryAction?: PharmacyRecommendation;
+  /** Strength/dosage form ONLY when verified from a data source — never invented. */
+  strength?: string;
+  dosageForm?: string;
+  manufacturer?: string;
+  /** 0..1 recognition confidence; low values force an uncertainty warning. */
+  recognitionConfidence?: number;
+  /** True when identification is uncertain and must be verified with the label/pharmacist. */
+  uncertain?: boolean;
+  /** mock/live provenance for the recognition. */
+  source?: 'real' | 'mock';
 }
 
 export interface MedicineInput {
@@ -511,6 +557,10 @@ export interface AgentResult {
   isDemoData?: boolean;
   /** Provenance / verification metadata. */
   sources: string[];
+  /** Safety level assigned by the medical safety layer. */
+  safetyLevel?: SafetyLevel;
+  /** Structured provenance for the AI payload itself (mock/live + timestamp). */
+  provenance?: AIProvenance;
   /** Clarifying prompts to keep the conversation moving. */
   followUpQuestions: string[];
   /** Renderable CTA actions (deep-link into existing flows). */
