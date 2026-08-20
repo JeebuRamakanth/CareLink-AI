@@ -12,21 +12,13 @@ import { LoginPage } from '../pages/Auth/LoginPage';
 import { RegisterPage } from '../pages/Auth/RegisterPage';
 import { ProfilePage } from '../pages/Auth/ProfilePage';
 import { DocumentsLibraryPage } from '../pages/Documents/DocumentsLibraryPage';
+import { AboutPage } from '../pages/About/AboutPage';
+import { HelpPage } from '../pages/Help/HelpPage';
+import { ContactPage } from '../pages/Contact/ContactPage';
 import { AIChatPage } from '../features/health-agent';
 import { ROUTES } from './routeConstants';
 import { PublicLayout } from './PublicLayout';
 import { ProtectedRoute } from '../components/ProtectedRoute';
-
-function PlaceholderPage({ title }: { title: string }) {
-  return (
-    <div className="mx-auto flex min-h-[50vh] max-w-5xl items-center justify-center px-6 py-20 text-center text-ink-300">
-      <div>
-        <p className="text-sm font-semibold uppercase tracking-[0.32em] text-brand-200">Coming soon</p>
-        <h1 className="mt-3 text-3xl font-semibold text-white">{title}</h1>
-      </div>
-    </div>
-  );
-}
 
 export function AppRoutes() {
   return (
@@ -49,9 +41,9 @@ export function AppRoutes() {
         <Route path={ROUTES.register} element={<RegisterPage />} />
         {/* Protected — requires an authenticated user. */}
         <Route path={ROUTES.profile} element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-        <Route path={ROUTES.about} element={<PlaceholderPage title="About" />} />
-        <Route path={ROUTES.help} element={<PlaceholderPage title="Help" />} />
-        <Route path={ROUTES.contact} element={<PlaceholderPage title="Contact" />} />
+        <Route path={ROUTES.about} element={<AboutPage />} />
+        <Route path={ROUTES.help} element={<HelpPage />} />
+        <Route path={ROUTES.contact} element={<ContactPage />} />
       </Route>
       <Route path="*" element={<Navigate to={ROUTES.home} replace />} />
     </Routes>
