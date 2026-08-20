@@ -84,7 +84,9 @@ const activePatientContext = (profileId: string): PatientContext => {
 };
 
 export function useHealthAgent(): UseHealthAgent {
-  const orchestrator = useRef(createAgentOrchestrator(mockAdapters));
+  // Resolved registry (Step 9/13): real providers engage when configured,
+  // mock fallback otherwise — never a hardcoded mock-only pipeline.
+  const orchestrator = useRef(createAgentOrchestrator());
   const pipelineLocks = useRef<Set<string>>(new Set());
 
   const [status, setStatus] = useState<HealthAgentStatus>('idle');

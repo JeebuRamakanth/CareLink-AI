@@ -205,6 +205,14 @@ function ResultCard({ result, onReply, focusTopic, patientOrigin }: ResultCardPr
             {result.dataSource === 'real' ? 'Real data' : 'Demo data'}
           </span>
         ) : null}
+        {result.provenance ? (
+          <span
+            title={`AI source: ${result.provenance.provider} · ${new Date(result.provenance.fetchedAt).toLocaleString()}`}
+            className={cn('inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.16em]', result.provenance.mode === 'real' ? 'border-emerald-400/25 bg-emerald-500/12 text-emerald-200' : 'border-white/12 bg-white/6 text-ink-300')}
+          >
+            {result.provenance.mode === 'real' ? 'Live AI' : 'CareLink demo response'}
+          </span>
+        ) : null}
         {result.meta.disclaimer ? (
           <span className="inline-flex items-center gap-1 text-[0.7rem] text-ink-400"><IconShield width={12} height={12} aria-hidden /> Guidance, not a diagnosis</span>
         ) : null}
@@ -264,7 +272,7 @@ function ResultCard({ result, onReply, focusTopic, patientOrigin }: ResultCardPr
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap gap-2">
                     <a href={`${ROUTES.hospitals}/${h.detailSlug}`} className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">View Hospital</a>
-                    <a href={`${ROUTES.hospitals}/${h.detailSlug}?focus=${encodeURIComponent(focusTopic ?? 'All')}`} className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">View Doctors</a>
+                    <a href={`${ROUTES.hospitals}/${h.detailSlug}?focus=${encodeURIComponent(focusTopic ?? 'All')}`} className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">{focusTopic && focusTopic !== 'All' ? 'View Relevant Doctors' : 'View Doctors'}</a>
                     <a href={hospitalDirectionsHref(h)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">Directions</a>
                     <a href={`${ROUTES.appointments}?hosp=${h.detailSlug}`} className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-3 py-1.5 text-[0.78rem] font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">Book</a>
                   </div>

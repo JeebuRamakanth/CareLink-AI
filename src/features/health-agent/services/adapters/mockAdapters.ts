@@ -293,6 +293,11 @@ export const mockDocumentAnalysis: AgentAdapters['documents'] = {
       extractedTextPlaceholder: 'Extracted text will be populated by a real OCR/NLP layer in a future step.',
       keyFindings: findings[category],
       isMock: true,
+      provenance: {
+        sourceDocumentId: document.id,
+        processedAt: new Date().toISOString(),
+        provider: 'mock',
+      },
     };
     return analysis;
   },
@@ -307,7 +312,11 @@ export const mockMedicineRecognition: AgentAdapters['medicines'] = {
     await wait(150);
     if (input.text) {
       const found = findMedicine(input.text);
-      if (found) return found;
+      if (found) {
+        // Demo recognition: high confidence only because the mock database is
+        // tiny and exact-match. Truth-tagged as mock.
+        return { ...found, recognitionConfidence: 0.9, uncertain: false, source: 'mock' as const };
+      }
     }
     return null;
   },

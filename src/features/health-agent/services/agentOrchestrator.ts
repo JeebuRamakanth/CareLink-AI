@@ -59,6 +59,9 @@ import {
   localizeLabs,
   type PatientPoint,
 } from './discoveryService';
+import { runAITurn, type AIEngineResult } from './ai/aiEngine';
+import { inputSafetyFloor } from './ai/safetyLayer';
+import type { AgentActionType, SafetyLevel } from '../types';
 
 const DISCLAIMER_MEDICAL = DISCLOSURES.medical;
 const DISCLAIMER_EMERGENCY = DISCLOSURES.emergency;
@@ -104,6 +107,80 @@ const dataSourceFor = (): 'real' | 'mock' => (isAnyProviderReal() ? 'real' : 'mo
 
 /** Full pharmacy pool minus the medicine's own discovery pharmacy, for richer medicine results. */
 const pharmacyNeighbors = (): PharmacyRecommendation[] => pharmacyRecommendations;
+
+/* ----------------------------------------------------------------------------
+ * AI engine integration (Step 13)
+ * ------------------------------------------------------------------------- */
+
+/**
+ * Allowlisted action types the AI may SUGGEST (§13). Execution always happens
+ * through CareLink services/routes — the AI can never execute anything itself.
+ */
+const ALLOWED_ACTIONS: AgentActionType[] = [
+  'view-hospital', 'view-doctor', 'view-pharmacy', 'view-lab',
+  'book-appointment', 'view-appointments', 'get-directions', 'call-facility',
+  'call-emergency', 'find-pharmacy', 'find-doctor', 'find-hospital',
+  'upload-report', 'upload-prescription', 'track-recovery', 'ask-follow-up',
+  'open-command-center',
+];
+
+const URGENCY_RANK: Record<UrgencyLevel, number> = { routine: 0, attention: 1, urgent: 2, emergency: 3 };
+
+const safetyToUrgency = (level: SafetyLevel): UrgencyLevel => {
+  switch (level) {
+    case 'emergency':
+      return 'emergency';
+    case 'urgent':
+      return 'urgent';
+    case 'possible-concern':
+      return 'attention';
+    default:
+      return 'routine';
+  }
+};
+
+/**
+ * Merge a safety-checked structured AI response into the intent-built result.
+ * The builders own data (recommendations, actions); the AI owns language
+ * (summary/explanation/follow-ups). Safety level can only escalate urgency,
+ * never de-escalate, and emergency short-circuit stays with the classifier.
+ */
+function mergeAIIntoResult(result: AgentResult, ai: AIEngineResult): AgentResult {
+  const { response } = ai;
+  const warnings = [...result.warnings, ...response.warnings];
+  if (ai.injectionFlagged) {
+    warnings.push('Instruction-like text in the input was treated as data, not commands.');
+  }
+
+  const aiUrgency = safetyToUrgency(response.safetyLevel);
+  // Escalate-only, and never let a non-emergency intent jump straight to
+  // emergency urgency — the emergency short-circuit owns that path.
+  const escalated: UrgencyLevel =
+    URGENCY_RANK[aiUrgency] > URGENCY_RANK[result.urgency]
+      ? aiUrgency === 'emergency'
+        ? 'urgent'
+        : aiUrgency
+      : result.urgency;
+
+  return {
+    ...result,
+    summary: response.summary || result.summary,
+    explanation: response.explanation || result.explanation,
+    urgency: escalated,
+    meta: { ...result.meta, urgency: escalated },
+    followUpQuestions: response.followUpQuestions.length > 0 ? response.followUpQuestions : result.followUpQuestions,
+    suggestedReplies: response.followUpQuestions.length > 0 ? response.followUpQuestions : result.suggestedReplies,
+    warnings,
+    safetyLevel: response.safetyLevel,
+    provenance: {
+      mode: ai.mode === 'real' ? 'real' : 'mock',
+      provider: response.source.provider,
+      fetchedAt: response.source.fetchedAt,
+      verification: ai.mode === 'real' ? 'validated' : 'fallback',
+    },
+    sources: [response.source.mode === 'real' ? `CareLink AI (${response.source.provider})` : 'CareLink demo response', ...result.sources],
+  };
+}
 
 const emptyResult = (intent: AgentIntent, overrides: Partial<AgentResult> = {}): AgentResult => ({
   id: `res-${Math.random().toString(36).slice(2, 9)}`,
@@ -284,20 +361,47 @@ function buildLabResult(context?: ConversationContext, patient?: PatientPoint | 
 
 async function buildMedicineResult(rawInput: string, adapters: AgentAdapters, context?: ConversationContext, patient?: PatientPoint | null): Promise<AgentResult> {
   const medicine = await adapters.medicines.recognize({ text: rawInput });
-  const med = medicine ?? (await adapters.medicines.recognize({ text: 'paracetamol' }))!;
+
+  // §9: never invent a medicine. When recognition fails or is uncertain, say
+  // so plainly and route to verification instead of substituting a guess.
+  if (!medicine) {
+    return emptyResult('medicine', {
+      summary: 'Medicine not confidently identified',
+      explanation: 'Medicine identification is uncertain. Please verify the name and strength with the label or a pharmacist before taking any action.',
+      urgency: 'routine',
+      meta: {
+        confidence: 'low', urgency: 'routine', tier: 'professional',
+        disclaimer: 'Never change your dosage or stop a prescribed medicine without consulting your doctor. Confirm interactions with a pharmacist using your full medication list.',
+      },
+      recommendedNextSteps: ['Check the exact name and strength printed on the strip/label.', 'Ask a pharmacist to confirm the medicine before purchase or use.'],
+      warnings: ['Medicine identification is uncertain. Please verify the name and strength with the label/pharmacist.'],
+      dataSource: dataSourceFor(),
+      isDemoData: !isAnyProviderReal(),
+      sources: [isAnyProviderReal() ? 'CareLink medicine knowledge' : 'CareLink medicine knowledge (mock)'],
+      actions: [
+        { type: 'find-pharmacy', label: 'Ask a pharmacist', href: ROUTES.ai, icon: 'find-pharmacy' },
+        { type: 'upload-prescription', label: 'Upload a prescription', href: ROUTES.ai, icon: 'upload-prescription' },
+      ],
+      suggestedReplies: ['Find a pharmacy near me', 'Upload a prescription'],
+    });
+  }
+
+  const med = medicine;
   const rankedPharmacies = med.pharmacyDiscoveryAction ? rankPharmacies([med.pharmacyDiscoveryAction, ...pharmacyNeighbors()], rankInput('routine', med.name, context)).slice(0, 3) : [];
   const { results: pharmacies } = localizePharmacies(rankedPharmacies, patient ?? null, !isAnyProviderReal());
+  const uncertain = med.uncertain === true || (typeof med.recognitionConfidence === 'number' && med.recognitionConfidence < 0.6);
   return emptyResult('medicine', {
     summary: `Medicine info — ${med.name}`,
     explanation: 'General medicine information for navigation only. This is not a prescription or dosage recommendation.',
     urgency: 'routine',
     meta: {
-      confidence: 'medium', urgency: 'routine', tier: 'educational',
+      confidence: uncertain ? 'low' : 'medium', urgency: 'routine', tier: 'educational',
       disclaimer: 'Never change your dosage or stop a prescribed medicine without consulting your doctor. Confirm interactions with a pharmacist using your full medication list.',
     },
     recommendedNextSteps: [med.prescriptionRequired ? 'This medicine needs a prescription — consult your doctor.' : 'Available over the counter; follow label directions.'],
     medicines: [med],
     pharmacies,
+    warnings: uncertain ? ['Medicine identification is uncertain. Please verify the name and strength with the label/pharmacist.'] : [],
     dataSource: dataSourceFor(),
     isDemoData: !isAnyProviderReal(),
     sources: [isAnyProviderReal() ? 'CareLink medicine knowledge' : 'CareLink medicine knowledge (mock)'],
@@ -588,14 +692,26 @@ export function createAgentOrchestrator(adapters: AgentAdapters = resolvedAdapte
 
     // Emergency short-circuits everything — always escalate. Severity is never
     // "remembered away"; each emergency-pattern input is re-evaluated fresh.
-    if (classification.intent === 'emergency') {
+    // The deterministic safety floor also forces emergency handling even if a
+    // future real classifier misses the pattern.
+    if (classification.intent === 'emergency' || inputSafetyFloor(request.text) === 'emergency') {
+      const emergencyClassification = classification.intent === 'emergency'
+        ? classification
+        : { ...classification, intent: 'emergency' as const, confidence: 'high' as const };
       const result = await buildEmergencyResult(adapters, request.text, priorContext, patient);
+      result.safetyLevel = 'emergency';
+      result.provenance = {
+        mode: 'mock',
+        provider: 'CareLink emergency navigation',
+        fetchedAt: new Date().toISOString(),
+        verification: 'validated',
+      };
       const context = accumulateContext(
         { ...priorContext },
         { id: 'u', role: 'user', content: request.text, createdAt: new Date().toISOString(), documents: request.documents, contextTags: [], patientProfileId: request.patientContext.activeProfileId },
-        classification.intent
+        'emergency'
       );
-      return { result, classification, context };
+      return { result, classification: emergencyClassification, context };
     }
 
     let result: AgentResult;
@@ -654,6 +770,23 @@ export function createAgentOrchestrator(adapters: AgentAdapters = resolvedAdapte
       default:
         result = buildGeneralResult();
     }
+
+    // Step 13: enrich with the structured AI engine (real gateway when
+    // configured, clearly-labelled demo responder otherwise). The engine
+    // validates the payload schema and enforces the medical safety layer
+    // before anything reaches the UI. Failures degrade to the demo responder
+    // — the conversation never breaks.
+    const ai = await runAITurn({
+      text: request.text,
+      documents: request.documents,
+      patientContext: request.patientContext,
+      conversationContext: priorContext,
+      history: request.history,
+      language: request.language,
+      allowedActions: ALLOWED_ACTIONS,
+      classification,
+    });
+    result = mergeAIIntoResult(result, ai);
 
     const context = accumulateContext(
       { ...priorContext },
