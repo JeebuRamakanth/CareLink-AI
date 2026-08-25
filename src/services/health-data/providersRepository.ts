@@ -70,13 +70,12 @@ export async function listRelevantDoctorsForHospital(
 ): Promise<DoctorRow[]> {
   const { data } = await withClient(async (client) => {
     const res = await client
-      .from('doctor_hospitals')
-      .select('doctor_id, doctors!inner(*), doctor_condition_expertise!inner(condition_id)')
-      .eq('hospital_id', hospitalId)
+      .from('doctors')
+      .select('*, doctor_hospitals!inner(hospital_id), doctor_condition_expertise!inner(condition_id)')
+      .eq('doctor_hospitals.hospital_id', hospitalId)
       .eq('doctor_condition_expertise.condition_id', conditionId);
     if (res.error) throw res.error;
-    const rows = (res.data as { doctors: DoctorRow }[] | null) ?? [];
-    return rows.map((r) => r.doctors);
+    return ((res.data as unknown as DoctorRow[] | null) ?? []);
   });
   return data ?? [];
 }
@@ -84,12 +83,11 @@ export async function listRelevantDoctorsForHospital(
 export async function listDoctorsAtHospital(hospitalId: string): Promise<DoctorRow[]> {
   const { data } = await withClient(async (client) => {
     const res = await client
-      .from('doctor_hospitals')
-      .select('doctors!inner(*)')
-      .eq('hospital_id', hospitalId);
+      .from('doctors')
+      .select('*, doctor_hospitals!inner(hospital_id)')
+      .eq('doctor_hospitals.hospital_id', hospitalId);
     if (res.error) throw res.error;
-    const rows = (res.data as { doctors: DoctorRow }[] | null) ?? [];
-    return rows.map((r) => r.doctors);
+    return ((res.data as unknown as DoctorRow[] | null) ?? []);
   });
   return data ?? [];
 }

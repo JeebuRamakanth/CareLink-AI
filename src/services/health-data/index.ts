@@ -17,3 +17,17 @@ export * from './documentsRepository';
 export * from './recoveryVaccinationRepository';
 export * from './healthContextRepository';
 export * from './auxRepository';
+
+/* Step 10.5 repositories (migrations 0003–0018) */
+export * from './providersRepository';
+export * from './rbacRepository';
+export * from './reviewsRepository';
+export * from './agentRepository';
+export * from './appointmentExpansionRepository';
+export * from './medicationSchedulesRepository';
+export * from './recoveryPlansRepository';
+export * from './timelineRepository';
+export * from './notificationsRepository';
+export * from './emergencyRepository';
+export * from './bloodDonationRepository';
+export * from './auditRepository';

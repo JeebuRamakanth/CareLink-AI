@@ -2,6 +2,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
+import { getDoctorProfileById } from '../../Doctors/data/doctorProfileData';
 import type { HospitalDoctorItem, HospitalDoctorTopic } from '../data/hospitalDetailsData';
 
 type HospitalDoctorPreviewProps = {
@@ -146,12 +147,20 @@ export function HospitalDoctorPreview({ doctors, topics, selectedTopic, onTopicC
                     </div>
 
                     <div className="grid gap-3">
-                      <Button type="button" variant="secondary" size="sm" onClick={() => navigate(`/doctors/${doctor.id}`)}>
-                        View doctor
-                      </Button>
-                      <Button type="button" variant="primary" size="sm" onClick={() => navigate(`/doctors/${doctor.id}`)}>
-                        Book appointment
-                      </Button>
+                      {getDoctorProfileById(doctor.id) ? (
+                        <>
+                          <Button type="button" variant="secondary" size="sm" onClick={() => navigate(`/doctors/${doctor.id}`)}>
+                            View doctor
+                          </Button>
+                          <Button type="button" variant="primary" size="sm" onClick={() => navigate(`/doctors/${doctor.id}`)}>
+                            Book appointment
+                          </Button>
+                        </>
+                      ) : (
+                        <Button type="button" variant="primary" size="sm" onClick={() => navigate('/appointments')}>
+                          Book appointment
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </motion.div>
