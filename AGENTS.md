@@ -256,3 +256,27 @@ Single engine, never a second agent system. All AI goes through one gateway.
   uses `transform.define: { 'import.meta.env': '({})' }` + stubs
   `globalThis.window = globalThis` (mockAdapters uses window.setTimeout).
   48/48 pass.
+
+## Step 14 — Capacitor Android shell + Play Store readiness (VERIFIED)
+- Capacitor 8 wraps the web app; web remains source of truth. Config:
+  `capacitor.config.ts` (appId `com.carelinkai.app` — placeholder, confirm with
+  owner before first Play upload; splash/status bar bg `#050816`).
+- `android/` generated project: minSdk 24, target/compileSdk 36, versionCode 1
+  / versionName "1.0.0". Manifest: INTERNET/CAMERA/LOCATION only (uses-feature
+  optional), `allowBackup="false"`, `windowSoftInputMode="adjustResize"`.
+- Release signing: `android/app/build.gradle` reads git-ignored
+  `android/keystore.properties` or `CARELINK_KEYSTORE_FILE/_PASSWORD,
+  CARELINK_KEY_ALIAS, CARELINK_KEY_PASSWORD` env vars; unsigned release build
+  + warning otherwise. Never commit keystores.
+- Icons/splash: masters in `assets/*.svg` (brand bolt from favicon),
+  `npm run android:assets` (scripts/generate-android-assets.mjs, sharp +
+  @capacitor/assets) regenerates all 148 mipmap/drawable resources.
+- Safe-area: `viewport-fit=cover` in index.html + env(safe-area-inset-*) body
+  padding in design-system.css (edge-to-edge enforced on targetSdk 35+).
+- Scripts: android:sync/open/run/apk/aab/assets. Debug APK builds in ~75s with
+  JDK 21 + Android SDK platform 36. Workflow: .github/workflows/android-build.yml
+  (signs AAB only when ANDROID_KEYSTORE_BASE64 etc. secrets exist).
+- Docs: PLAY_STORE_RELEASE.md (build/sign/version/Play Console/data safety).
+- Verified: web build + lint green, app-debug.apk (5.8MB) + app-release.aab
+  (4.1MB, unsigned by design) both generated; APK badging confirms package,
+  SDK levels, permissions. Not yet tested on a physical device/emulator.

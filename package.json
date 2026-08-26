@@ -7,9 +7,19 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "android:sync": "npm run build && npx cap sync android",
+    "android:open": "npx cap open android",
+    "android:run": "npm run build && npx cap run android",
+    "android:apk": "npm run android:sync && cd android && ./gradlew assembleDebug",
+    "android:aab": "npm run android:sync && cd android && ./gradlew bundleRelease",
+    "android:assets": "node scripts/generate-android-assets.mjs"
   },
   "dependencies": {
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.3",
     "@supabase/supabase-js": "^2.112.1",
     "@tailwindcss/vite": "^4.3.3",
     "framer-motion": "^13.0.0",
@@ -19,6 +29,9 @@
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.5.0",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",

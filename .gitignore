@@ -25,3 +25,18 @@ dist-ssr
 .env
 .env.local
 .env.*.local
+
+# Android / Capacitor
+android/app/build
+android/build
+android/.gradle
+android/local.properties
+android/app/release
+android/app/debug
+
+# NEVER commit signing material
+*.keystore
+*.jks
+android/keystore.properties
+key.properties
+upload_certificate.pem
