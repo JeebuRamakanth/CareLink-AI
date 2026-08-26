@@ -33,7 +33,9 @@ android {
     signingConfigs {
         release {
             if (releaseSigningConfigured) {
-                storeFile file(releaseStoreFile)
+                // Resolve relative to the android/ root so both local
+                // keystore.properties and CI (android/upload-key.keystore) agree.
+                storeFile rootProject.file(releaseStoreFile)
                 storePassword releaseStorePassword
                 keyAlias releaseKeyAlias
                 keyPassword releaseKeyPassword
