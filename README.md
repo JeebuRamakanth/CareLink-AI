@@ -33,3 +33,25 @@ See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rule
 =======
 # CareLink-
 CareLink AI is an AI-powered Hospital Management System designed to simplify hospital operations. It helps manage appointments, patient records, billing, pharmacy, and doctor schedules efficiently, making healthcare services faster, smarter, and more reliable.
+
+## Android app (Capacitor)
+
+The Android app is a Capacitor 8 shell around this web application — the web
+app remains the single source of truth. See **[PLAY_STORE_RELEASE.md](./PLAY_STORE_RELEASE.md)**
+for full build/signing/publishing instructions.
+
+```bash
+npm ci                      # install dependencies
+npm run android:sync        # web build + sync into android/
+npm run android:open        # open in Android Studio
+npm run android:run         # run on a connected device/emulator
+npm run android:apk         # debug APK  -> android/app/build/outputs/apk/debug/app-debug.apk
+npm run android:aab         # release AAB -> android/app/build/outputs/bundle/release/app-release.aab
+npm run android:assets      # regenerate launcher icons + splash from assets/*.svg
+```
+
+Requirements: Node 22, JDK 21, Android SDK (platform 36). Release signing is
+configured via a git-ignored `android/keystore.properties` or `CARELINK_*`
+environment variables — never commit keystores or passwords. A GitHub Actions
+workflow (`.github/workflows/android-build.yml`) builds the APK and AAB on
+every push.
