@@ -75,7 +75,7 @@ export async function listRelevantDoctorsForHospital(
       .eq('hospital_id', hospitalId)
       .eq('doctor_condition_expertise.condition_id', conditionId);
     if (res.error) throw res.error;
-    const rows = (res.data as { doctors: DoctorRow }[] | null) ?? [];
+    const rows = (res.data as unknown as { doctors: DoctorRow }[] | null) ?? [];
     return rows.map((r) => r.doctors);
   });
   return data ?? [];
@@ -88,7 +88,7 @@ export async function listDoctorsAtHospital(hospitalId: string): Promise<DoctorR
       .select('doctors!inner(*)')
       .eq('hospital_id', hospitalId);
     if (res.error) throw res.error;
-    const rows = (res.data as { doctors: DoctorRow }[] | null) ?? [];
+    const rows = (res.data as unknown as { doctors: DoctorRow }[] | null) ?? [];
     return rows.map((r) => r.doctors);
   });
   return data ?? [];
