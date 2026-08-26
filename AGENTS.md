@@ -280,3 +280,16 @@ Single engine, never a second agent system. All AI goes through one gateway.
 - Verified: web build + lint green, app-debug.apk (5.8MB) + app-release.aab
   (4.1MB, unsigned by design) both generated; APK badging confirms package,
   SDK levels, permissions. Not yet tested on a physical device/emulator.
+
+## Step 15 — Android release hardening + pre-flight (VERIFIED)
+- Hardware back button: `src/lib/nativeApp.ts` (`@capacitor/app` backButton
+  listener → history.back() via history.state.idx, exitApp at root),
+  registered in App.tsx; no-op on web. Capacitor does NOT wire this up by
+  default — without it the back button is dead in the app.
+- Gotcha: `dist-CIAUFaKz.js` in dist/assets is the lazy Supabase chunk, NOT a
+  stale artifact — do not "clean" it. Vite 8/rolldown does not empty dist on
+  rebuild; `rm -rf dist` before builds if artifacts matter.
+- No KVM/adb devices in this environment → on-device verification BLOCKED;
+  smoke-test the debug APK on a real device before release.
+- CI: workflow now installs platforms;android-36 + build-tools;36.0.0
+  explicitly and caches Gradle.

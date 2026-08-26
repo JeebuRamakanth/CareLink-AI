@@ -187,6 +187,31 @@ app's mock/demo mode stores data only in on-device WebView storage.
    be an offline app; API-backed features degrade gracefully.
 5. Internal testing track on Play Console before production.
 
+### Native bridge notes (implemented)
+
+- **Hardware back button** — `src/lib/nativeApp.ts` wires the Android back
+  button into SPA history via `@capacitor/app` (`window.history.back()` while
+  a history entry exists, `App.exitApp()` at the root). Registered once in
+  `App.tsx`; completely inert in the browser.
+- **Keyboard** — `windowSoftInputMode="adjustResize"` in the manifest.
+- **Safe areas** — `viewport-fit=cover` + `env(safe-area-inset-*)` body
+  padding (Android 15+ enforces edge-to-edge on targetSdk 35+).
+- **External links / tel:** — Capacitor opens `https:` links that leave the
+  app origin and `tel:`/`mailto:` in the appropriate system apps.
+
+### Verification status (honest)
+
+Verified in CI-equivalent local environment (JDK 21, SDK platform 36):
+web build ✅, lint ✅ (0 errors, pre-existing warnings only), `cap sync` ✅,
+`assembleDebug` ✅, `bundleRelease` ✅, APK badging (package/version/SDK
+levels) ✅, web assets bundled ✅, no secrets in APK/AAB ✅, AAB unsigned
+by design ✅, release bundle not debuggable ✅.
+
+**NOT yet verified:** on-device behaviour. The build environment has no
+Android device or emulator (no KVM), so launch, back button, permissions,
+camera, geolocation, and external-link flows must be smoke-tested on a real
+device with the debug APK before release.
+
 ## 11. Release checklist
 
 - [ ] Final `appId` confirmed by owner (irreversible after first upload)
