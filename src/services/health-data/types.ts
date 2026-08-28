@@ -543,6 +543,9 @@ export interface AgentRecommendationRow {
   matched_reasons: string[];
   source: string;
   is_mock: boolean;
+  provider: string | null;
+  verification: 'validated' | 'fallback' | 'unverified';
+  provider_snapshot: Record<string, unknown> | null;
   fetched_at: ISODate;
   created_at: ISODate;
 }
