@@ -31,8 +31,8 @@ export function ReviewDiscoverySection({ reviews, isLoading, searchQuery, sort, 
   return (
     <section className="space-y-8">
       <div className="rounded-[1.75rem] border border-white/10 bg-slate-950/55 p-6 shadow-[0_30px_90px_rgba(0,0,0,0.16)] backdrop-blur-xl sm:p-8">
-        <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr] xl:items-center">
-          <div className="space-y-4">
+        <div className="grid min-w-0 gap-6 xl:grid-cols-[1.2fr_0.8fr] xl:items-center">
+          <div className="min-w-0 space-y-4">
             <p className="text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-brand-200">Review discovery</p>
             <h2 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">Premium review previews for hospital care decisions.</h2>
             <p className="max-w-2xl text-base leading-7 text-ink-300">
@@ -44,7 +44,7 @@ export function ReviewDiscoverySection({ reviews, isLoading, searchQuery, sort, 
               <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">{searchQuery ? `Searching for “${searchQuery}”` : 'Curated for quality'}</span>
             </div>
           </div>
-          <div className="space-y-4 rounded-[1.5rem] border border-white/10 bg-slate-950/75 p-5 shadow-[0_20px_50px_rgba(0,0,0,0.2)]">
+          <div className="min-w-0 space-y-4 rounded-[1.5rem] border border-white/10 bg-slate-950/75 p-5 shadow-[0_20px_50px_rgba(0,0,0,0.2)]">
             <RatingSummary
               averageRating={reviews.length > 0 ? reviews.reduce((sum, item) => sum + item.rating, 0) / reviews.length : 4.8}
               reviewCount={summaryTotal}

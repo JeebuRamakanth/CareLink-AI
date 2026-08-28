@@ -153,3 +153,36 @@ select harness.ok(
 );
 reset role;
 reset request.jwt.claims;
+-- ---------------------------------------------------------------------------
+-- 0020 hardening: review_verification row access (no anon read; owner-only)
+-- ---------------------------------------------------------------------------
+-- anon cannot read verification rows at all
+set role anon;
+select harness.expect_error(
+  $$select 1 from public.review_verification where review_id = 'a0000006-0000-0000-0000-000000000006'$$,
+  'reviews: anon cannot read review_verification rows (0020 hardening)'
+);
+reset role;
+
+-- authenticated non-author cannot read Another user verified row
+set role authenticated;
+set request.jwt.claims = '{"sub":"22222222-2222-2222-2222-222222222222"}';
+select harness.ok(
+  not exists (select 1 from public.review_verification where review_id = 'a0000006-0000-0000-0000-000000000006'),
+  'reviews: unrelated user cannot read Another user verification row'
+);
+-- ...and cannot read B own hidden review verification either
+select harness.ok(
+  not exists (select 1 from public.review_verification where review_id = 'b0000006-0000-0000-0000-000000000006'),
+  'reviews: related user has no verification row for non-verified review'
+);
+reset role;reset request.jwt.claims;
+
+-- author can read own verification row (needed for badge API)
+set role authenticated;
+set request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111"}';
+select harness.ok(
+  exists (select 1 from public.review_verification where review_id = 'a0000006-0000-0000-0000-000000000006'),
+  'reviews: author can read own verification row'
+);
+reset role;reset request.jwt.claims;

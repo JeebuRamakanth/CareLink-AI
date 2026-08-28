@@ -280,3 +280,32 @@ Single engine, never a second agent system. All AI goes through one gateway.
 - Verified: web build + lint green, app-debug.apk (5.8MB) + app-release.aab
   (4.1MB, unsigned by design) both generated; APK badging confirms package,
   SDK levels, permissions. Not yet tested on a physical device/emulator.
+
+## Step 14 — Security + production hardening (VERIFIED)
+- Migrations now 0001→0021 (20 schema/RLS + `0021_security_least_privilege_execute`).
+  Clean replay harness: 293 passed / 0 failed / 0 tool errors.
+
+- `0021` revokes PUBLIC+anon EXECUTE from no-arg/trigger SECURITY DEFINER
+  helpers (`handle_new_user`, `carelink_track_appointment_status`,
+  `carelink_apply_donation_cooldown`) — triggers don't need client EXECUTE;
+ RLS predicate helpers keep anon where their quals run on public tables (read-only)。
+- `0020_review_verification_rls.sql` closed a public-read policy on
+  `review_verification` (exposed cross-object appointment_id); owner-only now。
+  Tests in `060_reviews.sql` cover anon/other-owner/author rows。
+- Responsive: `/reviews` @320px horizontal overflow fixed in
+  `ReviewDiscoverySection.tsx` (add `min-w-0` to grid + grid children);
+  viewport sweep 320/375/390/768/1024/1440 over 8 routes = 0 overflows。
+- Console/network sweep (11 routes: `/`, `/ai`, `/hospitals`,
+  `/hospitals/luma-children-hospital`, `/doctors`, `/reviews`, `/appointments`,
+  `/documents`, `/login`, `/register`, `/profile`) = 0 exceptions /
+  0 console errors / 0 failed network calls。- Production dep audit: `npm audit --omit=dev` = 0 vulnerabilities;
+  dev-only advisories: Capacitor toolchain (`@capacitor/assets`/`cli`
+  via sharp/uuid/xcode), build-time only, charged in audit。
+- Env `.env.example` sanitized placeholders only; no tracked secrets/keystores/
+  apk/aab; secret scan clean。
+
+- Docs:`SECURITY.md` + `PRODUCTION_READINESS.md` (post-Step-14 audit)))
+- Scripts under /tmp:) `carelink_replay.sh`, `vp-check.mjs`(viewport),
+  `vp-console-sweep.mjs`(console/network), `vp-offender.mjs`(320px offender）。
+- Harness DB: `carelink_test` owner openhands; psql needs `-d postgres`
+  for admin ops（openhands role; postgres peer auth fails）。
