@@ -129,6 +129,7 @@ export interface AppointmentRow {
   preparation_notes: string | null;
   consultation_mode: string | null;
   location: string | null;
+  slot_id: string | null;
   booking_timestamp: ISODate;
   created_at: ISODate;
   updated_at: ISODate;
