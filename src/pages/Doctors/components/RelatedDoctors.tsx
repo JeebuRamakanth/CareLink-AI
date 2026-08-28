@@ -1,5 +1,4 @@
 import { motion, useReducedMotion } from 'framer-motion';
-import { Button } from '../../../components/ui/Button';
 import type { DoctorProfileCard } from '../data/doctorProfileData';
 
 type RelatedDoctorsProps = {
@@ -47,9 +46,9 @@ export function RelatedDoctors({ doctors, onViewProfile }: RelatedDoctorsProps) 
                 <p>{doctor.location}</p>
               </div>
               <div className="mt-4">
-                <Button type="button" variant="ghost" size="sm" className="w-full text-left">
+                <span className="inline-flex w-full items-center justify-start gap-2 rounded-[var(--radius-xl)] border border-transparent px-3.5 py-2 text-sm font-semibold tracking-[0.02em] text-ink-200 transition-all duration-200 group-hover:text-white">
                   View profile
-                </Button>
+                </span>
               </div>
             </button>
           ))}
