@@ -31,6 +31,7 @@ const CLOUDINARY_CLOUD_NAME = str('VITE_CLOUDINARY_CLOUD_NAME');
 const CLOUDINARY_UNSIGNED_UPLOAD_PRESET = str('VITE_CLOUDINARY_UNSIGNED_UPLOAD_PRESET');
 
 const GOOGLE_MAPS_API_KEY = str('VITE_GOOGLE_MAPS_API_KEY');
+const GEOAPIFY_API_KEY = str('VITE_GEOAPIFY_API_KEY');
 
 const HOSPITAL_SEARCH_BASE_URL = str('VITE_HOSPITAL_SEARCH_BASE_URL');
 const PHARMACY_SEARCH_BASE_URL = str('VITE_PHARMACY_SEARCH_BASE_URL');
@@ -61,9 +62,10 @@ export const env = {
   },
 
   maps: {
-    apiKey: GOOGLE_MAPS_API_KEY,
-    configured: GOOGLE_MAPS_API_KEY.length > 0,
-  },
+  apiKey: GOOGLE_MAPS_API_KEY,
+  geoapifyApiKey: GEOAPIFY_API_KEY,
+  configured: GEOAPIFY_API_KEY.length > 0,
+},
 
   search: {
     hospital: { baseUrl: HOSPITAL_SEARCH_BASE_URL, configured: HOSPITAL_SEARCH_BASE_URL.length > 0 },
