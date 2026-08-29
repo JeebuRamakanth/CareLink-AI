@@ -1,15 +1,15 @@
 /**
- * CareLink-AI — Step 11 secure storage boundary.
+ * CareLink-AI  Step 11 secure storage boundary.
  *
  * Single surface for medical-file binary storage. Wraps the existing Step 9
  * Cloudinary unsigned-upload boundary AND the Step 10 private Supabase storage
  * boundary, choosing REAL vs MOCK transparently. UI components never call
- * storage APIs directly — they go through this service.
+ * storage APIs directly  they go through this service.
  *
  * SECURITY (Step 11):
  * - Cloudinary: unsigned upload preset ONLY. The API secret / admin API never
  *   reach the browser. Unsigned upload is a transport boundary, NOT complete
- *   medical-data security — that's why we ALSO persist private metadata in
+ *   medical-data security  that's why we ALSO persist private metadata in
  *   Supabase (RLS-scoped) and keep binaries owner-scoped.
  * - Supabase: private bucket, signed URLs only, never public URLs.
  * - Mock/local: returns a blob URL so the pipeline is exercisable without any
@@ -33,6 +33,8 @@ import {
   removeMedicalFile,
 } from '../../../services/storage/supabaseStorage';
 import { isSupabaseConfigured } from '../../../services/supabase/client';
+import { isSafeMagicKind, sniffFileMagic } from '../../../services/media/magicBytes';
+import { optimizeImageForUpload } from '../../../services/media/imageOptimizer';
 
 export interface DocumentStorageUploadInput {
   file: File;
@@ -90,15 +92,39 @@ export function storageModeLabel(): string {
 
 /**
  * Upload a medical file. Routes to Cloudinary unsigned upload when configured,
- * else private Supabase storage, else a local blob URL (mock). Never throws —
+ * else private Supabase storage, else a local blob URL (mock). Never throws 
  * on failure returns a safe error result so the pipeline can mark `failed`.
  */
 export async function uploadDocumentToStorage(
   input: DocumentStorageUploadInput
 ): Promise<{ ok: true; result: DocumentStorageResult } | { ok: false; error: string }> {
-  const { file, ownerId, documentId, publicIdSlug, folder, signal, onProgress } = input;
+  const { file: rawFile, ownerId, documentId, publicIdSlug, folder, signal, onProgress } = input;
 
-  // 1) Cloudinary unsigned upload (binary delivery). Metadata stays in Supabase.
+  // 0) Magic-byte validation BEFORE anything touches storage. Never trust
+  // client MIME alone  reject HTML/SVG/renamed payloads (Phase 15).
+  onProgress?.(5);
+  const magic = await sniffFileMagic(rawFile;
+  if (!isSafeMagicKind(magic))) {
+    return { ok: false, error: "We could not accept this file. The content type could not be verified safely. Please upload a JPG, PNG, WEBP, or PDF file." };
+  }
+
+  // 1) Optimize raster images (decode  resize  re-encode  verify byte
+  // size honestly  never claim a size that wasn't measured; document uploads keep
+  // a higher quality floor so medical legibility is preserved (Phase 14).
+  let file = rawFile;
+ let width: number | null = null;
+  let height: number | null = null;
+  const docLike = /\.(pdf|docx?)$/i.test(file.name) || file.type === 'application/pdf';
+  if (file.type.startsWith('image/') && file.type !== 'image/gif')) {
+    const optimized = await optimizeImageForUpload(file, {
+      targetKind: docLike ? 'document' : rawFile.size > 1_500_000 ? 'document' : 'avatar',
+    });
+    file = optimized.file;
+    width = optimized.width;
+    height = optimized.height;
+  }
+
+  // 2) Cloudinary unsigned upload (binary delivery). Metadata stays in Supabase.
   if (env.cloudinary.configured) {
     try {
       onProgress?.(10);
@@ -117,7 +143,14 @@ export async function uploadDocumentToStorage(
           reference: `cloudinary/${folder}/${publicIdSlug}`,
           previewUrl: res.previewUrl ?? res.url,
           source: 'cloudinary',
-          providerMetadata: { ...res.providerMetadata, source: 'cloudinary' },
+          providerMetadata: {
+            ...res.providerMetadata,
+            source: 'cloudinary',
+            width: width !== null ? String(width : undefined,
+            height: height !== null ? String(height : undefined,
+            optimized: optimized?.optimized ? 'true' : undefined,
+            optimizedByteSize: optimized?.optimized ? String(optimized.byteSize : undefined,
+          },
         },
       };
     } catch (err) {
@@ -153,7 +186,7 @@ export async function uploadDocumentToStorage(
     }
   }
 
-  // 3) Local mock — blob URL preview only. Clearly tagged as mock.
+  // 3) Local mock  blob URL preview only. Clearly tagged as mock.
   try {
     onProgress?.(20);
     const res = await mockStorageProvider.upload(file, { signal });
@@ -184,7 +217,7 @@ export async function deleteDocumentFromStorage(
       return await removeMedicalFile(reference);
     }
     // Cloudinary signed/admin deletion is a privileged, server-bound operation.
-    // The browser cannot safely delete Cloudinary assets without a secret — so
+    // The browser cannot safely delete Cloudinary assets without a secret  so
     // we leave binary cleanup to the server boundary. Metadata is still removed.
     if (source === 'cloudinary') {
       log.info('documents-storage', 'cloudinary binary deletion is server-bound; metadata removed only');
