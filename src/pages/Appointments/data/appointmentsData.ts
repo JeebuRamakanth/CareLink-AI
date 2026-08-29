@@ -9,6 +9,7 @@ export interface RescheduleInfo {
 
 export interface AppointmentRecord {
   appointmentId: string;
+  dbId?: string;
   doctorId: string;
   doctorName: string;
   specialty: string;

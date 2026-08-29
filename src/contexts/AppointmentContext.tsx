@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { mockAppointments } from '../pages/Appointments/data/appointmentsData';
 import type { AppointmentRecord } from '../pages/Appointments/data/appointmentsData';
+import { createAppointment, cancelAppointment as persistCancel, rescheduleAppointment as persistReschedule } from '../services/health-data/appointmentsRepository';
+import { isSupabaseConfigured } from '../services/supabase/client';
 
 const APPOINTMENTS_STORAGE_KEY = 'carelink_ai_appointments';
 
@@ -36,8 +38,32 @@ export function AppointmentProvider({ children }: { children: React.ReactNode })
   const value = useMemo(
     () => ({
       appointments,
-      addAppointment: (appointment: AppointmentRecord) => setAppointments((current) => [appointment, ...current]),
-      rescheduleAppointment: (appointmentId: string, date: string, time: string) =>
+      addAppointment: (appointment: AppointmentRecord) => {
+        setAppointments((current) => [appointment, ...current]);
+        // Persist a REAL database appointment when Supabase is configured. The
+        // localStorage-backed flow remains the synchronous UX; DB persistence is
+        // best-effort and never blocks/fails the booking experience (Phase 18)。
+        if (isSupabaseConfigured()) {
+          void createAppointment({
+            family_profile_id: null,
+            doctor_id: appointment.doctorId,
+            doctor_name: appointment.doctorName,
+            specialty: appointment.specialty,
+            hospital_id: appointment.hospitalId,
+            hospital_name: appointment.hospitalName,
+            appointment_type: appointment.appointmentType,
+            scheduled_date: appointment.date,
+            scheduled_time: appointment.time,
+            status: appointment.status,
+            consultation_fee: appointment.consultationFee,
+            notes: appointment.notes,
+            preparation_notes: appointment.preparationNotes,
+            consultation_mode: appointment.consultationMode,
+            location: appointment.location,
+          });
+        }
+      },
+      rescheduleAppointment: (appointmentId: string, date: string, time: string) => {
         setAppointments((current) =>
           current.map((appointment) =>
             appointment.appointmentId === appointmentId
@@ -54,8 +80,12 @@ export function AppointmentProvider({ children }: { children: React.ReactNode })
                 }
               : appointment
           )
-        ),
-      cancelAppointment: (appointmentId: string, reason: string) =>
+        );
+        if (isSupabaseConfigured()) {
+          void persistReschedule(appointmentId, date, time).catch(() => null);
+        }
+      },
+      cancelAppointment: (appointmentId: string, reason: string) => {
         setAppointments((current) =>
           current.map((appointment) =>
             appointment.appointmentId === appointmentId
@@ -67,7 +97,11 @@ export function AppointmentProvider({ children }: { children: React.ReactNode })
                 }
               : appointment
           )
-        ),
+        );
+        if (isSupabaseConfigured()) {
+          void persistCancel(appointmentId, reason).catch(() => null);
+        }
+      },
       getAppointmentById: (appointmentId: string) => appointments.find((item) => item.appointmentId === appointmentId),
     }),
     [appointments]
