@@ -17,3 +17,5 @@ export * from './documentsRepository';
 export * from './recoveryVaccinationRepository';
 export * from './healthContextRepository';
 export * from './auxRepository';
+export * from './providersRepository';
+export * from './providerDiscovery';
