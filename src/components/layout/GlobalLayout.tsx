@@ -191,10 +191,10 @@ export function GlobalLayout({ children, activePage = 'Home' }: GlobalLayoutProp
       </PageTransition>
 
       <footer className="border-t border-white/10 bg-slate-950/70 backdrop-blur-2xl">
-        <LayoutContainer className="py-12 sm:py-16">
-          <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.3fr_1fr_1fr_1fr_1.1fr] lg:gap-8">
+        <LayoutContainer className="py-12 sm:py-14 lg:py-16">
+          <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.2fr_0.9fr_0.9fr_0.9fr_1fr] lg:gap-x-8 lg:gap-y-12">
             <div className="space-y-4 sm:col-span-2 lg:col-span-1">
-              <Link to={ROUTES.home} className="flex w-fit items-center gap-3" aria-label="CareLink.AI home">
+              <Link to={ROUTES.home} className="flex w-fit items-center gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/50" aria-label="CareLink.AI home">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full border border-brand-400/30 bg-gradient-to-br from-brand-500/30 to-accent-500/20 text-sm font-semibold text-white">
                   C
                 </div>
@@ -213,12 +213,18 @@ export function GlobalLayout({ children, activePage = 'Home' }: GlobalLayoutProp
             </div>
 
             {footerGroups.map((group) => (
-              <nav key={group.heading} className="space-y-4" aria-label={`Footer — ${group.heading}`}>
-                <h3 className="text-xs font-semibold uppercase tracking-[0.24em] text-white">{group.heading}</h3>
-                <ul className="space-y-2.5 text-sm text-ink-300">
+              <nav key={group.heading} className="space-y-3.5" aria-label={`Footer — ${group.heading}`}>
+                <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.24em] text-ink-100">
+                  <span className="h-1 w-1 rounded-full bg-brand-400/70" aria-hidden />
+                  {group.heading}
+                </h3>
+                <ul className="space-y-1">
                   {group.links.map((link) => (
                     <li key={link.label}>
-                      <Link to={link.href} className="transition-colors duration-200 hover:text-white">
+                      <Link
+                        to={link.href}
+                        className="inline-flex min-h-10 w-full items-center rounded-lg py-2 text-sm leading-5 text-ink-300 transition-colors duration-200 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/50"
+                      >
                         {link.label}
                       </Link>
                     </li>
@@ -228,7 +234,7 @@ export function GlobalLayout({ children, activePage = 'Home' }: GlobalLayoutProp
             ))}
           </div>
 
-          <div className="mt-12 border-t border-white/10 pt-6">
+          <div className="mt-10 border-t border-white/10 pt-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-ink-400">© 2026 CareLink.AI. All rights reserved.</p>
               <p className="max-w-xl text-xs leading-5 text-ink-500">
