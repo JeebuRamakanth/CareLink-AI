@@ -1,4 +1,5 @@
 import { doctorsData } from '../data/doctors';
+import { fetchRealDoctorDetail, fetchRealDoctors } from './health-data';
 import type { Doctor, DoctorFilters } from '../types';
 
 const normalizeText = (value: string): string => value.trim().toLowerCase();
@@ -28,21 +29,24 @@ const sortDoctors = (items: Doctor[], sortBy?: DoctorFilters['sort_by']): Doctor
 };
 
 export async function getDoctors(): Promise<Doctor[]> {
+  const real = await fetchRealDoctors();
+  if (real.length > 0) return real;
   return [...doctorsData];
 }
 
 export async function getDoctorById(id: string): Promise<Doctor | null> {
+  const real = await fetchRealDoctorDetail(id);
+  if (real) return real;
   return doctorsData.find((doctor) => doctor.id === id) ?? null;
 }
 
 export async function searchDoctors(query: string): Promise<Doctor[]> {
   const normalizedQuery = normalizeText(query);
 
-  if (!normalizedQuery) {
-    return getDoctors();
-  }
+  const all = await getDoctors();
+  if (!normalizedQuery) return all;
 
-  return doctorsData.filter((doctor) => {
+  return all.filter((doctor) => {
     const haystack = [
       doctor.full_name,
       doctor.specialty,
@@ -60,7 +64,8 @@ export async function searchDoctors(query: string): Promise<Doctor[]> {
 }
 
 export async function filterDoctors(filters: DoctorFilters = {}): Promise<Doctor[]> {
-  const result = doctorsData.filter((doctor) => {
+  const all = await getDoctors();
+  const result = all.filter((doctor) => {
     const matchesSpecialty = !filters.specialty || normalizeText(doctor.specialty).includes(normalizeText(filters.specialty));
     const matchesLocation = !filters.location || normalizeText(doctor.location).includes(normalizeText(filters.location));
     const matchesHospital = !filters.hospital_id || doctor.hospital_ids.includes(filters.hospital_id);

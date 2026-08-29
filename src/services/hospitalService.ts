@@ -1,4 +1,5 @@
 import { hospitalsData } from '../data/hospitals';
+import { fetchRealHospitalDetail, fetchRealHospitals } from './health-data';
 import type { Hospital, HospitalFilters } from '../types';
 
 const normalizeText = (value: string): string => value.trim().toLowerCase();
@@ -24,21 +25,24 @@ const sortHospitals = (items: Hospital[], sortBy?: HospitalFilters['sort_by']): 
 };
 
 export async function getHospitals(): Promise<Hospital[]> {
+  const real = await fetchRealHospitals();
+  if (real.length > 0) return real;
   return [...hospitalsData];
 }
 
 export async function getHospitalById(id: string): Promise<Hospital | null> {
+  const real = await fetchRealHospitalDetail(id);
+  if (real) return real;
   return hospitalsData.find((hospital) => hospital.id === id) ?? null;
 }
 
 export async function searchHospitals(query: string): Promise<Hospital[]> {
   const normalizedQuery = normalizeText(query);
 
-  if (!normalizedQuery) {
-    return getHospitals();
-  }
+  const all = await getHospitals();
+  if (!normalizedQuery) return all;
 
-  return hospitalsData.filter((hospital) => {
+  return all.filter((hospital) => {
     const haystack = [
       hospital.name,
       hospital.city,
@@ -56,7 +60,8 @@ export async function searchHospitals(query: string): Promise<Hospital[]> {
 }
 
 export async function filterHospitals(filters: HospitalFilters = {}): Promise<Hospital[]> {
-  const result = hospitalsData.filter((hospital) => {
+  const all = await getHospitals();
+  const result = all.filter((hospital) => {
     const matchesCity = !filters.city || normalizeText(hospital.city).includes(normalizeText(filters.city));
     const matchesDepartment = !filters.department || hospital.departments.some((department) => normalizeText(department).includes(normalizeText(filters.department ?? '')));
     const matchesSpecialty = !filters.specialty || hospital.specialties.some((specialty) => normalizeText(specialty).includes(normalizeText(filters.specialty ?? '')));

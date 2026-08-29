@@ -309,3 +309,27 @@ Single engine, never a second agent system. All AI goes through one gateway.
   `vp-console-sweep.mjs`(console/network), `vp-offender.mjs`(320px offender）。
 - Harness DB: `carelink_test` owner openhands; psql needs `-d postgres`
   for admin ops（openhands role; postgres peer auth fails）。
+
+## Step 15 — Production backend activation + live integrations (VERIFIED)
+- Real-first wiring: typed repos + adapters gate every live call; they activate
+  automatically when Supabase/AI/Cloudinary/Maps credentials exist. Zero code
+  changes needed to go live — just `.env` values.
+
+- UI real-first consumers: `hospitalService`/`doctorService` (list):
+  `getHospitals()`/`getDoctors()` → repo live when configured, else static;
+  `getHospitalById`, `getDoctorById`, search, and filter all resolve the same
+  live list/detail first。 Hospital detail page loads live hospital→doctors via
+  `fetchRealDoctorsByHospital` when configured (static cards otherwise)。
+
+- Provider discovery adapters in `src/services/health-data/providerDiscovery.ts`:
+  `fetchRealHospitals`, `fetchRealDoctors`, `fetchRealHospitalDetail`,
+  `fetchRealDoctorDetail`, `fetchRealDoctorsByHospital`, `fetchRelevantDoctorsForHospital`
+  (MODE A condition→hospital→doctors),and `fetchAllDoctorsAtHospital` (MODE B show-all。
+- Dev seed: `supabase/migrations/0022_development_provider_seed.sql` (dev- slugs,
+  idempotent `on conflict (id) do nothing`, no patient PHI。 SQL suite:
+  293 PASS / 0 FAIL。
+
+
+- External blockers (this environment): NO real Supabase project URL/,anon key,
+  AI base URL, Cloudinary, or Maps key are present —— runtime remains truthful
+  demo/mock; live DB paths exercised at repo/adapter/sql-suite level。

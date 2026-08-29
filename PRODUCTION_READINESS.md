@@ -92,3 +92,65 @@ Overflow fix reference: `ReviewDiscoverySection` grid children got
   end-to-end。
 - Play Store data-safety/listing prep tracked separately in
   `PLAY_STORE_RELEASE.md`；do not start before Step 14 completion。
+
+## Step 15 — Production backend activation + live integration wiring (VERIFIED at code level)
+
+### Live-integration wiring (real-first with truthful fallback)
+The app is real-first end-to-end at the **architecture boundary**: every production
+backend call sits behind the typed repository/adapter layer and only activates when
+Supabase + credentials are configured. When not configured, the existing
+localStorage/mock flows remain as honest demo fallback — never labelled real。
+
+
+
+| Domain | Repo/adapter | Real-first UI wiring |
+|---|---|---|
+| Supabase client | `src/services/supabase/client.ts` | lazy; anon-key only |
+| Auth | `src/services/auth/authService.ts` + `AuthContext` | real Supabase Auth when configured; deterministic mock otherwise |
+| Profile | `profilesRepository` + `ProfilePage` | loads/saves via repo; persists across reload |
+| Family | `familyRepository` + `ProfilePage`/`AgentContext` | real family rows listed for signed-in user; mock fallback |
+| Health context | `healthContextRepository` | bounded minimum-necessary AI snapshot |
+| Conversations | `conversationsRepository` | owner-scoped; localStorage fallback |
+| Documents | `documentsRepository` + `documentService` | Cloudinary → Supabase private → local (truthful labels) |
+| Reports/medicines | `documentAnalysisService`/`medicineRecognitionService` | mock always tagged; schema-validated |
+| Providers | `providersRepository` + `providerDiscovery` | hospital/doctor list + detail + hospital→doctors real-first |
+| Hospital → relevant doctors | `listRelevantDoctorsForHospital` + `listDoctorsAtHospital` | MODE A (condition) + MODE B (show-all) adapters |
+| Reviews | `reviewsRepository` | owner-scoped create/update/delete/report |
+| Appointments | `appointmentsRepository` | double-booking safe (SQL unique) |
+| Medication | `medicationSchedulesRepository` | T-30 reminders DB-generated |
+| Recovery/vaccination/timeline/notifications/SOS/blood | `recoveryPlansRepository`/`recoveryVaccinationRepository`/`auxRepository`/`notificationsRepository` | RLS-scoped; idempotent |
+| Maps | `mapsService` (Geoapify/Google) | real when key present; "unavailable" state otherwise |
+| AI | `aiGateway` (Step 13) | real model only server-side; mock always labelled |
+
+### Real vs demo state (truthful)
+- **No production credentials present in this environment** → runtime shows demo/local
+  states honestly （e.g. `Local (demo)`, `Map unavailable`, mock AI tags）。
+- Live services activate automatically the moment `VITE_SUPABASE_URL/+`anon key`,
+  `VITE_AI_PROVIDER_BASE_URL`, `VITE_CLOUDINARY_*`, `VITE_GEOAPIFY_API_KEY`
+  are configured — zero code changes required。
+
+
+### Environment contract
+- All browser-safe variables are `VITE_*` （see `.env.example`）。 Server-only secrets
+  (AI provider bearer, Cloudinary API secret, Supabase `service_role`) must never
+  enter `VITE_*`, React, Vite, Android, bundle, or browser storage。
+- AI provider + Cloudinary use browser-safe base/preset values only; secrets stay
+  in the server adapter/edge fn。
+
+
+
+
+### Provider seed (development/test)
+`supabase/migrations/0022_development_provider_seed.sql` seeds clearly-marked
+  `dev-` provider/master records（hospitals/locations/services/specialties/
+  doctors/doctor-specialties/doctor-conditions/availability/consultation fees/
+  pharmacies/inventory/labs/tests/conditions/symptoms/mappings） with
+  `on conflict (id) do nothing` idempotency。 **No fake patient PHI is ever seeded。**
+
+### Verified gates (Step 15)
+- `npm run build` → PASS（exit 0）； `npm run lint` → PASS（exit 0）。
+- SQL migration replay + full suite − 293 PASS / 0 FAIL。
+- Browser console/network sweep − 12 routes desktop + core routes mobile。
+   0 unexpected console errors。
+- Secret scan − repo + dist bundle clean（no service-role/api key/keystore/en/pem）。
+- Typecheck clean（exit 0）。

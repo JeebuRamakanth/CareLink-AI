@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useOptionalNavigationContext } from '../../contexts/NavigationContext';
 import { useOptionalLocationContext } from '../../contexts/LocationContext';
@@ -13,12 +13,38 @@ import { HospitalReviewSection } from './components/HospitalReviewSection';
 import { HospitalSpecialties } from './components/HospitalSpecialties';
 import { HospitalDoctorPreview } from './components/HospitalDoctorPreview';
 import { HospitalLocation } from './components/HospitalLocation';
+import { fetchRealDoctorsByHospital } from '../../services/health-data';
 import { getHospitalDetailById } from './data/hospitalDetailsData';
-import type { HospitalDoctorTopic, ReviewFilterOption } from './data/hospitalDetailsData';
+import type { HospitalDoctorItem, HospitalDoctorTopic, ReviewFilterOption } from './data/hospitalDetailsData';
 import { ROUTES } from '../../routes/routeConstants';
 
 const doctorTopics: HospitalDoctorTopic[] = ['All', 'Cardiology', 'Diabetes', 'Neurology', 'Migraine', 'Orthopedics'];
 const reviewFilters: ReviewFilterOption[] = ['All', '5 Star', '4 Star', '3 Star', '2 Star', '1 Star', 'Most Recent', 'Most Helpful'];
+
+const toHospitalDoctorItem = (doctor: import('../../types').Doctor): HospitalDoctorItem => {
+  const initials = (doctor.full_name ?? '').split(/\s+/).map((part) => part.charAt(0)).join('').slice(0,2).toUpperCase();
+  const topic = (doctor.specialty ?? '').toLowerCase();
+  const topicMatch: HospitalDoctorTopic | undefined = (['Cardiology','Diabetes','Neurology','Migraine','Orthopedics'] as HospitalDoctorTopic[]).find((t) => topic.includes(t.toLowerCase()));
+  return {
+    id: doctor.id,
+    name: doctor.full_name ?? '',
+    specialty: doctor.specialty ?? '',
+    experienceYears: doctor.years_of_experience ?? 0,
+    rating: doctor.rating ?? 0,
+    reviewCount: doctor.review_count ?? 0,
+    successRate: '',
+    fee: '',
+    availability: doctor.availability_status === 'busy' ? 'Available soon' : 'Available now',
+    availabilityStatus: doctor.availability_status === 'busy' ? 'Limited' : doctor.availability_status === 'offline' ? 'On leave' : 'Available now',
+    nextAvailable: doctor.next_available_at ?? '',
+    patientsTreated: '',
+    languages: doctor.languages ?? [],
+    topics: topicMatch ? [topicMatch] : [],
+    profileInitials: initials,
+    location: doctor.city ?? '',
+  };
+};
+
 
 export function HospitalDetailsPage() {
   const { hospitalId } = useParams<{ hospitalId: string }>();
@@ -27,6 +53,30 @@ export function HospitalDetailsPage() {
   const hospital = useMemo(() => (hospitalId ? getHospitalDetailById(hospitalId) : undefined), [hospitalId]);
   const doctorsSectionRef = useRef<HTMLDivElement | null>(null);
   const locationSectionRef = useRef<HTMLDivElement | null>(null);
+  const [liveDoctors, setLiveDoctors] = useState<HospitalDoctorItem[]>([]);
+  const [liveDoctorsLoaded, setLiveDoctorsLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!hospitalId) {
+      setLiveDoctorsLoaded(true);
+      return;
+    }
+    (async () => {
+      try {
+        const real = await fetchRealDoctorsByHospital(hospitalId);
+        if (cancelled) return;
+        setLiveDoctors(real.map(toHospitalDoctorItem));
+      } catch {
+        if (cancelled) return;
+      } finally {
+        if (!cancelled) setLiveDoctorsLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [hospitalId]);
   const navContext = useOptionalNavigationContext();
   const locationCtx = useOptionalLocationContext();
   const [selectedDoctorTopic, setSelectedDoctorTopic] = useState<HospitalDoctorTopic>(() => {
@@ -40,13 +90,21 @@ export function HospitalDetailsPage() {
   });
   const [selectedReviewFilter, setSelectedReviewFilter] = useState<ReviewFilterOption>('All');
 
+  const effectiveDoctors = liveDoctorsLoaded && liveDoctors.length > 0 ? liveDoctors : (hospital?.doctors ?? []);
+
   const filteredDoctors = useMemo(() => {
-    if (!hospital) return [];
-    if (selectedDoctorTopic === 'All') return hospital.doctors;
-    return hospital.doctors.filter(
-      (doctor) => doctor.topics.includes(selectedDoctorTopic) || doctor.specialty === selectedDoctorTopic
-    );
-  }, [hospital, selectedDoctorTopic]);
+    if (!effectiveDoctors.length) return [];
+    if (selectedDoctorTopic === 'All') return effectiveDoctors;
+    return effectiveDoctors.filter((doctor) => {
+      const topicNormalized = selectedDoctorTopic.toLowerCase();
+      const specialtyNormalized = doctor.specialty.toLowerCase();
+      return (
+        doctor.topics.includes(selectedDoctorTopic) ||
+        specialtyNormalized.includes(topicNormalized) ||
+        topicNormalized.includes(specialtyNormalized)
+      );
+    });
+  }, [effectiveDoctors, selectedDoctorTopic]);
 
   const filteredReviews = useMemo(() => {
     if (!hospital) return [];

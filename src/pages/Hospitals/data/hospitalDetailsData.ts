@@ -72,7 +72,6 @@ export interface HospitalDetail {
   doctors: HospitalDoctorItem[];
   specialtyDiscovery: HospitalSpecialtyDiscoveryItem[];
 }
-
 export const hospitalDetails: HospitalDetail[] = [
   {
     id: 'aurora-medical-center',
