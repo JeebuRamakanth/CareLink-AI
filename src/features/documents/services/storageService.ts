@@ -99,32 +99,35 @@ export async function uploadDocumentToStorage(
   input: DocumentStorageUploadInput
 ): Promise<{ ok: true; result: DocumentStorageResult } | { ok: false; error: string }> {
   const { file: rawFile, ownerId, documentId, publicIdSlug, folder, signal, onProgress } = input;
-
-  // 0) Magic-byte validation BEFORE anything touches storage. Never trust
-  // client MIME alone  reject HTML/SVG/renamed payloads (Phase 15).
+  // Single storage-boundary function. Every return is explicit; never throws.
+  // 1) Validate the file  magic bytes first (never trust client MIME io).
   onProgress?.(5);
-  const magic = await sniffFileMagic(rawFile;
-  if (!isSafeMagicKind(magic))) {
+  const magic = await sniffFileMagic(rawFile);
+  if (!isSafeMagicKind(magic)) {
     return { ok: false, error: "We could not accept this file. The content type could not be verified safely. Please upload a JPG, PNG, WEBP, or PDF file." };
   }
 
-  // 1) Optimize raster images (decode  resize  re-encode  verify byte
+  // 2) Optimize raster images (decode  resize  re-encode  verify byte
   // size honestly  never claim a size that wasn't measured; document uploads keep
   // a higher quality floor so medical legibility is preserved (Phase 14).
   let file = rawFile;
- let width: number | null = null;
+  let width: number | null = null;
   let height: number | null = null;
+  let optimized: boolean | null = null;
+  let optimizedByteSize: number | null = null;
   const docLike = /\.(pdf|docx?)$/i.test(file.name) || file.type === 'application/pdf';
-  if (file.type.startsWith('image/') && file.type !== 'image/gif')) {
-    const optimized = await optimizeImageForUpload(file, {
+  if (file.type.startsWith('image/') && file.type !== 'image/gif') {
+    const optimizedResult = await optimizeImageForUpload(file, {
       targetKind: docLike ? 'document' : rawFile.size > 1_500_000 ? 'document' : 'avatar',
     });
-    file = optimized.file;
-    width = optimized.width;
-    height = optimized.height;
+    file = optimizedResult.file;
+    width = optimizedResult.width;
+    height = optimizedResult.height;
+    optimized = optimizedResult.optimized;
+    optimizedByteSize = optimizedResult.byteSize;
   }
 
-  // 2) Cloudinary unsigned upload (binary delivery). Metadata stays in Supabase.
+  // 3) Cloudinary unsigned upload (binary delivery). Metadata stays in Supabase.
   if (env.cloudinary.configured) {
     try {
       onProgress?.(10);
@@ -146,10 +149,10 @@ export async function uploadDocumentToStorage(
           providerMetadata: {
             ...res.providerMetadata,
             source: 'cloudinary',
-            width: width !== null ? String(width : undefined,
-            height: height !== null ? String(height : undefined,
-            optimized: optimized?.optimized ? 'true' : undefined,
-            optimizedByteSize: optimized?.optimized ? String(optimized.byteSize : undefined,
+            width: typeof width === 'number' ? String(width) : '',
+            height: typeof height === 'number' ? String(height) : '',
+            optimized: optimized === true ? 'true' : '',
+            optimizedByteSize: typeof optimizedByteSize === 'number' ? String(optimizedByteSize) : '',
           },
         },
       };
@@ -159,7 +162,7 @@ export async function uploadDocumentToStorage(
     }
   }
 
-  // 2) Private Supabase storage (signed URLs only, never public).
+  // 4) Private Supabase storage (signed URLs only, never public).
   if (isSupabaseConfigured()) {
     try {
       onProgress?.(10);
@@ -186,7 +189,7 @@ export async function uploadDocumentToStorage(
     }
   }
 
-  // 3) Local mock  blob URL preview only. Clearly tagged as mock.
+  // 5) Local mock   blob URL preview only. Clearly tagged as mock.
   try {
     onProgress?.(20);
     const res = await mockStorageProvider.upload(file, { signal });

@@ -333,3 +333,16 @@ Single engine, never a second agent system. All AI goes through one gateway.
 - External blockers (this environment): NO real Supabase project URL/,anon key,
   AI base URL, Cloudinary, or Maps key are present —— runtime remains truthful
   demo/mock; live DB paths exercised at repo/adapter/sql-suite level。
+
+## Post-Step-1.5 sanity repair (committed 11d58ca)
+- Committed syntax corruption existed in `storageService.ts` (`uploadDocumentToStorage`),
+  `src/services/media/imageOptimizer.ts`,和 `src/services/media/magicBytes.ts` — misplaced
+  parens/braces/scoping made `npm run build` fail (exit 2)and `npm run lint` fail.
+- Fixed: rewrote `uploadDocumentToStorage` cleanly — balanced braces, function-scoped
+  `width/height/optimized/optimizedByteSize`, type-safe `providerMetadata`
+  (`Record<string,string>`: use `''` not `undefined`), explicit catch bodies + terminal
+  return; repaired parens in optimizer/magicBytes. Pipeline semantics preserved
+  (magic-byte validation → raster optimization → Cloudinary → Supabase signed →
+  tagged local mock. Verified: build green (710 modules), lint green (15 pre-existing
+  warnings, none in repaired files), rolldown smoke: HTML payload rejected,, docFolder
+  owner-scoped, storage mode honest ("Local (demo)" when unconfigured..
