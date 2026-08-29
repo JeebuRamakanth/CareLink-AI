@@ -94,10 +94,10 @@ export function sniffFileMagic(file: File): Promise<MagicByteMatch> {
       const kind = detectImageKind(bytes);
       const declaredMime = (file.type || '').toLowerCase().trim() || null;
       const family = KIND_MIME_FAMILIES[kind];
-      const matchesDeclared = declaredMime !== null && (declaredMime === 'image/gif' ? kind === 'gif' : family.includes(declaredMime);
+      const matchesDeclared = declaredMime !== null && (declaredMime === 'image/gif' ? kind === 'gif' : family.includes(declaredMime));
       return { kind, declaredMime, matchesDeclared };
     })
-    .catch(() => ({ kind: 'unknown' as const, declaredMime: null, matchesDeclared: false });
+    .catch(() => ({ kind: 'unknown' as const, declaredMime: null, matchesDeclared: false }));
 }
 
 /** Whether a sniffed kind is acceptable for medical/document upload. */

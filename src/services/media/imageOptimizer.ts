@@ -97,8 +97,8 @@ export async function optimizeImageForUpload(
   }
   const { max, quality, type } = targetSize(opts);
   const scale = Math.min(1, max / Math.max(decoded.width, decoded.height));
-  const width = Math.max(1, Math.round(decoded.width * scale);
-  const height = Math.max(1, Math.round(decoded.height * scale);
+  const width = Math.max(1, Math.round(decoded.width * scale));
+  const height = Math.max(1, Math.round(decoded.height * scale));
   const canvas = createCanvas(width, height);
   if (!canvas) {
     return { file, width: decoded.width, height: decoded.height, byteSize, optimized: false, skippedReason: 'canvas-unavailable' };
