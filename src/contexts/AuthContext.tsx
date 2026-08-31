@@ -22,6 +22,13 @@ import {
   requestPasswordReset,
 } from '../services/auth';
 import type { AuthError, CareLinkUser } from '../services/auth';
+import {
+  hasAdminRole,
+  isSuspended,
+  loadUserAuthorization,
+  recordLoginActivity,
+  recordLogoutActivity,
+} from '../services/auth/authorization';
 
 export interface AuthState {
   user: CareLinkUser | null;
@@ -29,6 +36,10 @@ export interface AuthState {
   initializing: boolean;
   error: AuthError | null;
   isMockMode: boolean;
+  /** Server-side account suspension state (false when unauthenticated./unknown). */
+  isSuspended: boolean;
+  /** Server-side admin eligibility (admin or super_admin role from the database). */
+  isAdmin: boolean;
 }
 
 export interface AuthContextValue extends AuthState {
@@ -54,7 +65,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     (async () => {
       const session = await restoreSession();
       if (cancelled) return;
-      setUser(session.user);
+      if (session.user) {
+        setUser(await loadUserAuthorization(session.user));
+      } else {
+        setUser(null);
+      }
       setSource(session.source);
       setIsMockMode(session.source === 'mock');
       setInitializing(false);
@@ -67,8 +82,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Subscribe to auth state changes (real + mock).
   useEffect(() => {
     const unsubscribe = onAuthStateChange((nextUser) => {
-      setUser(nextUser);
       if (nextUser) {
+        setUser(nextUser);
+        loadUserAuthorization(nextUser).then(setUser).catch(() => undefined);
         setSource(nextUser.source);
         setIsMockMode(nextUser.source === 'mock');
       } else {
@@ -87,9 +103,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { ok: false, error: err };
     }
     if (result) {
-      setUser(result.user);
+      const enriched = await loadUserAuthorization(result.user);
+      setUser(enriched);
       setSource(result.user.source);
       setIsMockMode(result.user.source === 'mock');
+      void recordLoginActivity({ source: result.user.source });
     }
     return { ok: true };
   }, []);
@@ -102,7 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { ok: false, error: err };
     }
     if (result) {
-      setUser(result.user);
+      setUser(await loadUserAuthorization(result.user));
       setSource(result.user.source);
       setIsMockMode(result.user.source === 'mock');
     }
@@ -110,6 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    void recordLogoutActivity();
     await signOutService();
     setUser(null);
     setSource('none');
@@ -136,13 +155,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       initializing,
       error,
       isMockMode,
+      isSuspended: isSuspended(user),
+      isAdmin: hasAdminRole(user),
       signIn,
       signUp,
       signOut,
       requestPasswordReset: requestReset,
       clearError,
     }),
-    [user, source, initializing, error, isMockMode, signIn, signUp, signOut, requestReset, clearError]
+    [user, source, initializing, error, isMockMode, isSuspended(user), hasAdminRole(user), signIn, signUp, signOut, requestReset, clearError]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -159,5 +180,5 @@ export function useAuth() {
 /** Optional hook that returns the auth state without throwing. */
 export function useOptionalAuth(): AuthState {
   const ctx = useContext(AuthContext);
-  return ctx ?? { user: null, source: 'none', initializing: true, error: null, isMockMode: false };
+  return ctx ?? { user: null, source: 'none', initializing: true, error: null, isMockMode: false, isSuspended: false, isAdmin: false };
 }

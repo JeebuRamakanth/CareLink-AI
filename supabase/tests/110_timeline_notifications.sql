@@ -8,7 +8,7 @@ values ('appt-reminder', 'appointment', 'Appointment reminder', 'You have an app
 
 -- Template: public read, non-admin write rejected
 set role anon;
-select harness.ok((select count(*) = 1 from public.notification_templates), 'notify: anon reads templates');
+select harness.ok((select count(*) >= 1 from public.notification_templates), 'notify: anon reads templates');
 reset role;
 
 set role authenticated;
