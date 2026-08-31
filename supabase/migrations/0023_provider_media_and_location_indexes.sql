@@ -56,15 +56,15 @@ create table if not exists public.provider_media (
  and pharmacy_id is null and lab_id is null)
  or(provider_kind = 'pharmacy'and pharmacy_id is not null and hospital_id is null
  and doctor_id is null and lab_id is null)
- or(provider_kind = 'lab'and lab_id is not null null hospital_id is null and pharmacy_id is null
+ or(provider_kind = 'lab'and lab_id is not null and hospital_id is null and pharmacy_id is null
  and doctor_id is null)
  )
 );
 
-create index if not exists provider_media_hospital_id_idx on public.provider_media(hospital_id) where (provider_kind = 'hospital';
-create index if not exists provider_media_doctor_id_idx on public.provider_media(doctor_id) where (provider_kind = 'doctor';
-create index if not exists provider_media_pharmacy_id_idx on public.provider_media(pharmacy_id); where (provider_kind = 'pharmacy';
-create index if not exists provider_media_lab_id_idx on public.provider_media(lab_id) where (provider_kind = 'lab';
+create index if not exists provider_media_hospital_id_idx on public.provider_media(hospital_id) where (provider_kind = 'hospital');
+create index if not exists provider_media_doctor_id_idx on public.provider_media(doctor_id) where (provider_kind = 'doctor');
+create index if not exists provider_media_pharmacy_id_idx on public.provider_media(pharmacy_id) where (provider_kind = 'pharmacy');
+create index if not exists provider_media_lab_id_idx on public.provider_media(lab_id) where (provider_kind = 'lab');
 
 -- ---------------------------------------------------------------------------
 -- 2. Location-discovery indexes (haver/join acceleration).
@@ -78,7 +78,7 @@ create index if not exists doctor_hospitals_is_primary_idx on public.doctor_hosp
 create index if not exists hospital_specialties_hospital_id_idx on public.hospital_specialties(hospital_id);
 create index if not exists doctor_specialties_doctor_id_idx on public.doctor_specialties(doctor_id);
 create index if not exists pharmacy_medicines_medicine_name_idx on public.pharmacy_medicines(medicine_name);
-create index if not exists lab_tests_test_name_idx on public.lab_tests(test_name;
+create index if not exists lab_tests_test_name_idx on public.lab_tests(test_name);
 
 -- ---------------------------------------------------------------------------
 -- 3. provider_media RLS public read for active delivery assets only; writes

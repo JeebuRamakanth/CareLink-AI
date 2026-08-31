@@ -1,6 +1,8 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { HomePage } from '../pages/Home/HomePage';
 import { HospitalsPage } from '../pages/Hospitals/HospitalsPage';
+import { PharmaciesPage } from '../pages/Pharmacies/PharmaciesPage';
+import { LabsPage } from '../pages/Labs/LabsPage';
 import { DoctorsPage } from '../pages/Doctors/DoctorsPage';
 import { DoctorProfilePage } from '../pages/Doctors/DoctorProfilePage';
 import { ReviewsPage } from '../pages/Reviews/ReviewsPage';
@@ -30,6 +32,8 @@ export function AppRoutes() {
       <Route element={<PublicLayout />}>
         <Route path={ROUTES.home} element={<HomePage />} />
         <Route path={ROUTES.hospitals} element={<HospitalsPage />} />
+        <Route path={ROUTES.pharmacies} element={<PharmaciesPage />} />
+        <Route path={ROUTES.labs} element={<LabsPage />} />
         <Route path={ROUTES.doctors} element={<DoctorsPage />} />
         <Route path={ROUTES.doctorDetail} element={<DoctorProfilePage />} />
         <Route path={ROUTES.reviews} element={<ReviewsPage />} />
