@@ -58,9 +58,11 @@ export function toHospital(row: HospitalRow): Hospital {
       twenty_four_hours: false,
       telehealth: false,
     },
-    rating: row.rating ?? 0,
+    rating: (row.rating ?? 0) as number,
     review_count: 0,
-    availability_status: 'open',
+    /** Live availability is not carried by the real registry — wait for a
+     *  real-time source rather than fabricating "open"/"closed". */
+    availability_status: null,
     created_at: row.created_at ?? nowIso(),
     updated_at: row.updated_at ?? nowIso(),
   };
@@ -91,7 +93,9 @@ export function toDoctor(row: DoctorRow): Doctor {
     consultation_modes: ['In-person'],
     rating: row.rating ?? 0,
     review_count: 0,
-    availability_status: 'available',
+    /** Live availability is not carried by the real registry — wait for a
+     *  real-time source rather than fabricating "available". */
+    availability_status: null,
     is_verified: false,
     accepts_new_patients: true,
     status: 'active',
@@ -168,7 +172,7 @@ export function toDoctorDetail(row: DoctorDetailRow): Doctor {
     years_of_experience: row.years_experience ?? 0,
     languages: row.languages ?? [],
     rating: row.rating ?? 0,
-    availability_status: (row.availability ?? []).length ? 'available' : 'busy',
+    availability_status: null,
     is_verified: row.verification_status === 'verified',
     ...(row.availability ?? []).length ? { next_available_at: formatNextAvailable(row.availability?.[0]) } : {},
   };

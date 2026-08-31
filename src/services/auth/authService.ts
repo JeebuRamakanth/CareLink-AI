@@ -50,6 +50,12 @@ const safeError = (message: string, code: AuthError['code'] = 'unknown'): AuthEr
 
 /**
  * Sign up a new user. In mock mode, registers the email locally.
+ *
+ * When Supabase is configured and the provider returns no active session
+ * immediately (e.g. email-confirmation required), the returned user id is
+ * empty; callers should use `waitForAuthSession` before persisting profile
+ * details so user-entered data is never silently dropped.
+
  */
 export async function signUp(email: string, password: string): Promise<{ result?: AuthResult; error?: AuthError }> {
   const cleanEmail = email.trim().toLowerCase();
@@ -71,9 +77,48 @@ export async function signUp(email: string, password: string): Promise<{ result?
   if (!client) return { error: safeError('Service is temporarily unavailable. Please try again.', 'network') };
   const { data, error } = await client.auth.signUp({ email: cleanEmail, password });
   if (error) return { error: mapSupabaseError(error) };
+  // If the provider returned a session, use it; otherwise room for confirmation.
+
   const user = toCareLinkUser(data.user, 'supabase');
-  if (user) return { result: { user } };
-  return { result: { user: { id: '', email: cleanEmail, source: 'supabase' } } };
+  if (user && user.id) return { result: { user } };
+  // No active session yet (e.g. email confirmation required): return no result
+  // (NOT an "authenticated" empty user). Callers wait via waitForAuthSession
+  // before persisting profile data — an email-confirmation state is shown honestly.
+  return { result: undefined };
+}
+/**
+ * Wait for an active Supabase session after signup (email-confirmation aware).
+ *
+ * Post-signup profile persistence must only run once the session is readable so
+ * `auth.uid()`/`getUser()` is populated and RLS-compliant writes succeed.
+ When
+ * the provider requires email confirmation, we never get a session without the
+ * user confirming — callers should surface an honest "confirm your email" state
+ * rather than pretending the profile was saved. Returns the resolved session or
+ * null after `timeoutMs`.
+ */
+export async function waitForAuthSession(
+  timeoutMs = 6000,
+  intervalMs = 350
+): Promise<CareLinkUser | null> {
+  if (!isSupabaseConfigured()) {
+    const user = readMockSession();
+    return user;
+  }
+  const client = await getSupabaseClient();
+  if (!client) return null;
+  const deadline = Date.now() + timeoutMs;
+
+  // The provider may need a few hundred ms to issue a session after signup.
+
+
+  for (;;) {
+    const { data } = await client.auth.getSession();
+    const user = toCareLinkUser(data.session?.user ?? null, 'supabase');
+    if (user) return user;
+    if (Date.now() >= deadline) return null;
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
 }
 
 /**

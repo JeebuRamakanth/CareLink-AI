@@ -16,6 +16,7 @@ const availabilityTone: Record<HospitalDoctorItem['availabilityStatus'], 'succes
   'Available soon': 'brand',
   Limited: 'warning',
   'On leave': 'neutral',
+  Unlisted: 'neutral',
 };
 
 export function HospitalDoctorPreview({ doctors, topics, selectedTopic, onTopicChange }: HospitalDoctorPreviewProps) {
