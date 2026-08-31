@@ -26,6 +26,12 @@ export interface CareLinkUser {
   displayName?: string;
   /** Whether this session came from a real provider or local mock mode. */
   source: 'supabase' | 'mock';
+  /** Server-side account status ('active' | 'suspended' | 'disabled'| null when no profile. */
+  accountStatus?: 'active' | 'suspended' | 'disabled';
+  /** Server-side role codes ('admin', 'super_admin'…) resolved from the trusted DB. */
+  roles: string[];
+  /** Server-side permission codes resolved from role membership. */
+  permissions: string[];
 }
 
 export interface AuthSession {
@@ -65,7 +71,7 @@ export async function signUp(email: string, password: string): Promise<{ result?
   if (!isSupabaseConfigured()) {
     const existing = readMockUsers();
     if (existing[cleanEmail]) return { error: safeError('An account with this email already exists.', 'email-in-use') };
-    const user: CareLinkUser = { id: createMockId(), email: cleanEmail, source: 'mock' };
+    const user: CareLinkUser = { id: createMockId(), email: cleanEmail, source: 'mock', roles: [], permissions: [] };
     existing[cleanEmail] = { password, user };
     writeMockUsers(existing);
     persistMockSession(user);
@@ -231,7 +237,7 @@ export async function requestPasswordReset(email: string): Promise<{ error?: Aut
 
 function toCareLinkUser(user: { id?: string; email?: string } | null, source: 'supabase' | 'mock'): CareLinkUser | null {
   if (!user || !user.id || !user.email) return null;
-  return { id: user.id, email: user.email, source };
+  return { id: user.id, email: user.email, source, roles: [], permissions: [] };
 }
 
 function mapSupabaseError(error: { message?: string; status?: number }): AuthError {
