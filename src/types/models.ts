@@ -42,7 +42,7 @@ export interface Hospital extends BaseEntity {
   rating: number;
   review_count: number;
   distance_km?: number;
-  availability_status: 'open' | 'busy' | 'limited' | 'closed';
+  availability_status: 'open' | 'busy' | 'limited' | 'closed' | null;
   image_url?: string;
   timezone?: string;
   insurance_partners?: string[];
@@ -87,7 +87,7 @@ export interface Doctor extends BaseEntity {
   consultation_modes: string[];
   rating: number;
   review_count: number;
-  availability_status: 'available' | 'busy' | 'limited' | 'offline';
+  availability_status: 'available' | 'busy' | 'limited' | 'offline' | null;
   is_verified: boolean;
   accepts_new_patients: boolean;
   phone?: string;

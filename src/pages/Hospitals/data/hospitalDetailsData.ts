@@ -24,7 +24,7 @@ export interface HospitalDoctorItem {
   successRate: string;
   fee: string;
   availability: string;
-  availabilityStatus: 'Available now' | 'Available soon' | 'Limited' | 'On leave';
+  availabilityStatus: 'Available now' | 'Available soon' | 'Limited' | 'On leave' | 'Unlisted';
   nextAvailable: string;
   patientsTreated: string;
   languages: string[];

@@ -10,6 +10,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { waitForAuthSession } from '../../services/auth';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Card } from '../../components/ui/Card';
@@ -55,28 +56,64 @@ export function RegisterPage() {
     }
     setSubmitting(true);
     const result = await signUp(email, password);
-    if (result.ok) {
-      // Persist every submitted fieldso registration never silently discards
-      // user-entered profile details. Each field has a defined destination:
-      //   profiles.display_name / emergency_contact_phone / location_preference.
-      //   family_profiles.label (a "self" profile so the agent has a patient
-      //   context immediately after signup). Both modes (real Supabase + demo
-      //   local-store) persist via the shared health-data repositories.
-      await updateProfile({
-        display_name: displayName.trim() || null,
-        emergency_contact_phone: phone.trim() || null,
-        location_preference: city.trim() || null,
-      });
-      if (familyLabel.trim()) {
-        await createFamilyProfile({
+    if (!result?.ok) {
+      setSubmitting(false);
+      return;
+    }
+    // Persist every submitted field so registration never silently discards
+    // user-entered profile details. Each field has a defined destination:
+    //   profiles.display_name / emergency_contact_phone / location_preference.
+    //   family_profiles.label (a "self" profile so the agent has a patient
+    //   context immediately after signup). Both modes (real Supabase + demo
+    //   local-store) persist via the shared health-data repositories.
+
+    // In real Supabase mode, thee auth session may only become active after
+    // email confirmation. Wait (briefly) for it so RLS-compliant writes can
+    // succeed; if we genuinely cannot save yet, tell the user honestly instead
+    // of claiming "Account created successfully" while discarding their fields.
+    const session = await waitForAuthSession();
+
+    if (!session) {
+      setSubmitting(false);
+      if (isSupabaseConfigured()) {
+        // Real provider requires confirmation (or session latency); we show
+        // an honest state — profile details will persist after they confirm..
+        setLocalError(
+          'Account created. Please check your inbox to confirm your email — ' +
+          'your profile details will be saved after you confirm.',
+        );
+        navigate(ROUTES.profile, { replace: true });
+      } else {
+        setLocalError('Account created, but your profile details could not be saved. Please try again.');
+      }
+      return;
+    }
+
+    const saved = await updateProfile({
+      display_name: displayName.trim() || null,
+      emergency_contact_phone: phone.trim() || null,
+      location_preference: city.trim() || null,
+    });
+    const familySaved = familyLabel.trim()
+      ? await createFamilyProfile({
           relation: 'self',
           label: familyLabel.trim(),
-        });
-      }
-      setProfileSaved(true);
-    }
+        })
+      : true;
+
     setSubmitting(false);
-    if (result.ok) navigate(ROUTES.profile, { replace: true });
+    if (!saved || !familySaved) {
+      // Never show success when persistence failed — surface a safe error and
+      // keep the form mounted so the user can retry (idempotent upserts).
+      setProfileSaved(false);
+      setLocalError(
+        'Your account was created, but we could not save your profile details.' +
+        ' Please try again.',
+      );
+      return;
+    }
+    setProfileSaved(true);
+    navigate(ROUTES.profile, { replace: true });
   });
 
   const displayError = localError ? { message: localError } : error;

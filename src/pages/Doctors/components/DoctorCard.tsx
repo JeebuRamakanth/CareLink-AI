@@ -12,14 +12,14 @@ type DoctorCardProps = {
   className?: string;
 };
 
-const availabilityTone: Record<Doctor['availability_status'], 'brand' | 'success' | 'danger' | 'default'> = {
+const availabilityTone: Record<NonNullable<Doctor['availability_status']>, 'brand' | 'success' | 'danger' | 'default'> = {
   available: 'success',
   busy: 'brand',
   limited: 'default',
   offline: 'danger',
 };
 
-const availabilityLabel: Record<Doctor['availability_status'], string> = {
+const availabilityLabel: Record<NonNullable<Doctor['availability_status']>, string> = {
   available: 'Available',
   busy: 'Busy',
   limited: 'Limited',
@@ -27,8 +27,8 @@ const availabilityLabel: Record<Doctor['availability_status'], string> = {
 };
 
 export function DoctorCard({ doctor, className = '' }: DoctorCardProps) {
-  const availability = availabilityLabel[doctor.availability_status];
-  const badgeTone = availabilityTone[doctor.availability_status];
+  const availability = doctor.availability_status ? availabilityLabel[doctor.availability_status] : null;
+  const badgeTone = doctor.availability_status ? availabilityTone[doctor.availability_status] : 'default';
 
   return (
     <BaseCard variant="glass" interactive className={className} as="article" ariaLabel={`Doctor card for ${doctor.full_name}`}>
@@ -48,7 +48,13 @@ export function DoctorCard({ doctor, className = '' }: DoctorCardProps) {
             <h3 className="text-lg font-semibold text-white">{doctor.full_name}</h3>
             <p className="mt-1 text-sm text-ink-400">{doctor.specialty}</p>
           </div>
-          <CardBadge tone={badgeTone}>{availability}</CardBadge>
+          {availability ? (
+            <CardBadge tone={badgeTone}>{availability}</CardBadge>
+          ) : (
+            <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-ink-400">
+              Availability unlisted
+            </span>
+          )}
         </CardHeader>
         <div className="space-y-2 text-sm text-ink-300">
           <p>{doctor.education[0] ?? 'Board-certified specialist'}</p>

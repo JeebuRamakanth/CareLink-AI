@@ -28,7 +28,8 @@ export function HospitalCard({ hospital, className = '' }: HospitalCardProps) {
   const displayAddress = `${address}, ${city}, ${state}`;
   const displayDistance = distance_km ? `${distance_km.toFixed(1)} km away` : 'Distance available on request';
   const accreditation = is_verified ? ['Verified'] : ['Preview'];
-  const isOpen = availability_status !== 'closed';
+  const isOpen = availability_status === 'open' || availability_status === 'busy';
+  const availabilityLabel = availability_status === null ? 'Availability unlisted' : isOpen ? 'Open now' : 'Closed';
   const emergencyAvailable = facilities.emergency;
   const is24x7 = facilities.twenty_four_hours;
   const insuranceAccepted = (insurance_partners?.length ?? 0) > 0;
@@ -48,7 +49,7 @@ export function HospitalCard({ hospital, className = '' }: HospitalCardProps) {
               Care network
             </div>
             <div className="rounded-full border border-emerald-400/25 bg-emerald-500/12 px-3 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.24em] text-emerald-200">
-              {isOpen ? 'Open now' : 'Closed'}
+              {availabilityLabel}
             </div>
           </div>
         </div>

@@ -23,6 +23,7 @@ function str(key: string): string {
 const API_BASE_URL = str('VITE_API_BASE_URL') || '/api';
 
 const AI_PROVIDER_BASE_URL = str('VITE_AI_PROVIDER_BASE_URL');
+const ADMIN_GATEWAY_URL = str('VITE_ADMIN_GATEWAY_URL');
 
 const SUPABASE_URL = str('VITE_SUPABASE_URL');
 const SUPABASE_ANON_KEY = str('VITE_SUPABASE_ANON_KEY');
@@ -47,6 +48,11 @@ export const env = {
   ai: {
     providerBaseUrl: AI_PROVIDER_BASE_URL,
     configured: AI_PROVIDER_BASE_URL.length > 0,
+  },
+
+  admin: {
+    gatewayUrl: ADMIN_GATEWAY_URL,
+    configured: ADMIN_GATEWAY_URL.length > 0,
   },
 
   supabase: {
