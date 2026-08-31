@@ -16,6 +16,7 @@ import { Card } from '../../components/ui/Card';
 import { ROUTES } from '../../routes/routeConstants';
 import { preventDefaultSubmit } from './authFormUtils';
 import { isSupabaseConfigured } from '../../services/supabase/client';
+import { createFamilyProfile, updateProfile } from '../../services/health-data';
 
 export function RegisterPage() {
   const { signUp, user, initializing, error, isMockMode, clearError } = useAuth();
@@ -27,6 +28,11 @@ export function RegisterPage() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [city, setCity] = useState('');
+  const [familyLabel, setFamilyLabel] = useState('');
+  const [profileSaved, setProfileSaved] = useState(false);
   const demoMode = isMockMode || !isSupabaseConfigured();
 
   useEffect(() => {
@@ -49,6 +55,26 @@ export function RegisterPage() {
     }
     setSubmitting(true);
     const result = await signUp(email, password);
+    if (result.ok) {
+      // Persist every submitted fieldso registration never silently discards
+      // user-entered profile details. Each field has a defined destination:
+      //   profiles.display_name / emergency_contact_phone / location_preference.
+      //   family_profiles.label (a "self" profile so the agent has a patient
+      //   context immediately after signup). Both modes (real Supabase + demo
+      //   local-store) persist via the shared health-data repositories.
+      await updateProfile({
+        display_name: displayName.trim() || null,
+        emergency_contact_phone: phone.trim() || null,
+        location_preference: city.trim() || null,
+      });
+      if (familyLabel.trim()) {
+        await createFamilyProfile({
+          relation: 'self',
+          label: familyLabel.trim(),
+        });
+      }
+      setProfileSaved(true);
+    }
     setSubmitting(false);
     if (result.ok) navigate(ROUTES.profile, { replace: true });
   });
@@ -196,11 +222,54 @@ export function RegisterPage() {
             }
           />
 
+          <div className="flex items-center gap-3 pt-2" aria-hidden>
+            <span className="h-px flex-1 bg-white/10" />
+            <span className="text-[0.7rem] font-medium uppercase tracking-[0.2em] text-ink-500">Profile — optional</span>
+            <span className="h-px flex-1 bg-white/10" />
+          </div>
+
+          <Input
+            label="Display name"
+            name="displayName"
+            autoComplete="name"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            placeholder="Your name"
+          />
+          <Input
+            label="Phone"
+            name="phone"
+            type="tel"
+            autoComplete="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="+91 …"
+          />
+          <Input
+            label="City / area"
+            name="city"
+            autoComplete="address-level2"
+            value={city}
+            onChange={(e) => setCity(e.target.value)}
+            placeholder="e.g. Machilipatnam"
+          />
+          <Input
+            label="Patient label (optional)"
+            name="patientLabel"
+            value={familyLabel}
+            onChange={(e) => setFamilyLabel(e.target.value)}
+            placeholder="e.g. Me (primary)"
+            hint="Creates a self family profile so the agent has patient context immediately."
+          />
+
           <div className="pt-2">
             <Button type="submit" variant="primary" fullWidth size="lg" loading={submitting} disabled={submitting}>
               {submitting ? 'Creating account…' : 'Create account'}
             </Button>
           </div>
+          {profileSaved ? (
+            <p role="status" className="text-center text-xs text-brand-200">Profile details saved.</p>
+          ) : null}
         </form>
 
         <div className="my-6 flex items-center gap-3" aria-hidden>

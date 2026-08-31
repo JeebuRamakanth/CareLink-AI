@@ -4,6 +4,8 @@ export const ROUTES = {
   ai: '/ai',
   hospitals: '/hospitals',
   hospitalDetail: '/hospitals/:hospitalId',
+  pharmacies: '/pharmacies',
+  labs: '/labs',
   doctors: '/doctors',
   doctorDetail: '/doctors/:doctorId',
   appointments: '/appointments',

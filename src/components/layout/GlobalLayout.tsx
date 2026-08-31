@@ -23,6 +23,8 @@ const footerGroups: { heading: string; links: { label: string; href: string }[] 
     links: [
       { label: 'Hospitals', href: ROUTES.hospitals },
       { label: 'Doctors', href: ROUTES.doctors },
+      { label: 'Pharmacies', href: ROUTES.pharmacies },
+      { label: 'Laboratories', href: ROUTES.labs },
       { label: 'Reviews', href: ROUTES.reviews },
       { label: 'Appointments', href: ROUTES.appointments },
       { label: 'Ask CareLink AI', href: ROUTES.ai }
