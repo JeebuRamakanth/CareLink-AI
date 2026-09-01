@@ -18,4 +18,12 @@ export const ROUTES = {
   register: '/register',
   profile: '/profile',
   documents: '/documents',
+  admin: '/admin',
+  adminUsers: '/admin/users',
+  adminProviders: '/admin/providers',
+  adminReviews: '/admin/reviews',
+  adminAppointments: '/admin/appointments',
+  adminNotifications: '/admin/notifications',
+  adminSecurity: '/admin/security',
+  adminReports: '/admin/reports',
 } as const;

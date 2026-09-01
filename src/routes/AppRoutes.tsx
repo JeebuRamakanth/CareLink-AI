@@ -21,6 +21,18 @@ import { AIChatPage } from '../features/health-agent';
 import { ROUTES } from './routeConstants';
 import { PublicLayout } from './PublicLayout';
 import { ProtectedRoute } from '../components/ProtectedRoute';
+import { AdminRoute } from '../components/AdminRoute';
+import {
+  AdminAppointmentsPage,
+  AdminDashboardPage,
+  AdminLayout,
+  AdminNotificationsPage,
+  AdminProvidersPage,
+  AdminReportsPage,
+  AdminReviewsPage,
+  AdminSecurityPage,
+  AdminUsersPage,
+} from '../pages/Admin';
 
 export function AppRoutes() {
   return (
@@ -48,6 +60,19 @@ export function AppRoutes() {
         <Route path={ROUTES.about} element={<AboutPage />} />
         <Route path={ROUTES.help} element={<HelpPage />} />
         <Route path={ROUTES.contact} element={<ContactPage />} />
+        {/* Admin console — server-role gated; /admin/* requires admin or
+            super_admin (AdminRoute),and there is no separate admin login
+            path — authentication rides the normal Supabase session. */}
+        <Route path={ROUTES.admin} element={<AdminRoute><AdminLayout /></AdminRoute>}>
+          <Route index element={<AdminDashboardPage />} />
+          <Route path="users" element={<AdminUsersPage />} />
+          <Route path="providers" element={<AdminProvidersPage />} />
+          <Route path="reviews" element={<AdminReviewsPage />} />
+          <Route path="appointments" element={<AdminAppointmentsPage />} />
+          <Route path="notifications" element={<AdminNotificationsPage />} />
+          <Route path="security" element={<AdminSecurityPage />} />
+          <Route path="reports" element={<AdminReportsPage />} />
+        </Route>
       </Route>
       <Route path="*" element={<Navigate to={ROUTES.home} replace />} />
     </Routes>
