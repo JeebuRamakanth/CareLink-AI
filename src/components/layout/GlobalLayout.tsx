@@ -63,7 +63,12 @@ interface GlobalLayoutProps {
 export function GlobalLayout({ children, activePage = 'Home' }: GlobalLayoutProps) {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [suspensionDismissed, setSuspensionDismissed] = useState(false);
   const auth = useOptionalAuth();
+  const isAdmin = Boolean(auth.isAdmin);
+  const isSuspended = Boolean(auth.isSuspended);
+  const isDisabled = auth.user?.accountStatus === 'disabled';
+  const showSuspensionBanner = !suspensionDismissed && (isSuspended || isDisabled);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -74,6 +79,24 @@ export function GlobalLayout({ children, activePage = 'Home' }: GlobalLayoutProp
 
   return (
     <div className="min-h-screen bg-transparent text-ink-50">
+      {showSuspensionBanner ? (
+        <div role="alert" className="border-b border-rose-400/25 bg-rose-950/70 px-4 py-2.5 text-center backdrop-blur-xl">
+          <div className="mx-auto flex max-w-5xl flex-col items-center justify-center gap-2 sm:flex-row sm:gap-3">
+            <p className="text-sm font-medium text-rose-100">
+              {isSuspended
+                ? 'Your account is suspended on this server. Your write access is disabled; you can still view non-sensitive public content. If this is an error, contact support.'
+                : 'Your account has been disabled. Your write access is disabled; you can still view non-sensitive public content. If this is an error, contact support.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => setSuspensionDismissed(true)}
+              className="rounded-full border border-rose-400/30 px-3 py-0.5 text-xs font-medium text-rose-100 transition-colors hover:bg-rose-500/10"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      ) : null}
       <header className={['sticky top-0 z-50 border-b border-white/10 backdrop-blur-xl transition-all duration-300', scrolled ? 'bg-slate-950/70 shadow-[0_10px_40px_-24px_rgba(2,6,23,0.64)]' : 'bg-slate-950/55'].join(' ')}>
         <LayoutContainer>
           <div className="flex h-[80px] items-center justify-between px-0 sm:h-[72px] sm:px-0 md:h-[80px] lg:h-[80px]">
@@ -114,6 +137,12 @@ export function GlobalLayout({ children, activePage = 'Home' }: GlobalLayoutProp
                   <Link to={ROUTES.profile} className="flex items-center gap-2 rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-4 py-2 text-[0.92rem] font-semibold text-white transition-all duration-200 hover:-translate-y-0.5">
                     Profile
                   </Link>
+                  {isAdmin ? (
+                    <Link to={ROUTES.admin} className="flex items-center gap-2 rounded-full border border-brand-400/30 bg-white/5 px-4 py-2 text-[0.92rem] font-semibold text-brand-100 transition-all duration-200 hover:bg-white/10 hover:text-white">
+                      <span className="inline-flex h-1.5 w-1.5 rounded-full bg-brand-300" aria-hidden />
+                      Console
+                    </Link>
+                  ) : null}
                 </>
               ) : (
                 <>
@@ -167,9 +196,16 @@ export function GlobalLayout({ children, activePage = 'Home' }: GlobalLayoutProp
                   </NavLink>
                 ))}
                 {auth.user ? (
-                  <NavLink to={ROUTES.profile} className="rounded-2xl border border-brand-400/30 bg-white/10 px-4 py-3 text-sm font-medium text-white" onClick={() => setMobileMenuOpen(false)}>
-                    {auth.user.email ? auth.user.email : 'Profile'}
-                  </NavLink>
+                  <>
+                    <NavLink to={ROUTES.profile} className="rounded-2xl border border-brand-400/30 bg-white/10 px-4 py-3 text-sm font-medium text-white" onClick={() => setMobileMenuOpen(false)}>
+                      {auth.user.email ? auth.user.email : 'Profile'}
+                    </NavLink>
+                    {isAdmin ? (
+                      <NavLink to={ROUTES.admin} className="rounded-2xl border border-brand-400/30 bg-white/10 px-4 py-3 text-sm font-medium text-brand-100" onClick={() => setMobileMenuOpen(false)}>
+                        Admin Console
+                      </NavLink>
+                    ) : null}
+                  </>
                 ) : (
                   <div className="mt-2 flex gap-2">
                     <Button variant="secondary" fullWidth onClick={() => setMobileMenuOpen(false)}>

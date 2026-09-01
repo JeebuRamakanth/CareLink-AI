@@ -94,9 +94,9 @@ async function rpc<T>(name: string, params?: Record<string, unknown>): Promise<T
 try { const { data, error } = await (client as any).rpc(name, params); if (error) return null; return (data as T) ?? null; } catch { return null; }
 }
 
-async function listRows<T>(name: string): Promise<AdminResult<T[]>> {
+async function listRows<T>(name: string, params?: Record<string, unknown>): Promise<AdminResult<T[]>> {
   if (!isSupabaseConfigured()) return notConfigured();
-  const data = await rpc<T[]>(name);
+  const data = await rpc<T[]>(name, params);
   if (!data) return { data: null, error: 'Unable to load data. The admin gateway may be unavailable.' };
   return { data, error: null };
 }
@@ -115,7 +115,14 @@ export function adminListAudit(): Promise<AdminResult<AdminAuditRow[]>> {
 }
 
 export function adminListProviders(kind: string): Promise<AdminResult<AdminProviderRow[]>> {
-  return listRows<AdminProviderRow>(`carelink_admin_list_${kind}`);
+  const params = {
+    kind,
+    search_text: null,
+    status_filter: null,
+    page_size: 50,
+    page: 0,
+  } as Record<string, unknown>;
+  return listRows<AdminProviderRow>('carelink_admin_list_providers', params);
 }
 
 export function adminListReviews(): Promise<AdminResult<AdminReviewRow[]>> {
@@ -137,24 +144,25 @@ export async function adminGetStats(): Promise<AdminResult<AdminStatRow[]>> {
 /** Server-enforced account status change (suspend / reactivate / disable). */
 export async function adminSetAccountStatus(
   userId: string,
-  status: 'active' | 'suspended' | 'disabled'
+  status: 'active' | 'suspended' | 'disabled',
+  reason?: string
 ): Promise<AdminResult<null>> {
-  const data = await rpc<null>('carelink_admin_set_account_status', { target_user_id: userId, new_status: status });
+  const data = await rpc<null>('carelink_admin_set_account_status', { target_user: userId, new_status: status, reason: reason ?? null });
   if (!isSupabaseConfigured()) return notConfigured();
   if (data === undefined) return { data: null, error: 'Status change failed on the server.' };
   return { data: null, error: null };
 }
 
-/** Server-enforced role grant (super_admin only; user_roles unique constraint). */
+/** Server-enforced role grant (roles.manage gate, super_admin only; audited). */
 export async function adminGrantRole(targetUser: string, roleCode: string): Promise<AdminResult<null>> {
-  const data = await rpc<null>('carelink_grant_role', { target_user: targetUser, role_code: roleCode });
+  const data = await rpc<null>('carelink_admin_grant_user_role', { target_user: targetUser, role_name: roleCode });
   if (!isSupabaseConfigured()) return notConfigured();
   if (data === undefined) return { data: null, error: 'Role grant failed on the server.' };
   return { data: null, error: null };
 }
 
 export async function adminRevokeRole(targetUser: string, roleCode: string): Promise<AdminResult<null>> {
-  const data = await rpc<null>('carelink_revoke_role', { target_user: targetUser, role_code: roleCode });
+  const data = await rpc<null>('carelink_admin_revoke_user_role', { target_user: targetUser, role_name: roleCode });
   if (!isSupabaseConfigured()) return notConfigured();
   if (data === undefined) return { data: null, error: 'Role revoke failed on the server.' };
   return { data: null, error: null };

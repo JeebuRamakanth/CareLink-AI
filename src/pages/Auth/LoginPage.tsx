@@ -9,7 +9,7 @@
  * protected routes redirect here when unauthenticated.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../../components/ui/Button';
@@ -66,8 +66,12 @@ export function LoginPage() {
   const [forgotSubmitting, setForgotSubmitting] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
   const demoMode = isMockMode || !isSupabaseConfigured();
+  const adminIntent = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get('intent') === 'admin' ? params.get('intent') : null;
+  }, [location.search]);
 
-  const from = (location.state as LocationState | null)?.from ?? ROUTES.profile;
+  const from = (location.state as LocationState | null)?.from ?? (adminIntent ? ROUTES.admin : ROUTES.profile);
 
   useEffect(() => {
     if (!initializing && user) {
@@ -125,6 +129,34 @@ export function LoginPage() {
             <span>
               <span className="font-semibold text-amber-100">Demo mode:</span>{' '}
               no backend configured — accounts and sessions are stored locally in this browser for evaluation only.
+            </span>
+          </div>
+        ) : null}
+
+        {adminIntent && !demoMode ? (
+          <div
+            role="note"
+            className="mb-5 flex items-start gap-3 rounded-[var(--radius-lg)] border border-brand-400/30 bg-brand-500/10 px-4 py-3 text-xs leading-5 text-brand-100"
+          >
+            <span className="mt-0.5 inline-flex size-4 shrink-0 items-center justify-center rounded-full border border-brand-400/40 text-[0.65rem] font-bold" aria-hidden>
+              !
+            </span>
+            <span>
+              <span className="font-semibold text-brand-50">Administrative access:</span>{' '}
+              you are signing in to the CareLink admin console. Access is authorized by the server from your
+              account's database roles — selecting the site alone never grants administrative access.
+            </span>
+          </div>
+        ) : adminIntent ? (
+          <div
+            role="note"
+            className="mb-5 flex items-start gap-3 rounded-[var(--radius-lg)] border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-xs leading-5 text-amber-200"
+          >
+            <span className="mt-0.5 inline-flex h-2 w-2 shrink-0 rounded-full bg-amber-300" aria-hidden />
+            <span>
+              <span className="font-semibold text-amber-100">Admin console requested:</span>{' '}
+              in demo mode there is no server-provisioned admin role, so this area will not be accessible until a real
+              backend is configured and an operator provisions a role for your account.
             </span>
           </div>
         ) : null}

@@ -138,6 +138,32 @@ export async function reportReview(reviewId: string, reason: string): Promise<bo
 }
 
 /**
+ * Admin moderation action (publish / hide / remove)..
+ *
+ * Rides `carelink_moderate_review` — a SECURITY DEFINER RPC that re-checks
+ * admin membership + suspension inside the database before mutating. Returns
+ * true only when the RPC succeeded; errors surface as a safe generic string..
+ */
+export async function moderateReview(
+  reviewId: string,
+  action: 'publish' | 'hide' | 'remove',
+  reason?: string
+): Promise<{ ok: boolean; error?: string }> {
+  const { data, error } = await withClient(async (client) => {
+    const res = await client.rpc('carelink_moderate_review', {
+      review_uuid: reviewId,
+      action,
+      reason: reason ?? null,
+    });
+    if (res.error) throw res.error;
+    return { ok: true };
+  });
+  if (data) return data;
+  const normalized = error && typeof error === 'string' ? error : error?.message ?? 'Moderation failed on the server.';
+  return { ok: false, error: normalized };
+}
+
+/**
  * Request verified-interaction status. Returns true only when the DB proves a
  * completed appointment belonging to the author (carelink_verify_review).
  */

@@ -19,9 +19,11 @@ import {
   deleteFamilyProfile,
   getProfile,
   listFamilyProfiles,
+  listNotifications,
+  markNotificationRead,
   updateProfile,
 } from '../../services/health-data';
-import type { FamilyProfileRow, FamilyRelation } from '../../services/health-data';
+import type { FamilyProfileRow, FamilyRelation, NotificationRow } from '../../services/health-data';
 import { cn } from '../../components/common/cn';
 
 const RELATIONS: { value: FamilyRelation; label: string }[] = [
@@ -53,6 +55,27 @@ export function ProfilePage() {
   const [languagePref, setLanguagePref] = useState('en');
   const [emergencyName, setEmergencyName] = useState('');
   const [emergencyPhone, setEmergencyPhone] = useState('');
+  const [notifications, setNotifications] = useState<NotificationRow[]>([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+
+  const loadNotifications = useCallback(async () => {
+    setNotificationsLoading(true);
+    try {
+      const n = await listNotifications({ limit: 20 });
+      setNotifications(n ?? []);
+    } catch {
+      setNotifications([]);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  }, []);
+
+  const onMarkRead = async (id: string) => {
+    const ok = await markNotificationRead(id);
+    if (ok) {
+      setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, status: 'read' } : n));
+    }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -76,7 +99,8 @@ export function ProfilePage() {
 
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadNotifications();
+  }, [load, loadNotifications]);
 
   const onSaveProfile = async () => {
     setSaving(true);
@@ -209,6 +233,49 @@ export function ProfilePage() {
           ) : (
             <p className="mt-5 text-sm text-ink-400">No family members added yet.</p>
           )}
+        </Card>
+
+        <Card>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-white">Notifications</h2>
+              <p className="mt-1 text-sm text-ink-300">Recent CareLink notifications for your account (appointment, safety, account events).</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void loadNotifications()}
+              className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-ink-300 transition-colors hover:bg-white/10 hover:text-white"
+            >
+              Refresh
+            </button>
+          </div>
+          <div className="mt-4">
+            {notificationsLoading ? (
+              <p className="py-3 text-sm text-ink-400">Loading notifications…</p>
+            ) : notifications.length === 0 ? (
+              <p className="py-3 text-sm text-ink-400">
+                No notifications yet.{' '}
+                {isMockMode ? 'In demo mode dispatch requires a real backend, so this stays empty here.' : 'They will appear here when CareLink dispatches them.'}
+              </p>
+            ) : (
+              <ul className="divide-y divide-white/5">
+                {notifications.map((n) => (
+                  <li key={n.id} className="flex items-start justify-between gap-3 py-3">
+                    <div className="min-w-0 flex-1">
+                      <p className={['text-sm font-medium', n.status === 'read' ? 'text-ink-400' : 'text-white'].join(' ')}>{n.title}</p>
+                      {n.body ? <p className="mt-0.5 text-xs leading-5 text-ink-400">{n.body}</p> : null}
+                      {n.scheduled_for ? <p className="mt-0.5 text-xs text-ink-500">{new Date(n.scheduled_for).toLocaleString()}</p> : null}
+                    </div>
+                    {n.status === 'sent' ? (
+                      <Button variant="ghost" size="sm" onClick={() => void onMarkRead(n.id)}>Mark read</Button>
+                    ) : (
+                      <span className="mt-0.5 shrink-0 text-[0.66rem] uppercase tracking-[0.16em] text-ink-500">{n.status}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </Card>
 
         <div className="flex flex-wrap gap-3">
