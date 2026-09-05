@@ -4,6 +4,7 @@ import { Hero } from './components/Hero';
 import { HospitalGrid } from './components/HospitalGrid';
 import { HospitalResultsSection } from './components/HospitalResultsSection';
 import { ResultsToolbar } from './components/ResultsToolbar';
+import { LocationBanner } from '../../components/location/LocationBanner';
 import { useHospitals } from './hooks/useHospitals';
 
 export function HospitalsPage() {
@@ -26,6 +27,7 @@ export function HospitalsPage() {
     <Container className="py-8 sm:py-10 lg:py-16">
       <div className="space-y-8 sm:space-y-10 lg:space-y-12">
         <Hero />
+        <LocationBanner />
         <FilterBar
           searchValue={searchTerm}
           filters={filters}

@@ -37,6 +37,8 @@ const RELATIONS: { value: FamilyRelation; label: string }[] = [
 export function ProfilePage() {
   const { user, isMockMode, signOut } = useAuth();
   const navigate = useNavigate();
+  const accountStatus = user?.accountStatus ?? 'active';
+  const suspended = accountStatus === 'suspended' || accountStatus === 'disabled';
   const [family, setFamily] = useState<FamilyProfileRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -168,6 +170,14 @@ export function ProfilePage() {
         </Button>
       </div>
 
+      {suspended ? (
+        <div role="alert" className="mb-6 rounded-[var(--radius-lg)] border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+          {accountStatus === 'suspended'
+            ? 'Your account is suspended on this server. You can view this page, but saving profile changes, adding family members, and other write actions are disabled until an administrator reactivates your account.'
+            : 'Your account has been disabled. You can view this page, but write actions are disabled. Contact support if this is an error.'}
+        </div>
+      ) : null}
+
       {error ? (
         <div className="mb-6 rounded-[var(--radius-lg)] border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">{error}</div>
       ) : null}
@@ -184,7 +194,7 @@ export function ProfilePage() {
             <Input label="Emergency contact phone" value={emergencyPhone} onChange={(e) => setEmergencyPhone(e.target.value)} placeholder="+1 …" />
           </div>
           <div className="mt-5 flex items-center gap-3">
-            <Button onClick={onSaveProfile} loading={saving}>Save changes</Button>
+            <Button onClick={onSaveProfile} loading={saving} disabled={suspended}>Save changes</Button>
             {saved ? <span className="text-sm text-brand-200">Saved.</span> : null}
           </div>
         </Card>
@@ -212,7 +222,7 @@ export function ProfilePage() {
             </div>
           </div>
           <div className="mt-4">
-            <Button onClick={onAddFamily} loading={addingFamily} disabled={!label.trim()}>Add family member</Button>
+            <Button onClick={onAddFamily} loading={addingFamily} disabled={!label.trim() || suspended}>Add family member</Button>
           </div>
 
           {family.length > 0 ? (
@@ -226,7 +236,7 @@ export function ProfilePage() {
                       {f.context_summary ? ` · ${f.context_summary}` : ''}
                     </p>
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => onDeleteFamily(f.id)}>Remove</Button>
+                  <Button variant="ghost" size="sm" onClick={() => onDeleteFamily(f.id)} disabled={suspended}>Remove</Button>
                 </li>
               ))}
             </ul>

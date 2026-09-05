@@ -11,3 +11,5 @@ export { AdminAppointmentsPage } from './AdminAppointmentsPage';
 export { AdminNotificationsPage } from './AdminNotificationsPage';
 export { AdminSecurityPage } from './AdminSecurityPage';
 export { AdminReportsPage } from './AdminReportsPage';
+export { AdminRolesPage } from './AdminRolesPage';
+export { AdminDataQualityPage } from './AdminDataQualityPage';

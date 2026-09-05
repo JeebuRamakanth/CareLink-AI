@@ -25,11 +25,13 @@ import { AdminRoute } from '../components/AdminRoute';
 import {
   AdminAppointmentsPage,
   AdminDashboardPage,
+  AdminDataQualityPage,
   AdminLayout,
   AdminNotificationsPage,
   AdminProvidersPage,
   AdminReportsPage,
   AdminReviewsPage,
+  AdminRolesPage,
   AdminSecurityPage,
   AdminUsersPage,
 } from '../pages/Admin';
@@ -72,6 +74,8 @@ export function AppRoutes() {
           <Route path="notifications" element={<AdminNotificationsPage />} />
           <Route path="security" element={<AdminSecurityPage />} />
           <Route path="reports" element={<AdminReportsPage />} />
+          <Route path="roles" element={<AdminRoute superAdminOnly><AdminRolesPage /></AdminRoute>} />
+          <Route path="data-quality" element={<AdminRoute superAdminOnly><AdminDataQualityPage /></AdminRoute>} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to={ROUTES.home} replace />} />

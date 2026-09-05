@@ -15,9 +15,8 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { useAuth } from '../../contexts/AuthContext';
 import { hasPermission, isSuperAdmin } from '../../services/auth/authorization';
-import { adminListProviders } from '../../services/health-data/adminRepository';
+import { adminListProviders, adminSetProviderStatus } from '../../services/health-data/adminRepository';
 import type { AdminProviderRow } from '../../services/health-data/adminRepository';
-import { env } from '../../config';
 import { useAdminList } from './useAdminList';
 import { AdminDate, AdminEmpty, AdminError, AdminLoading, AdminModuleHeader, AdminNotConfigured, AdminStatusPill, AdminTable } from './AdminBits';
 import { cn } from '../../components/common/cn';
@@ -34,8 +33,8 @@ const KINDS: { value: ProviderKind; label: string }[] = [
 export function AdminProvidersPage() {
   const { user } = useAuth();
   const superAdmin = isSuperAdmin(user);
-  const canView = hasPermission(user, 'providers.view');
-  const gatewayConfigured = env.admin.configured;
+  const canVerify = hasPermission(user, 'providers.verify');
+  const canManageStatus = hasPermission(user, 'providers.manage');
 
   const [kind, setKind] = useState<ProviderKind>('hospital');
   const [query, setQuery] = useState('');
@@ -57,22 +56,18 @@ export function AdminProvidersPage() {
     );
   }, [data, query]);
 
-  void superAdmin;
-  void canView;
-
-  const verifyProvider = async (row: AdminProviderRow) => {
-    if (!gatewayConfigured) return;
+  const setProviderStatus = async (row: AdminProviderRow, newStatus: 'verified' | 'rejected' | 'active' | 'inactive') => {
     setActionError(null);
     setActionMessage(null);
     setBusyId(row.id);
-    const { verifyProvider: verify } = await import('../../services/admin/adminGateway');
-    const res = await verify(kind, row.id);
+    const res = await adminSetProviderStatus(kind, row.id, newStatus);
     setBusyId(null);
-    if (res.ok) {
-      setActionMessage(`Verification requested for ${row.name}.`);
+    if (!res.error) {
+      setActionMessage(`${row.name} marked ${newStatus}.`);
       retry();
     } else {
-      setActionError('Verification failed on the server: ' + (res.detail ?? res.error ?? 'unknown'));
+      setActionError(res.error ?? 'Provider status change failed on the server.');
+      retry();
     }
   };
 
@@ -132,17 +127,40 @@ export function AdminProvidersPage() {
                   <td className="px-3.5 py-3 text-xs text-ink-400">{row.slug}</td>
                   <td className="px-3.5 py-3"><AdminDate value={row.created_at} /></td>
                   <td className="px-3.5 py-3">
-                    {superAdmin && gatewayConfigured ? (
-                      row.verification_status === 'verified' ? (
-                        <span className="text-xs text-ink-400">Verified</span>
-                      ) : (
-                        <Button size="sm" variant="secondary" loading={busyId === row.id} disabled={busyId === row.id} onClick={() => verifyProvider(row)}>
-                          Verify
-                        </Button>
-                      )
+                    {canVerify || canManageStatus ? (
+                      <div className="flex flex-wrap items-center gap-1">
+                        {canVerify ? (
+                          <>
+                            {row.verification_status !== 'verified' ? (
+                              <Button size="sm" variant="secondary" loading={busyId === row.id} disabled={busyId === row.id} onClick={() => setProviderStatus(row, 'verified')}>
+                                Verify
+                              </Button>
+                            ) : (
+                              <span className="text-xs text-emerald-300">Verified</span>
+                            )}
+                            {row.verification_status === 'pending' ? (
+                              <Button size="sm" variant="ghost" loading={busyId === row.id} disabled={busyId === row.id} onClick={() => setProviderStatus(row, 'rejected')}>
+                                Reject
+                              </Button>
+                            ) : null}
+                          </>
+                        ) : null}
+                        {canManageStatus ? (
+                          <>
+                            {row.verification_status === 'rejected' ? (
+                              <Button size="sm" variant="ghost" loading={busyId === row.id} disabled={busyId === row.id} onClick={() => setProviderStatus(row, 'active')}>
+                                Activate
+                              </Button>
+                            ) : null}
+                            <Button size="sm" variant="ghost" loading={busyId === row.id} disabled={busyId === row.id} onClick={() => setProviderStatus(row, 'inactive')}>
+                              Deactivate
+                            </Button>
+                          </>
+                        ) : null}
+                      </div>
                     ) : (
                       <span className="text-xs text-ink-500">
-                        {superAdmin ? 'Needs gateway' : 'View only'}
+                        {superAdmin ? 'Provider ops require elevated permission' : 'View only'}
                       </span>
                     )}
                   </td>

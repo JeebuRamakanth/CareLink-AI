@@ -7,6 +7,7 @@ import type { ReactNode } from 'react';
 import { ROUTES } from '../../routes/routeConstants';
 import { useOptionalAuth } from '../../contexts/AuthContext';
 import { Button } from '../ui/Button';
+import { NotificationBell } from '../notifications/NotificationBell';
 
 const navItems = [
   { label: 'Home', href: ROUTES.home },
@@ -143,6 +144,7 @@ export function GlobalLayout({ children, activePage = 'Home' }: GlobalLayoutProp
                       Console
                     </Link>
                   ) : null}
+                  <NotificationBell />
                 </>
               ) : (
                 <>

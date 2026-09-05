@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getHospitals } from '../../../services';
+import { useOptionalLocationContext } from '../../../contexts/LocationContext';
+import { haversineKm } from '../../../lib';
 import type { Hospital } from '../../../types';
 
 export type HospitalFilterState = {
@@ -65,11 +67,27 @@ const getDistanceThreshold = (distanceValue: string): number | null => {
 };
 
 export function useHospitals() {
+  const locationCtx = useOptionalLocationContext();
   const [hospitals, setHospitals] = useState<Hospital[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState<HospitalFilterState>(initialFilters);
+
+  // Recomputed distance from the LIVE patient location when coordinates exist.
+  // Never fabricates a distance: null when the user has no coordinates.
+  const patientLat = locationCtx?.location?.lat;
+  const patientLng = locationCtx?.location?.lng;
+  const hasPatientCoords = typeof patientLat === 'number' && typeof patientLng === 'number';
+
+  const hospitalsWithLiveDistance = useMemo(() => {
+    if (!hasPatientCoords) return hospitals;
+    return hospitals.map((h) => {
+      if (typeof h.latitude !== 'number' || typeof h.longitude !== 'number') return h;
+      const km = haversineKm({ lat: patientLat!, lng: patientLng! }, { lat: h.latitude, lng: h.longitude });
+      return km == null ? h : { ...h, distance_km: Math.round(km * 10) / 10 };
+    });
+  }, [hospitals, hasPatientCoords, patientLat, patientLng]);
 
   const loadHospitals = useCallback(async () => {
     setLoading(true);
@@ -174,7 +192,7 @@ export function useHospitals() {
     const minimumRating = getRatingThreshold(filters.rating);
     const maximumDistance = getDistanceThreshold(filters.distance);
 
-    const result = hospitals.filter((hospital) => {
+    const result = hospitalsWithLiveDistance.filter((hospital) => {
       const searchText = [
         hospital.name,
         hospital.city,
@@ -212,7 +230,9 @@ export function useHospitals() {
       default:
         return [...result].sort((left, right) => right.rating - left.rating);
     }
-  }, [filters, hospitals, searchTerm]);
+  }, [filters, hospitalsWithLiveDistance, searchTerm]);
+
+  const liveDistance = hasPatientCoords;
 
   return {
     hospitals,
@@ -226,5 +246,6 @@ export function useHospitals() {
     resetFilters,
     refresh,
     activeFilterLabels,
+    liveDistance,
   };
 }
