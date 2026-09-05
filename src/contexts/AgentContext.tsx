@@ -19,11 +19,20 @@ import {
 import { useOptionalAuth } from './AuthContext';
 import { listFamilyProfiles } from '../services/health-data';
 import type { FamilyProfileRow } from '../services/health-data';
+import {
+  addMessage,
+  createConversation,
+  deleteConversation as deleteConversationRow,
+  listConversations as listConversationRows,
+  listMessages,
+} from '../services/health-data/conversationsRepository';
+import { isSupabaseConfigured } from '../services/supabase/client';
 import type {
   AgentAttachment,
   AgentConversation,
   AgentLanguage,
   AgentMessage,
+  AgentResponse,
   AgentStateStatus,
   PatientProfile,
   RecoveryCheckIn,
@@ -224,6 +233,10 @@ export function AgentProvider({ children }: { children: ReactNode }) {
 
   const deleteConversation = useCallback(
     (id: string) => {
+      const target = conversations.find((c) => c.id === id);
+      if (isSupabaseConfigured() && target?.dbId) {
+        void deleteConversationRow(target.dbId).catch(() => null);
+      }
       setConversations((current) => {
         const next = current.filter((c) => c.id !== id);
         if (next.length === 0) {
@@ -237,7 +250,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         return next;
       });
     },
-    [setConversations, activeConversationIdState]
+    [setConversations, activeConversationIdState, conversations]
   );
 
   const clearActiveConversation = useCallback(() => {
@@ -358,6 +371,102 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     [setConversations]
   );
 
+  // --- Supabase conversation persistence (real mode only; never blocks the UX) ---
+  // Ensures a real `conversations` + `conversation_messages` row exists when the
+  // backend is configured, scoped by RLS to the authenticated user. Failures
+  // are non-fatal for the chat; local state remains the instant source of truth.
+
+
+  const persistConversationDb = useCallback(
+    async (conversationId: string): Promise<string | null> => {
+      if (!isSupabaseConfigured()) return null;
+      const conv = conversations.find((c) => c.id === conversationId);
+      if (!conv) return null;
+      if (conv.dbId) return conv.dbId;
+      const row = await createConversation({
+        title: conv.title,
+        language: conv.language ?? 'en',
+        family_profile_id: conv.patientProfileId && conv.patientProfileId !== 'self' ? conv.patientProfileId : null,
+      });
+      if (!row?.id) return null;
+      setConversations((current) =>
+        current.map((c) => (c.id === conversationId ? { ...c, dbId: row.id } : c)),
+      );
+      return row.id;
+    },
+    [conversations, setConversations]
+  );
+
+  const persistMessageDb = useCallback(
+    async (conversation: AgentConversation, message: AgentMessage) => {
+      if (!isSupabaseConfigured()) return;
+      const dbId = conversation.dbId ?? (await persistConversationDb(conversation.id));
+      if (!dbId) return;
+      await addMessage({
+        conversation_id: dbId,
+        role: message.role,
+        content: typeof message.content === 'string' ? message.content : null,
+        response: message.response ?? null,
+        attachments: message.attachments ?? [],
+        context_tags: message.contextTags ?? [],
+        patient_profile_id: message.patientProfileId && message.patientProfileId !== 'self' ? message.patientProfileId : null,
+        intent: (message.response as { kind?: string } | null)?.kind ?? null,
+        actions: (message.response as { actions?: unknown[] } | null)?.actions ?? [],
+      });
+    },
+    [persistConversationDb]
+  );
+
+  // Load real conversations from Supabase when configured and the user is signed in.
+  useEffect(() => {
+    let cancelled = false;
+    if (!isSupabaseConfigured() || !auth.user?.id) return;
+    (async () => {
+      try {
+        const rows = await listConversationRows();
+        if (cancelled || !rows || rows.length === 0) return;
+        const withMessages: AgentConversation[] = [];
+        for (const row of rows) {
+          try {
+            const msgs = await listMessages(row.id);
+            withMessages.push({
+              id: row.id,
+              dbId: row.id,
+              title: row.title ?? 'New conversation',
+              createdAt: row.created_at,
+              updatedAt: row.updated_at,
+              language: (row.language as AgentLanguage) || 'en',
+              patientProfileId: row.family_profile_id ?? 'self',
+              messages: msgs.map((m) => ({
+                id: m.id,
+                role: m.role,
+                content: m.content ?? '',
+                createdAt: m.created_at,
+                response: (m.response as unknown) as AgentResponse | undefined,
+                attachments: (m.attachments as AgentAttachment[]) ?? [],
+                contextTags: m.context_tags ?? [],
+                patientProfileId: m.patient_profile_id ?? 'self',
+              })),
+            });
+          } catch {
+            // skip malformed conversation; never crash the restore.
+          }
+        }
+        if (cancelled || withMessages.length === 0) return;
+        setConversations((current) => {
+          // Only import remote conversations that don't already exist locally (by dbId).
+          const known = new Set(current.map((c) => c.dbId ?? c.id));
+          return [...withMessages.filter((c) => !known.has(c.id)), ...current];
+        });
+      } catch {
+        // non-fatal
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [auth.user?.id, setConversations]);
+
   const sendMessage = useCallback(
     async (text: string, pendingAttachments: AgentAttachment[]) => {
       const trimmed = text.trim();
@@ -390,6 +499,12 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         )
       );
 
+      // Persist the user turn server-side (never blocks the chat; local state is instant).
+      const convBefore = conversations.find((c) => c.id === conversationId);
+      if (isSupabaseConfigured() && convBefore) {
+        void persistMessageDb(convBefore, userMessage).catch(() => null);
+      }
+
       // Clear the composer's pending attachments now that they are persisted on the message.
       clearAttachments();
       setStatus({ status: 'thinking' });
@@ -412,6 +527,10 @@ export function AgentProvider({ children }: { children: ReactNode }) {
           patientProfileId: profileId,
         };
         persistAssistantMessage(conversationId, assistantMessage);
+        const convAfter = conversations.find((c) => c.id === conversationId);
+        if (isSupabaseConfigured() && convAfter) {
+          void persistMessageDb(convAfter, assistantMessage).catch(() => null);
+        }
         setStatus({ status: response.kind === 'emergency' ? 'emergency' : 'success' });
       } catch {
         setStatus({
@@ -420,7 +539,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         });
       }
     },
-    [activeConversationId, activeProfileId, activeProfile, setConversations, clearAttachments, persistAssistantMessage]
+    [activeConversationId, activeProfileId, activeProfile, setConversations, clearAttachments, persistAssistantMessage, persistMessageDb, conversations]
   );
 
   const triggerQuickAction = useCallback(
@@ -450,6 +569,11 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         )
       );
 
+      const convBefore = conversations.find((c) => c.id === conversationId);
+      if (isSupabaseConfigured() && convBefore) {
+        void persistMessageDb(convBefore, userMessage).catch(() => null);
+      }
+
       setStatus({ status: 'thinking' });
       await new Promise<void>((resolve) => window.setTimeout(resolve, 500));
       const assistantMessage: AgentMessage = {
@@ -463,9 +587,13 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         patientProfileId: activeProfileId,
       };
       persistAssistantMessage(conversationId, assistantMessage);
+      const convAfter = conversations.find((c) => c.id === conversationId);
+      if (isSupabaseConfigured() && convAfter) {
+        void persistMessageDb(convAfter, assistantMessage).catch(() => null);
+      }
       setStatus({ status: response.kind === 'emergency' ? 'emergency' : 'success' });
     },
-    [activeConversationId, activeProfileId, activeProfile, setConversations, persistAssistantMessage]
+    [activeConversationId, activeProfileId, activeProfile, setConversations, persistAssistantMessage, persistMessageDb, conversations]
   );
 
   const addRecoveryCheckIn = useCallback(

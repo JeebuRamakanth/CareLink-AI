@@ -3,6 +3,11 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Container } from '../../components/ui/Container';
 import { Button } from '../../components/ui/Button';
 import { useAppointmentContext } from '../../contexts/AppointmentContext';
+import { useAgent } from '../../contexts/AgentContext';
+import { ReviewComposer } from '../../components/reviews/ReviewComposer';
+import { useOptionalLocationContext } from '../../contexts/LocationContext';
+import { directionsUrl } from '../../services/maps/mapsService';
+import type { BookingPatientOption } from './components/DoctorBookingModal';
 import { DoctorHero } from './components/DoctorHero';
 import { DoctorQuickActions } from './components/DoctorQuickActions';
 import { DoctorProfessionalProfile } from './components/DoctorProfessionalProfile';
@@ -29,13 +34,26 @@ export function DoctorProfilePage() {
   const [selectedReviewFilter, setSelectedReviewFilter] = useState<DoctorReviewFilterOption>('All');
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [isBookingOpen, setIsBookingOpen] = useState(false);
-  const [selectedPatientProfile, setSelectedPatientProfile] = useState('Myself');
   const [bookingMessage, setBookingMessage] = useState<string | null>(null);
   const [successAppointment, setSuccessAppointment] = useState<AppointmentRecord | null>(null);
   const topSectionRef = useRef<HTMLDivElement | null>(null);
   const { addAppointment } = useAppointmentContext();
+  const agent = useAgent();
+  const locationCtx = useOptionalLocationContext();
 
-  const patientProfiles = useMemo(() => ['Myself', 'Child (age 4)', 'Family member'], []);
+  // Real family profiles (self + authenticated family members when configured;
+  // falls back to the static self/mock set) — never invents a profile the server
+  // cannot also identify. The selected patient is persisted onto the appointment row.
+
+
+  const patientProfiles = useMemo<BookingPatientOption[]>(() => {
+    const profiles = agent.patientProfiles.length > 0 ? agent.patientProfiles : [];
+    const self: BookingPatientOption = { id: 'self', label: 'Myself' };
+    const rest: BookingPatientOption[] = profiles.map((p) => ({ id: p.id, label: p.label }));
+    return [self, ...rest.filter((o) => o.id !== 'self')];
+  }, [agent.patientProfiles]);
+
+  const [selectedPatientProfile, setSelectedPatientProfile] = useState<BookingPatientOption | null>(patientProfiles[0] ?? null);
 
   const filteredReviews = useMemo(() => {
     if (!doctor) return [];
@@ -89,10 +107,31 @@ export function DoctorProfilePage() {
         <DoctorHero doctor={doctor} onBack={() => navigate(-1)} />
         <DoctorQuickActions
           onBookAppointment={() => setIsBookingOpen(true)}
-          onContactDoctor={() => window.alert('Contact doctor flow is mocked. Email or phone integration would come next.')}
+          onContactDoctor={() => {
+            if (typeof window === 'undefined') return;
+            // No contact channel is stored for the static demo profile set; do not
+            // fabricate one. A real provider record carries phone/email via the DB.
+            window.alert('No contact method is listed for this doctor yet.');
+          }}
           onViewHospital={() => navigate(`/hospitals/${doctor.hospitalConnection.id}`)}
-          onGetDirections={() => window.alert('Directions are mocked. Map integration can be added here.')}
-          onWriteReview={() => window.alert('Review writing is part of the premium experience and is mocked here.')}
+          onGetDirections={() => {
+            // Real directions deep-link: exact origin from the live location context
+            // (never fabricated); otherwise a provider destination link.
+            const origin = locationCtx?.location && typeof locationCtx.location.lat === 'number'
+              ? { label: locationCtx.location.label, lat: locationCtx.location.lat, lng: locationCtx.location.lng }
+              : undefined;
+            const url = directionsUrl({
+              destination: `${doctor.name}, ${doctor.consultationInfo?.location ?? ''}`,
+              origin,
+              mode: 'driving',
+            });
+            if (typeof window !== 'undefined') window.open(url, '_blank', 'noopener,noreferrer');
+          }}
+          onWriteReview={() => {
+            // Intent hook for the review composer below the section.
+            const el = document.getElementById('carelink-review-composer');
+            el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }}
         />
         {bookingMessage ? (
           <div className="rounded-[1.75rem] border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm text-emerald-100">
@@ -125,6 +164,9 @@ export function DoctorProfilePage() {
               starBreakdown={doctor.starBreakdown}
               categoryRatings={doctor.categoryRatings}
             />
+            <div id="carelink-review-composer" className="scroll-mt-28">
+              <ReviewComposer target={{ kind: 'doctor', id: doctor.id }} />
+            </div>
             <DoctorReviewSection
               reviews={filteredReviews}
               activeFilter={selectedReviewFilter}
@@ -163,14 +205,15 @@ export function DoctorProfilePage() {
 
             const newAppointment: AppointmentRecord = {
               appointmentId,
+              familyProfileId: profile?.id && profile.id !== 'self' ? profile.id : undefined,
               doctorId: doctor.id,
               doctorName: doctor.name,
               specialty: doctor.specialty,
               doctorAvatar: doctor.profileInitials,
               hospitalId: doctor.hospitalId,
               hospitalName: doctor.hospitalAffiliation,
-              patientId: profile.toLowerCase().replace(/\s+/g, '-'),
-              patientName: profile,
+              patientId: (profile?.id ?? 'self').toLowerCase().replace(/\s+/g, '-'),
+              patientName: profile?.label ?? 'Myself',
               appointmentType,
               date: selectedSlotDetail.day,
               time: selectedSlotDetail.time,
@@ -192,7 +235,7 @@ export function DoctorProfilePage() {
             setSuccessAppointment(newAppointment);
             setIsBookingOpen(false);
             setBookingMessage(
-              `Appointment confirmed for ${profile} (${appointmentType}) at ${selectedSlotDetail.day}, ${selectedSlotDetail.time}.`
+              `Appointment confirmed for ${profile?.label ?? 'Myself'} (${appointmentType}) at ${selectedSlotDetail.day}, ${selectedSlotDetail.time}.`
             );
           }}
         />

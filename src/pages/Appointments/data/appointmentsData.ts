@@ -10,6 +10,8 @@ export interface RescheduleInfo {
 export interface AppointmentRecord {
   appointmentId: string;
   dbId?: string;
+  /** Optional real family-profile id scoped to the booking owner. */
+  familyProfileId?: string;
   doctorId: string;
   doctorName: string;
   specialty: string;

@@ -3,14 +3,20 @@ import type { DoctorProfile } from '../data/doctorProfileData';
 import type { AppointmentType } from '../../Appointments/data/appointmentsData';
 import { Button } from '../../../components/ui/Button';
 
+export interface BookingPatientOption {
+  /** Stable id used for the appointment's family_profile_id when it matches a real profile. */
+  id: string;
+  label: string;
+}
+
 type DoctorBookingModalProps = {
   doctor: DoctorProfile;
   selectedSlotId: string | null;
   onClose: () => void;
-  onConfirm: (slotId: string, patientProfile: string, appointmentType: AppointmentType) => void;
-  patientProfiles: string[];
-  selectedProfile: string;
-  onSelectProfile: (profile: string) => void;
+  onConfirm: (slotId: string, patientProfile: BookingPatientOption, appointmentType: AppointmentType) => void;
+  patientProfiles: BookingPatientOption[];
+  selectedProfile: BookingPatientOption | null;
+  onSelectProfile: (profile: BookingPatientOption) => void;
 };
 
 const appointmentTypes: AppointmentType[] = ['Consultation', 'Follow-up', 'Telehealth'];
@@ -33,7 +39,7 @@ export function DoctorBookingModal({
     [doctor.availabilitySlots, activeSlotId]
   );
 
-  const canStepOneContinue = selectedProfile.length > 0 && selectedAppointmentType.length > 0;
+  const canStepOneContinue = selectedProfile !== null && selectedAppointmentType.length > 0;
   const canStepTwoContinue = selectedSlot !== undefined && selectedSlot.status === 'available';
   const canConfirm = step === 3 && canStepTwoContinue;
 
@@ -48,7 +54,7 @@ export function DoctorBookingModal({
   };
 
   const handleConfirm = () => {
-    if (selectedSlot?.id) {
+    if (selectedSlot?.id && selectedProfile) {
       onConfirm(selectedSlot.id, selectedProfile, selectedAppointmentType);
     }
   };
@@ -99,17 +105,19 @@ export function DoctorBookingModal({
                 <div className="mt-4 grid gap-3">
                   {patientProfiles.map((profile) => (
                     <button
-                      key={profile}
+                      key={profile.id}
                       type="button"
                       onClick={() => onSelectProfile(profile)}
                       className={`rounded-[1.5rem] border px-4 py-3 text-left transition ${
-                        selectedProfile === profile
+                        selectedProfile?.id === profile.id
                           ? 'border-brand-400 bg-brand-500/10 text-white'
                           : 'border-white/10 bg-slate-950/75 text-ink-300 hover:border-brand-400/30 hover:bg-white/5'
                       }`}
                     >
-                      <p className="font-semibold">{profile}</p>
-                      <p className="mt-1 text-sm text-ink-400">A mock family profile for booking confirmation.</p>
+                      <p className="font-semibold">{profile.label}</p>
+                      <p className="mt-1 text-sm text-ink-400">
+                        {profile.id === 'self' ? 'Your primary self profile' : 'Family-member patient context'}
+                      </p>
                     </button>
                   ))}
                 </div>
@@ -176,7 +184,7 @@ export function DoctorBookingModal({
               <div className="rounded-[1.75rem] border border-white/10 bg-slate-950/80 p-5">
                 <p className="text-sm uppercase tracking-[0.24em] text-ink-400">Review appointment</p>
                 <div className="mt-4 space-y-3 text-sm text-ink-300">
-                  <SummaryRow label="Patient" value={selectedProfile} />
+                  <SummaryRow label="Patient" value={selectedProfile?.label ?? 'Not selected'} />
                   <SummaryRow label="Type" value={selectedAppointmentType} />
                   <SummaryRow label="Doctor" value={doctor.name} />
                   <SummaryRow label="Service" value={`${doctor.specialty} consultation`} />

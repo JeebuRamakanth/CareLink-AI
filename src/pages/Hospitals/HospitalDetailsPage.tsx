@@ -14,6 +14,8 @@ import { HospitalSpecialties } from './components/HospitalSpecialties';
 import { HospitalDoctorPreview } from './components/HospitalDoctorPreview';
 import { HospitalLocation } from './components/HospitalLocation';
 import { fetchRealDoctorsByHospital } from '../../services/health-data';
+import { ReviewComposer } from '../../components/reviews/ReviewComposer';
+import { buildTelHref } from '../../lib/location';
 import { getHospitalDetailById } from './data/hospitalDetailsData';
 import type { HospitalDoctorItem, HospitalDoctorTopic, ReviewFilterOption } from './data/hospitalDetailsData';
 import { ROUTES } from '../../routes/routeConstants';
@@ -147,11 +149,15 @@ export function HospitalDetailsPage() {
   };
 
   const handleContact = () => {
-    window.alert('Contact flow is ready for the next implementation step.');
+    if (!hospital) return;
+    const href = hospital.phone ? buildTelHref(hospital.phone) : '';
+    if (href && typeof window !== 'undefined') window.location.href = href;
+    else if (typeof window !== 'undefined') window.alert('No contact number is listed for this hospital yet.');
   };
 
   const handleWriteReview = () => {
-    window.alert('Write Review will be available soon in the premium experience.');
+    if (typeof window === 'undefined') return;
+    window.document.getElementById('carelink-hospital-review-composer')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
 
   if (!hospital) {
@@ -186,6 +192,9 @@ export function HospitalDetailsPage() {
         <div className="grid gap-8 xl:grid-cols-[0.95fr_0.85fr] xl:items-start">
           <div className="space-y-8">
             <HospitalOverview hospital={hospital} />
+            <div id="carelink-hospital-review-composer" className="scroll-mt-28">
+              <ReviewComposer target={{ kind: 'hospital', id: hospital.id }} />
+            </div>
             <HospitalReviewSection
               reviews={filteredReviews}
               activeFilter={selectedReviewFilter}

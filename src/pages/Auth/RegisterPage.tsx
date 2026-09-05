@@ -11,6 +11,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { waitForAuthSession } from '../../services/auth';
+import { writePendingProfileSave } from '../../services/auth/pendingProfileSave';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Card } from '../../components/ui/Card';
@@ -76,11 +77,23 @@ export function RegisterPage() {
     if (!session) {
       setSubmitting(false);
       if (isSupabaseConfigured()) {
-        // Real provider requires confirmation (or session latency); we show
-        // an honest state — profile details will persist after they confirm..
+        // Real provider requires confirmation (or session latency). Queue the
+        // entered profile fields so they are replayed the moment the session
+        // becomes readable — AuthContext drains `pendingProfileSave` on restore.
+        writePendingProfileSave({
+          updatedAt: new Date().toISOString(),
+          profile: {
+            display_name: displayName.trim() || null,
+            emergency_contact_phone: phone.trim() || null,
+            location_preference: city.trim() || null,
+          },
+          family: familyLabel.trim()
+            ? { relation: 'self' as const, label: familyLabel.trim() }
+            : null,
+        });
         setLocalError(
           'Account created. Please check your inbox to confirm your email — ' +
-          'your profile details will be saved after you confirm.',
+          'your profile details will be saved automatically after you confirm.',
         );
         navigate(ROUTES.profile, { replace: true });
       } else {
