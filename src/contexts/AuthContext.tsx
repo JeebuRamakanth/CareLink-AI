@@ -21,6 +21,12 @@ import {
   signUp as signUpService,
   requestPasswordReset,
 } from '../services/auth';
+import {
+  clearPendingProfileSave,
+  readPendingProfileSave,
+} from '../services/auth/pendingProfileSave';
+import { createFamilyProfile, updateProfile } from '../services/health-data';
+import { isSupabaseConfigured } from '../services/supabase/client';
 import type { AuthError, CareLinkUser } from '../services/auth';
 import {
   hasAdminRole,
@@ -54,6 +60,31 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<CareLinkUser | null>(null);
+
+  // Drain a pending post-email-confirmation profile save once a real session is
+  // available. Non-fatal: on failure the store is kept for the next restore so
+  // user-entered fields are never silently discarded.
+
+  const drainPendingProfileSave = useCallback(async () => {
+    const pending = readPendingProfileSave();
+    if (!pending) return;
+    const canSave = isSupabaseConfigured();
+    if (!canSave) return;
+    try {
+      const profileOk = pending.profile
+        ? await updateProfile(pending.profile)
+        : true;
+      const familyOk =
+        pending.family && pending.family.label?.trim()
+          ? await createFamilyProfile({ relation: pending.family.relation, label: pending.family.label.trim() })
+          : true;
+      if (profileOk && familyOk) {
+        clearPendingProfileSave();
+      }
+    } catch {
+      // keep the pending record for the next attempt
+    }
+  }, []);
   const [source, setSource] = useState<AuthState['source']>('none');
   const [initializing, setInitializing] = useState(true);
   const [error, setError] = useState<AuthError | null>(null);
@@ -67,6 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (cancelled) return;
       if (session.user) {
         setUser(await loadUserAuthorization(session.user));
+        void drainPendingProfileSave();
       } else {
         setUser(null);
       }
@@ -77,7 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [drainPendingProfileSave]);
 
   // Subscribe to auth state changes (real + mock).
   useEffect(() => {
@@ -87,13 +119,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loadUserAuthorization(nextUser).then(setUser).catch(() => undefined);
         setSource(nextUser.source);
         setIsMockMode(nextUser.source === 'mock');
+        void drainPendingProfileSave();
       } else {
         setSource('none');
         setIsMockMode(false);
       }
     });
     return unsubscribe;
-  }, []);
+  }, [drainPendingProfileSave]);
 
   const signIn = useCallback(async (email: string, password: string) => {
     setError(null);
@@ -107,7 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(enriched);
       setSource(result.user.source);
       setIsMockMode(result.user.source === 'mock');
-      void recordLoginActivity({ source: result.user.source });
+      void recordLoginActivity(enriched, { source: result.user.source });
     }
     return { ok: true };
   }, []);

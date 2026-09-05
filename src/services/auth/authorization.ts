@@ -116,12 +116,30 @@ async function recordActivity(event: string, metadata?: Record<string, unknown>)
   }
 }
 
-/** Record a login security event server-side (real mode only; mock no-ops). */
-export async function recordLoginActivity(metadata?: Record<string, unknown>): Promise<void> {
-  await recordActivity('login_success', metadata);
+/** Resolve which admin/super-admin event applies to an enriched user, or null. */
+function adminLoginEventFor(user: CareLinkUser | null): string | null {
+  if (!user) return null;
+  const roles = Array.isArray(user.roles) ? (user.roles as string[]) : [];
+  if (roles.includes('super_admin')) return 'super_admin_login';
+  if (roles.includes('admin')) return 'admin_login';
+  return null;
 }
 
-/** Record a logout security event server-side (real mode only; mock no-ops). */
+/** Record a login security event server-side (real mode only; mock no-ops). */
+export async function recordLoginActivity(
+  user: CareLinkUser | null,
+  metadata?: Record<string, unknown>,
+): Promise<void> {
+  const event = adminLoginEventFor(user) ?? 'login_success';
+  await recordActivity(event, { ...(metadata ?? {}), roles: (user?.roles ?? []).join(',') });
+}
+
+/** Record a denied admin-area access attempt (server-side, auditable). */
+export async function recordAdminAccessDenied(metadata?: Record<string, unknown>): Promise<void> {
+  await recordActivity('admin_access_denied', metadata);
+}
+
+/** Record a logout security event server-side (real mode only; mock no-ops. */
 export async function recordLogoutActivity(): Promise<void> {
-  await recordActivity('logout_success');
+  await recordActivity('logout');
 }

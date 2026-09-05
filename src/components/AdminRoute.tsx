@@ -11,7 +11,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { ROUTES } from '../routes/routeConstants';
-import { hasAdminRole } from '../services/auth/authorization';
+import { hasAdminRole, recordAdminAccessDenied } from '../services/auth/authorization';
 import { Card } from './ui/Card';
 
 interface AdminRouteProps {
@@ -46,6 +46,11 @@ export function AdminRoute({ children, superAdminOnly = false }: AdminRouteProps
     : hasAdminRole(user);
 
   if (!roleOk) {
+    // Persist the denied admin-area attempt server-side so auditors can see it.
+    void recordAdminAccessDenied({
+      path: location.pathname,
+      requested: superAdminOnly ? 'super_admin' : 'admin',
+    });
     return (
       <div className="mx-auto flex min-h-[60vh] max-w-3xl items-center justify-center px-6 py-20">
         <Card className="w-full space-y-4 text-center">

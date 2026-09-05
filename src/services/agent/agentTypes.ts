@@ -483,6 +483,8 @@ export interface PatientContext {
 
 export interface AgentConversation {
   id: string;
+  /** Real Supabase conversation row id when one has been persisted. */
+  dbId?: string;
   title: string;
   createdAt: string;
   updatedAt: string;
