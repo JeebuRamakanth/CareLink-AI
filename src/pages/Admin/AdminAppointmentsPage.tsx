@@ -9,7 +9,10 @@
  */
 
 import { useCallback, useMemo, useState } from 'react';
-import { adminListAppointments } from '../../services/health-data/adminRepository';
+import { Button } from '../../components/ui/Button';
+import { useAuth } from '../../contexts/AuthContext';
+import { hasPermission } from '../../services/auth/authorization';
+import { adminListAppointments, adminSetAppointmentStatus } from '../../services/health-data/adminRepository';
 import type { AdminAppointmentRow } from '../../services/health-data/adminRepository';
 import { useAdminList } from './useAdminList';
 import { AdminDate, AdminEmpty, AdminError, AdminLoading, AdminModuleHeader, AdminNotConfigured, AdminStatusPill, AdminTable } from './AdminBits';
@@ -17,7 +20,13 @@ import { AdminDate, AdminEmpty, AdminError, AdminLoading, AdminModuleHeader, Adm
 const STATUSES: string[] = ['upcoming', 'confirmed', 'completed', 'cancelled', 'rescheduled', 'no_show'];
 
 export function AdminAppointmentsPage() {
+  const { user } = useAuth();
+  const canManage = hasPermission(user, 'appointments.manage');
+
   const [statusFilter, setStatusFilter] = useState<string>('');
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const load = useCallback(() => adminListAppointments(), []);
   const { data, error, loading, retry, readiness } = useAdminList<AdminAppointmentRow>({ load });
 
@@ -26,6 +35,22 @@ export function AdminAppointmentsPage() {
     if (!statusFilter) return data;
     return data.filter((r) => r.status === statusFilter);
   }, [data, statusFilter]);
+
+  const setStatus = async (row: AdminAppointmentRow, newStatus: 'completed' | 'cancelled') => {
+    if (busyId) return;
+    setMessage(null);
+    setActionError(null);
+    setBusyId(row.id);
+    const res = await adminSetAppointmentStatus(row.id, newStatus);
+    setBusyId(null);
+    if (!res.error) {
+      setMessage(`Appointment marked ${newStatus}. The recipient is notified.`);
+      retry();
+    } else {
+      setActionError(res.error ?? 'Appointment update failed on the server.');
+      retry();
+    }
+  };
 
   return (
     <div>
@@ -59,6 +84,13 @@ export function AdminAppointmentsPage() {
             ))}
           </div>
 
+          {message ? (
+            <div className="mb-3 rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100" role="status">{message}</div>
+          ) : null}
+          {actionError ? (
+            <div className="mb-3 rounded-2xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100" role="alert">{actionError}</div>
+          ) : null}
+
           {loading ? (
             <AdminLoading />
           ) : error ? (
@@ -66,7 +98,7 @@ export function AdminAppointmentsPage() {
           ) : rows.length === 0 ? (
             <AdminEmpty message="No appointments match the current filters." />
           ) : (
-            <AdminTable headers={['Patient owner', 'Doctor', 'Hospital', 'Date', 'Time', 'Status', 'Created']}>
+            <AdminTable headers={['Patient owner', 'Doctor', 'Hospital', 'Date', 'Time', 'Status', 'Created', 'Actions']}>
               {rows.map((row) => (
                 <tr key={row.id}>
                   <td className="px-3.5 py-3 text-xs text-ink-400">{row.owner_id.slice(0, 8)}…</td>
@@ -76,6 +108,26 @@ export function AdminAppointmentsPage() {
                   <td className="px-3.5 py-3 text-ink-300">{row.scheduled_time ?? '—'}</td>
                   <td className="px-3.5 py-3"><AdminStatusPill status={row.status} /></td>
                   <td className="px-3.5 py-3"><AdminDate value={row.created_at} /></td>
+                  <td className="px-3.5 py-3">
+                    {canManage ? (
+                      <div className="flex flex-wrap items-center gap-1">
+                        {row.status !== 'completed' && row.status !== 'cancelled' ? (
+                          <>
+                            <Button size="sm" variant="secondary" loading={busyId === row.id} disabled={busyId === row.id} onClick={() => void setStatus(row, 'completed')}>
+                              Complete
+                            </Button>
+                            <Button size="sm" variant="ghost" loading={busyId === row.id} disabled={busyId === row.id} onClick={() => void setStatus(row, 'cancelled')}>
+                              Cancel
+                            </Button>
+                          </>
+                        ) : (
+                          <span className="text-xs text-ink-500">—</span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-ink-500">View only</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </AdminTable>

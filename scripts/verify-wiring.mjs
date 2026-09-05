@@ -150,6 +150,77 @@ check(
   'hospital page must scroll to ReviewComposer instead of alert'
 );
 
+// 7. Step 16 — admin provider/appointment/data-quality RPC wiring
+const adminRepo = read('src/services/health-data/adminRepository.ts');
+check(
+  'admin: provider status change uses audited RPC',
+  has('src/pages/Admin/AdminProvidersPage.tsx', 'adminSetProviderStatus'),
+  'AdminProvidersPage must call adminSetProviderStatus (audited RPC)'
+);
+check(
+  'admin: provider status RPC exposed in repository',
+  adminRepo.includes('carelink_admin_set_provider_status'),
+  'adminRepository must call carelink_admin_set_provider_status'
+);
+check(
+  'admin: appointment ops RPC exposed in repository',
+  adminRepo.includes('carelink_admin_set_appointment_status'),
+  'adminRepository must call carelink_admin_set_appointment_status'
+);
+check(
+  'admin: data quality RPC exposed in repository',
+  adminRepo.includes('carelink_admin_data_quality'),
+  'adminRepository must call carelink_admin_data_quality'
+);
+check(
+  'admin: super-admin-only modules gated in routes',
+  has('src/routes/AppRoutes.tsx', 'superAdminOnly') && has('src/routes/AppRoutes.tsx', 'AdminRolesPage') && has('src/routes/AppRoutes.tsx', 'AdminDataQualityPage'),
+  'Roles + Data Quality must be super-admin-gated routes'
+);
+check(
+  'admin: layout gates modules by permission',
+  has('src/pages/Admin/AdminLayout.tsx', 'hasPermission(user, m.permission)'),
+  'AdminLayout must gate modules by permission for display'
+);
+
+// 8. Step 16 — appointment lifecycle notifications exist in the DB layer.
+const mig27 = read('supabase/migrations/0027_step16_operations_and_quality.sql');
+check(
+  'db: appointment lifecycle notification trigger exists',
+  mig27.includes('carelink_notify_appointment_lifecycle') && mig27.includes('appointment_booked'),
+  'migration 0027 must define the appointment notification trigger + templates'
+);
+check(
+  'db: provider status RPC exists',
+  mig27.includes('carelink_admin_set_provider_status'),
+  'migration 0027 must define carelink_admin_set_provider_status'
+);
+check(
+  'db: data quality RPC exists',
+  mig27.includes('carelink_admin_data_quality'),
+  'migration 0027 must define carelink_admin_data_quality'
+);
+
+// 9. Step 16 — review edit/delete-own wired in the composer.
+const reviewComposer = read('src/components/reviews/ReviewComposer.tsx');
+check(
+  'reviews: composer supports edit/delete own review',
+  reviewComposer.includes('updateMyReview') && reviewComposer.includes('deleteMyReview'),
+  'ReviewComposer must call updateMyReview + deleteMyReview'
+);
+
+// 10. Step 16 — notification bell in the header (recipient-scoped).
+check(
+  'notifications: bell wired into header',
+  has('src/components/layout/GlobalLayout.tsx', 'NotificationBell'),
+  'GlobalLayout must render NotificationBell'
+);
+check(
+  'notifications: bell reads only own notifications',
+  has('src/components/notifications/NotificationBell.tsx', 'listNotifications') && has('src/components/notifications/NotificationBell.tsx', 'markNotificationRead'),
+  'NotificationBell must use the recipient-scoped notification repo'
+);
+
 console.log(`\nCareLink wiring audit — ${checks.length} checks`);
 for (const c of checks) {
   console.log(`  ${c.ok ? 'PASS' : 'FAIL'}  ${c.name}`);

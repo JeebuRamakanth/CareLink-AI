@@ -78,6 +78,14 @@ export interface AdminNotificationRow {
   created_at: string;
 }
 
+export interface AdminDataQualityRow {
+  issue_kind: string;
+  entity: string;
+  entity_id: string;
+  severity: string;
+  detail: string;
+}
+
 export interface AdminStatRow {
   metric: string;
   value: number;
@@ -166,4 +174,43 @@ export async function adminRevokeRole(targetUser: string, roleCode: string): Pro
   if (!isSupabaseConfigured()) return notConfigured();
   if (data === undefined) return { data: null, error: 'Role revoke failed on the server.' };
   return { data: null, error: null };
+}
+
+/** Server-enforced provider verification/status change (providers.verify gate; audited). */
+export async function adminSetProviderStatus(
+  providerKind: 'hospital' | 'doctor' | 'pharmacy' | 'lab',
+  providerId: string,
+  newStatus: 'verified' | 'rejected' | 'active' | 'inactive',
+  note?: string
+): Promise<AdminResult<null>> {
+  const data = await rpc<null>('carelink_admin_set_provider_status', {
+    provider_kind: providerKind,
+    provider_id: providerId,
+    new_status: newStatus,
+    note: note ?? null,
+  });
+  if (!isSupabaseConfigured()) return notConfigured();
+  if (data === undefined) return { data: null, error: 'Provider status change failed on the server.' };
+  return { data: null, error: null };
+}
+
+/** Server-enforced admin appointment operation (appointments.manage gate; audited). */
+export async function adminSetAppointmentStatus(
+  appointmentId: string,
+  newStatus: 'completed' | 'cancelled',
+  reason?: string
+): Promise<AdminResult<null>> {
+  const data = await rpc<null>('carelink_admin_set_appointment_status', {
+    appointment_id: appointmentId,
+    new_status: newStatus,
+    reason: reason ?? null,
+  });
+  if (!isSupabaseConfigured()) return notConfigured();
+  if (data === undefined) return { data: null, error: 'Appointment update failed on the server.' };
+  return { data: null, error: null };
+}
+
+/** Server-authorized data-quality flags (data_quality.view gate). */
+export function adminListDataQuality(): Promise<AdminResult<AdminDataQualityRow[]>> {
+  return listRows<AdminDataQualityRow>('carelink_admin_data_quality');
 }

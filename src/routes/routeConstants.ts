@@ -26,4 +26,6 @@ export const ROUTES = {
   adminNotifications: '/admin/notifications',
   adminSecurity: '/admin/security',
   adminReports: '/admin/reports',
+  adminRoles: '/admin/roles',
+  adminDataQuality: '/admin/data-quality',
 } as const;

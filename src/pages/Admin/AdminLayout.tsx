@@ -13,33 +13,45 @@ import type { ReactNode } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { ROUTES } from '../../routes/routeConstants';
 import { cn } from '../../components/common/cn';
-import { isSuperAdmin } from '../../services/auth/authorization';
+import { isSuperAdmin, hasPermission } from '../../services/auth/authorization';
 
 interface AdminModule {
   label: string;
   to: string;
   hint: string;
-  /** Permission code the E2E gate should NOT block (display only; server enforces). */
+  /** Permission code checked client-side for display only — the backend gates too. */
+  permission?: string;
+  /** Super-admin only (Roles, Data Quality). Hidden from plain admins. */
   superOnly?: boolean;
 }
 
 const BASE = ROUTES.admin;
 
 const modules: AdminModule[] = [
-  { label: 'Overview', to: BASE, hint: 'Operational snapshot from real DB counts' },
-  { label: 'Users', to: `${BASE}/users`, hint: 'Directory, status, roles (server-gated' },
-  { label: 'Providers', to: `${BASE}/providers`, hint: 'Hospitals, doctors, pharmacies, labs' },
-  { label: 'Reviews', to: `${BASE}/reviews`, hint: 'Moderation queue (publish/hide/remove' },
-  { label: 'Appointments', to: `${BASE}/appointments`, hint: 'Operational appointment directory' },
-  { label: 'Notifications', to: `${BASE}/notifications`, hint: 'Dispatch queue (recipient-scoped' },
-  { label: 'Security', to: `${BASE}/security`, hint: 'Security activity + audit log' },
-  { label: 'Reports', to: `${BASE}/reports`, hint: 'Aggregate operational reports' },
+  { label: 'Overview', to: BASE, hint: 'Real DB counts', permission: 'dashboard.view' },
+  { label: 'Users', to: `${BASE}/users`, hint: 'Directory, status, roles', permission: 'users.view' },
+  { label: 'Providers', to: `${BASE}/providers`, hint: 'Registry + provenance', permission: 'providers.view' },
+  { label: 'Reviews', to: `${BASE}/reviews`, hint: 'Moderation queue', permission: 'reviews.view' },
+  { label: 'Appointments', to: `${BASE}/appointments`, hint: 'Ops directory', permission: 'appointments.view' },
+  { label: 'Notifications', to: `${BASE}/notifications`, hint: 'Dispatch queue', permission: 'notifications.view' },
+  { label: 'Security', to: `${BASE}/security`, hint: 'Activity + audit', permission: 'security.view' },
+  { label: 'Reports', to: `${BASE}/reports`, hint: 'Aggregate reports', permission: 'reports.view' },
+  { label: 'Roles & Permissions', to: `${BASE}/roles`, hint: 'Super admin only', superOnly: true, permission: 'roles.manage' },
+  { label: 'Data Quality', to: `${BASE}/data-quality`, hint: 'Flags only', superOnly: true, permission: 'data_quality.view' },
 ];
 
 export function AdminLayout({ children }: { children?: ReactNode }) {
   const { user } = useAuth();
   const superAdmin = isSuperAdmin(user);
   const roleLabel = superAdmin ? 'Super Admin' : Array.isArray(user?.roles) && (user.roles as string[]).includes('admin') ? 'Admin' : 'Operator';
+
+  // Client-side module gating is DISPLAY ONLY: routes/backend still deny
+  // anything the server does not authorize for the session.
+  const visibleModules = modules.filter((m) => {
+    if (m.superOnly && !superAdmin) return false;
+    if (!m.permission) return true;
+    return hasPermission(user, m.permission);
+  });
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:py-10">
@@ -58,9 +70,9 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
       </div>
 
       <div className="flex flex-col gap-6 lg:flex-row">
-        <aside className="lg:w-64 lg:shrink-0">
+        <aside className="lg:w-72 lg:shrink-0">
           <nav className="flex flex-col gap-1 rounded-2xl border border-white/10 bg-white/5 p-2 lg:sticky lg:top-28" aria-label="Admin modules">
-            {modules.map((m) => (
+            {visibleModules.map((m) => (
               <NavLink
                 key={m.to}
                 to={m.to}
@@ -71,9 +83,11 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
                 )}
               >
                 <span>{m.label}</span>
-                <span className={cn('text-[0.6rem] uppercase tracking-[0.18em] text-ink-500', m.superOnly && superAdmin ? 'text-brand-300' : '')}>
-                  {m.hint}
-                </span>
+                {m.superOnly ? (
+                  <span className="text-[0.6rem] uppercase tracking-[0.18em] text-brand-300">Super Admin</span>
+                ) : (
+                  <span className="text-[0.6rem] uppercase tracking-[0.18em] text-ink-500">{m.hint}</span>
+                )}
               </NavLink>
             ))}
           </nav>
@@ -81,7 +95,8 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
             <p className="font-semibold text-ink-200">Security note</p>
             <p className="mt-1">
               Role membership, suspensions, and audit events are enforced in the database. The UI only
-              renders what the server-authorized RPCs return for your session.
+              renders what the server-authorized RPCs return for your session. Hiding a menu item never
+              grants access — the backend denies anything not permitted.
             </p>
           </div>
         </aside>

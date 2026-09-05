@@ -374,3 +374,48 @@ Single engine, never a second agent system. All AI goes through one gateway.
 - Gotchas: appointments table keeps `doctor_id`/`hospital_id` as TEXT (static demo ids like
   `doc-001` work); `vite.config.ts` `allowedHosts` includes this workspace's work host —
   keep entries when restarting the dev server for browser verification.
+
+## Step 16 — Operational completion + data quality (VERIFIED)
+- **Migration 0027** (`supabase/migrations/0027_step16_operations_and_quality.sql`):
+  - Appointment lifecycle notifications: AFTER INSERT/UPDATE trigger on `appointments`
+    emits recipient-scoped `appointment_booked`/`cancelled`/`rescheduled` notifications
+    (safe templates, small payload). `notification_templates`/`notifications` kind CHECK
+    re-allows `appointment` (0026 had narrowed it).
+  - `carelink_admin_set_provider_status(kind,uuid,status,note)` — verify/reject require
+    `providers.verify` (super-admin-only); activate/deactivate require `providers.manage`.
+    Writes `*_verification` + `data_status`, records audit + security activity event.
+  - `carelink_admin_set_appointment_status(uuid,status,reason)` — `appointments.manage`
+    gate; complete/cancel with audit + recipient notification.
+  - `carelink_admin_data_quality()` — `data_quality.view` gate; flags duplicate/
+    missing-coordinate/unverified/orphaned rows; NEVER deletes.
+  - Security-activity event vocabulary extended (provider_verified/rejected/activated/
+    deactivated, appointment_updated_by_admin) in BOTH the CHECK and the guarded
+    `carelink_record_login_activity` whitelist.
+  - New permissions: `appointments.manage`, `providers.manage`, `data_quality.view`
+    (super_admin all; admin gets appointments.manage + data_quality.view).
+- **Admin console**: `AdminLayout` now gates modules by permission (display only; backend
+  denies too). Super-admin-only modules: Roles & Permissions (`/admin/roles`,
+  `AdminRolesPage.tsx` — role matrix + server-gated grant/revoke, last-super-admin
+  protected) and Data Quality (`/admin/data-quality`, `AdminDataQualityPage.tsx`).
+  `AdminProvidersPage` uses the audited RPC (no more un-audited gateway path);
+  `AdminAppointmentsPage` offers Complete/Cancel via the audited RPC.
+- **Reviews**: `ReviewComposer` supports edit/delete-own (updateMyReview/deleteMyReview,
+  author-only RLS). "Manage your review" state.
+- **Notifications**: `NotificationBell` in header (recipient-scoped unread count + mark
+  read; renders nothing without a backend).
+- **Profile**: account-status banner + write buttons disabled when suspended/disabled.
+- **Home**: `useHomeStats` real-first counts (hospitals/doctors from registry when
+  Supabase configured; demo figures flagged otherwise). `LocationBanner` on Hospitals
+  page (honest coords/permission state + manual entry). `useHospitals` recomputes
+  distance from live location when coords exist (never fabricated).
+- **Tests**: SQL suite now 409 assertions (`supabase/tests/200_step16_operations.sql` —
+  appointment notifications + IDOR, provider verify/reject/activate/deactivate +
+  audit/activity, admin appointment ops, data quality flags, event vocabulary).
+  Static wiring audit now 31 checks (`node scripts/verify-wiring.mjs`).
+- **Verification**: build green, lint green (pre-existing warnings only), SQL
+  409 PASS / 0 FAIL from clean replay, console sweep 16 routes 0 errors, viewport
+  sweep 105 checks 0 overflow (320→1440). Registration→profile→family persistence
+  verified in mock mode on the work host.
+- Gotchas: admin RPC tests assert persisted state as the harness owner (bypasses RLS —
+  client roles never see those rows); `reviews` FK cascades on provider delete so the
+  orphaned-review fixture drops the FK in the disposable test DB only.
