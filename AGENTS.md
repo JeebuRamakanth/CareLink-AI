@@ -346,3 +346,31 @@ Single engine, never a second agent system. All AI goes through one gateway.
   tagged local mock. Verified: build green (710 modules), lint green (15 pre-existing
   warnings, none in repaired files), rolldown smoke: HTML payload rejected,, docFolder
   owner-scoped, storage mode honest ("Local (demo)" when unconfigured..
+
+## Step 15.1 — Real persistence wiring (VERIFIED)
+- **Auth security activity** (`authorization.ts` → `carelink_record_login_activity`):
+  the ONLY valid logout event is `logout` (the old `logout_success` is rejected by the
+  DB CHECK). `recordLoginActivity(enrichedUser)` auto-derives `super_admin_login` /
+  `admin_login` from server-side roles. `AdminRoute` fires `admin_access_denied`.
+- **Appointment bridge**: `AppointmentContext.addAppointment` stores the created DB row
+  id into the UI record (`dbId`); reschedule/cancel prefer `dbId` over the static
+  `appointmentId`; `refreshFromBackend()` merges real `appointments` rows on mount and
+  never drops local-only rows. `AppointmentRecord.familyProfileId` exists for family links.
+- **Booking modal patients** come from AgentContext `patientProfiles` (self + real family
+  profiles when configured) — the selected profile id is persisted as `family_profile_id`.
+- **Conversations persist** when Supabase is configured: `persistMessageDb` creates the
+  conversation row (lazily) + adds messages; `deleteConversation` removes the DB row;
+  real conversations restore on login. All RLS-scoped to `owner_id`.
+- **Reviews**: `src/components/reviews/ReviewComposer.tsx` writes via `createReview`/
+  `listMyReviews` (RLS + duplicate check) on doctor/hospital detail pages and is honestly
+  disabled without a backend. Admin moderation stays server-side (`carelink_moderate_review`).
+- **Registration email-confirm queue**: `src/services/auth/pendingProfileSave.ts`
+  (sessionStorage) stores entered profile/family fields when the session needs email
+  confirmation; AuthContext drains it on restore — no submitted field is silently dropped.
+- **Tests**: SQL suite now 375 assertions (added `supabase/tests/190_auth_activity_appointment_conversation.sql` —
+  auth events, appointment dbId/IDOR, conversation isolation, family ownership). Static
+  wiring audit: `node scripts/verify-wiring.mjs` (19 checks). Browser/console sweep on the
+  work host: 14 routes clean, no horizontal overflow at 320→1440.
+- Gotchas: appointments table keeps `doctor_id`/`hospital_id` as TEXT (static demo ids like
+  `doc-001` work); `vite.config.ts` `allowedHosts` includes this workspace's work host —
+  keep entries when restarting the dev server for browser verification.
