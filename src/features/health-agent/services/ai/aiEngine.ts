@@ -26,11 +26,11 @@ import type {
 import type { AIChatRequest, AIChatResponse, AIEngineOutcome } from './aiTypes';
 import { sendToAIGateway, aiGatewayMode } from './aiGateway';
 import { buildContextSnapshot, boundHistory } from './contextSnapshot';
-import { screenForInjection } from './promptGuards';
+import { screenForInjection, detectPrivilegeRequest, privilegeRefusalResponse } from './promptGuards';
 import { enforceResponseSafety } from './safetyLayer';
 import { mockAIRespond } from './mockAIResponder';
 
-export type AIEngineMode = 'real' | 'mock' | 'unavailable';
+export type AIEngineMode = 'real' | 'mock' | 'unavailable' | 'refused';
 
 export interface AIEngineInput {
   text: string;
@@ -59,6 +59,25 @@ export function aiEngineMode(): AIEngineMode {
   return aiGatewayMode() === 'real' ? 'real' : 'mock';
 }
 
+/** A safe, honest "temporarily unavailable" response for real-mode failures. */
+function unavailableResponse(): AIChatResponse {
+  return {
+    summary: 'CareLink AI is temporarily unavailable.',
+    intent: 'general',
+    confidence: 'low',
+    urgency: 'routine',
+    safetyLevel: 'educational',
+    explanation:
+      'The AI service could not be reached right now. You can still use the search, appointments, and emergency guidance below — no response was fabricated.',
+    nextActions: ['Search for a hospital or doctor.', 'View your appointments.', 'Call your local emergency number if you need urgent help.'],
+    followUpQuestions: [],
+    warnings: ['CareLink AI is temporarily unavailable.'],
+    entities: [],
+    language: 'en',
+    source: { provider: 'CareLink AI', mode: 'unavailable', fetchedAt: new Date().toISOString() },
+  };
+}
+
 const createRequestId = () => `req-${Math.random().toString(36).slice(2, 10)}`;
 
 const attachmentsFor = (documents: HealthDocument[]): AIChatRequest['attachments'] =>
@@ -73,11 +92,36 @@ const attachmentsFor = (documents: HealthDocument[]): AIChatRequest['attachments
   }));
 
 /**
- * Run one AI turn. Never throws for provider failures — falls back to the
- * mock responder so the conversation always continues safely (labelled demo).
+ * Run one AI turn.
+ *
+ * Mode contracts (Step 17, no fake success):
+ * - REAL: gateway configured AND returned a schema-validated response.
+ * - MOCK: no gateway configured at all → the clearly-labelled "CareLink demo
+ *         response" powers the demo/evaluation experience.
+ * - UNAVAILABLE: a real gateway IS configured but timed out / rate-limited /
+ *         malformed → the user sees an honest "temporarily unavailable"
+ *         response, NEVER a fabricated AI answer.
+ * - REFUSED: the input is a privilege/secret-elevation request → refused
+ *         deterministically without spending a single token.
  */
 export async function runAITurn(input: AIEngineInput): Promise<AIEngineResult> {
   const screen = screenForInjection(input.text);
+
+  // Privilege / secret-elevation requests never reach the model at all.
+  const privilege = detectPrivilegeRequest(input.text);
+  if (privilege.flagged) {
+    const { response, intervened } = enforceResponseSafety(
+      privilegeRefusalResponse() as unknown as AIChatResponse,
+      input.text
+    );
+    return {
+      mode: 'refused',
+      response: { ...response, source: { provider: 'CareLink security policy', mode: 'refused', fetchedAt: new Date().toISOString() } },
+      safetyIntervened: intervened,
+      injectionFlagged: screen.flagged,
+    };
+  }
+
   const snapshot = buildContextSnapshot(input.conversationContext, input.patientContext, input.language);
 
   const request: AIChatRequest = {
@@ -93,14 +137,29 @@ export async function runAITurn(input: AIEngineInput): Promise<AIEngineResult> {
 
   const outcome: AIEngineOutcome = await sendToAIGateway(request, input.signal);
 
-  const raw: AIChatResponse = outcome.kind === 'validated'
-    ? outcome.response
-    : mockAIRespond(input, outcome.kind === 'unavailable' ? outcome.reason : undefined);
+  const gatewayReal = aiGatewayMode() === 'real';
 
-  const { response, intervened } = enforceResponseSafety(raw, input.text);
+  let raw: AIChatResponse;
+  let mode: AIEngineMode;
+  if (outcome.kind === 'validated') {
+    raw = outcome.response;
+    mode = 'real';
+  } else if (gatewayReal) {
+    // A real gateway exists but is unavailable right now — never fake it.
+    raw = unavailableResponse();
+    mode = 'unavailable';
+  } else {
+    raw = mockAIRespond(input, outcome.kind === 'unavailable' ? outcome.reason : undefined);
+    mode = 'mock';
+  }
+
+  const { response, intervened } = enforceResponseSafety(
+    { ...raw, source: { ...raw.source, mode: mode as AIChatResponse['source']['mode'] } },
+    input.text
+  );
 
   return {
-    mode: outcome.kind === 'validated' ? 'real' : 'mock',
+    mode,
     response,
     safetyIntervened: intervened,
     injectionFlagged: screen.flagged,

@@ -84,8 +84,8 @@ export interface AIChatResponse {
   warnings: string[];
   entities: string[];
   language: AgentLanguage;
-  /** Provenance: provider name + mock/live + timestamp. */
-  source: { provider: string; mode: 'real' | 'mock'; fetchedAt: string };
+  /** Provenance: provider name + mode + timestamp. */
+  source: { provider: string; mode: 'real' | 'mock' | 'unavailable' | 'refused'; fetchedAt: string };
 }
 
 /** Discriminated result so callers can distinguish validated vs fallback. */

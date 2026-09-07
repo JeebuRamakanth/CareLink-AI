@@ -24,9 +24,7 @@
 
 import { env } from '../../../config';
 import { log } from '../../../lib/security';
-import { realCloudinaryStorage } from '../../health-agent/services/adapters/realAdapters';
 import { mockStorageProvider } from '../../health-agent/services/adapters/mockAdapters';
-import type { StorageUploadResult } from '../../health-agent/services/adapters/interfaces';
 import {
   uploadMedicalFile,
   createSignedUrl,
@@ -72,33 +70,38 @@ export function isPrivateStorageConfigured(): boolean {
 }
 
 /**
- * The active storage mode. Cloudinary (unsigned) takes precedence for binary
- * delivery when configured; otherwise we fall back to private Supabase storage
- * when configured; otherwise local mock.
+ * The active storage mode for MEDICAL DOCUMENTS. Private Supabase storage is
+ * the ONLY real path (Step 17 §18 — PHI never goes to public Cloudinary).
+ * Cloudinary is reserved for non-sensitive media and does NOT count as a real
+ * medical-document backend. When only Cloudinary is configured, medical
+ * uploads fail honestly (unavailable).
  */
 export function getStorageMode(): StorageAvailability {
-  if (env.cloudinary.configured) return 'real';
   if (isSupabaseConfigured()) return 'real';
+  if (env.cloudinary.configured) return 'unavailable';
   return 'mock';
 }
 
 /** A human label for the demo/real badge. */
 export function storageModeLabel(): string {
   const mode = getStorageMode();
-  if (mode === 'real' && env.cloudinary.configured) return 'Cloudinary';
   if (mode === 'real') return 'Supabase Storage';
+  if (mode === 'unavailable') return 'Private storage unavailable';
   return 'Local (demo)';
 }
 
-/**
- * Upload a medical file. Routes to Cloudinary unsigned upload when configured,
- * else private Supabase storage, else a local blob URL (mock). Never throws 
- * on failure returns a safe error result so the pipeline can mark `failed`.
- */
+	/**
+	 * Upload a medical/health document binary. Private Supabase storage (signed
+	 * URLs, owner-scoped paths) is the ONLY real path — public Cloudinary is
+	 * never used for PHI. Without private storage the upload fails honestly.
+	 * In demo mode (nothing configured) a clearly-tagged local blob URL is used.
+	 * Never throws; returns a safe error result so the pipeline can mark `failed`.
+	 */
 export async function uploadDocumentToStorage(
   input: DocumentStorageUploadInput
 ): Promise<{ ok: true; result: DocumentStorageResult } | { ok: false; error: string }> {
-  const { file: rawFile, ownerId, documentId, publicIdSlug, folder, signal, onProgress } = input;
+  const { file: rawFile, ownerId, documentId, publicIdSlug, signal, onProgress } = input;
+  void publicIdSlug; // kept for interface symmetry; uploads reference owner/path only.
   // Single storage-boundary function. Every return is explicit; never throws.
   // 1) Validate the file  magic bytes first (never trust client MIME io).
   onProgress?.(5);
@@ -107,62 +110,25 @@ export async function uploadDocumentToStorage(
     return { ok: false, error: "We could not accept this file. The content type could not be verified safely. Please upload a JPG, PNG, WEBP, or PDF file." };
   }
 
-  // 2) Optimize raster images (decode  resize  re-encode  verify byte
-  // size honestly  never claim a size that wasn't measured; document uploads keep
-  // a higher quality floor so medical legibility is preserved (Phase 14).
+  // 2) Optimize raster images (decode → resize → re-encode → measured byte
+  // size; only keep the result when it is genuinely smaller). A gentler
+  // document pass preserves medical legibility. The optimized bytes are what
+  // get stored in PRIVATE storage.
   let file = rawFile;
-  let width: number | null = null;
-  let height: number | null = null;
-  let optimized: boolean | null = null;
-  let optimizedByteSize: number | null = null;
   const docLike = /\.(pdf|docx?)$/i.test(file.name) || file.type === 'application/pdf';
   if (file.type.startsWith('image/') && file.type !== 'image/gif') {
     const optimizedResult = await optimizeImageForUpload(file, {
       targetKind: docLike ? 'document' : rawFile.size > 1_500_000 ? 'document' : 'avatar',
     });
     file = optimizedResult.file;
-    width = optimizedResult.width;
-    height = optimizedResult.height;
-    optimized = optimizedResult.optimized;
-    optimizedByteSize = optimizedResult.byteSize;
   }
 
-  // 3) Cloudinary unsigned upload (binary delivery). Metadata stays in Supabase.
-  if (env.cloudinary.configured) {
-    try {
-      onProgress?.(10);
-      const res: StorageUploadResult = await realCloudinaryStorage.upload(file, {
-        folder,
-        signal,
-      });
-      onProgress?.(100);
-      return {
-        ok: true,
-        result: {
-          bucket: 'cloudinary',
-          // The Cloudinary public URL acts as the storage reference. We never
-          // expose it as a "public medical document URL" in the UI; it is a
-          // backend delivery reference stored in provider metadata only.
-          reference: `cloudinary/${folder}/${publicIdSlug}`,
-          previewUrl: res.previewUrl ?? res.url,
-          source: 'cloudinary',
-          providerMetadata: {
-            ...res.providerMetadata,
-            source: 'cloudinary',
-            width: typeof width === 'number' ? String(width) : '',
-            height: typeof height === 'number' ? String(height) : '',
-            optimized: optimized === true ? 'true' : '',
-            optimizedByteSize: typeof optimizedByteSize === 'number' ? String(optimizedByteSize) : '',
-          },
-        },
-      };
-    } catch (err) {
-      log.warn('documents-storage', 'cloudinary upload failed', err);
-      return { ok: false, error: safeUploadError(err) };
-    }
-  }
-
-  // 4) Private Supabase storage (signed URLs only, never public).
+  // 3) SECURITY (Step 17 §18): MEDICAL DOCUMENT binary storage MUST use the
+  //    PRIVATE Supabase bucket (owner-scoped paths + signed URLs only). Public
+  //    Cloudinary storage is reserved for non-sensitive media (e.g. provider
+  //    avatars) and is NEVER used for PHI/medical documents. When private
+  //    storage is unavailable, the upload fails honestly rather than placing
+  //    PHI into a public bucket.
   if (isSupabaseConfigured()) {
     try {
       onProgress?.(10);
@@ -184,12 +150,30 @@ export async function uploadDocumentToStorage(
         },
       };
     } catch (err) {
-      log.warn('documents-storage', 'supabase upload failed', err);
+      log.warn('documents-storage', 'private supabase upload failed', err);
       return { ok: false, error: safeUploadError(err) };
     }
   }
 
-  // 5) Local mock   blob URL preview only. Clearly tagged as mock.
+  // 4) Cloudinary is intentionally NOT a path for medical/health documents
+  //    (Step 17 §18: "Do NOT place PHI/medical documents into public Cloudinary
+  //    storage"). This pipeline handles ONLY medical documents, so when private
+  //    Supabase storage is unavailable we FAIL HONESTLY instead of placing PHI
+  //    into a public bucket. Non-sensitive media (provider avatars etc.) flows
+  //    through the separate non-PHI provider-media path.
+  if (env.cloudinary.configured) {
+    log.warn(
+      'documents-storage',
+      'medical document rejected from public Cloudinary — private Supabase storage is required for PHI'
+    );
+    return {
+      ok: false,
+      error:
+        'Secure file storage is not configured. Medical documents require private encrypted storage and cannot be stored on public media services.',
+    };
+  }
+
+  // 5) Local mock — blob URL preview only. Clearly tagged as mock.
   try {
     onProgress?.(20);
     const res = await mockStorageProvider.upload(file, { signal });

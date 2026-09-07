@@ -48,6 +48,7 @@ import {
   IconStar,
 } from '../../../components/agent/AgentIcons';
 import { useAgentConversation } from '../hooks/useAgentConversation';
+import type { AIToolSuggestion } from '../services/ai/aiTools';
 import { AgentDocumentAnalysisPanel } from './AgentDocumentAnalysisPanel';
 import { useOptionalLocationContext } from '../../../contexts/LocationContext';
 import { useOptionalNavigationContext } from '../../../contexts/NavigationContext';
@@ -199,6 +200,18 @@ function ResultCard({ result, onReply, focusTopic, patientOrigin }: ResultCardPr
       {/* Header */}
       <div className="flex flex-wrap items-center gap-2 border-b border-white/8 px-4 py-2.5">
         <Badge tone={isEmergency ? 'warning' : result.urgency === 'attention' ? 'brand' : 'neutral'}>{result.urgency}</Badge>
+        <button
+          type="button"
+          onClick={() => {
+            const text = [result.summary, result.explanation, ...result.recommendedNextSteps.map((s, i) => `${i + 1}. ${s}`)].filter(Boolean).join('\n\n');
+            void navigator.clipboard?.writeText(text).catch(() => undefined);
+          }}
+          aria-label="Copy response"
+          title="Copy response"
+          className="ml-auto inline-flex items-center gap-1 rounded-full border border-white/12 bg-white/8 px-2.5 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-ink-300 transition hover:bg-white/15 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40"
+        >
+          Copy
+        </button>
         <span className="text-[0.66rem] font-semibold uppercase tracking-[0.2em] text-ink-400">{result.meta.confidence} confidence</span>
         {result.dataSource ? (
           <span className={cn('inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.16em]', result.dataSource === 'real' ? 'border-emerald-400/25 bg-emerald-500/12 text-emerald-200' : 'border-amber-400/25 bg-amber-500/12 text-amber-200')}>
@@ -208,9 +221,24 @@ function ResultCard({ result, onReply, focusTopic, patientOrigin }: ResultCardPr
         {result.provenance ? (
           <span
             title={`AI source: ${result.provenance.provider} · ${new Date(result.provenance.fetchedAt).toLocaleString()}`}
-            className={cn('inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.16em]', result.provenance.mode === 'real' ? 'border-emerald-400/25 bg-emerald-500/12 text-emerald-200' : 'border-white/12 bg-white/6 text-ink-300')}
+            className={cn(
+              'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.16em]',
+              result.provenance.mode === 'real'
+                ? 'border-emerald-400/25 bg-emerald-500/12 text-emerald-200'
+                : result.provenance.mode === 'unavailable'
+                  ? 'border-amber-400/25 bg-amber-500/12 text-amber-200'
+                  : result.provenance.mode === 'refused'
+                    ? 'border-rose-400/25 bg-rose-500/12 text-rose-200'
+                    : 'border-white/12 bg-white/6 text-ink-300'
+            )}
           >
-            {result.provenance.mode === 'real' ? 'Live AI' : 'CareLink demo response'}
+            {result.provenance.mode === 'real'
+              ? 'Live AI'
+              : result.provenance.mode === 'unavailable'
+                ? 'Temporarily unavailable'
+                : result.provenance.mode === 'refused'
+                  ? 'Security policy'
+                  : 'CareLink demo response'}
           </span>
         ) : null}
         {result.meta.disclaimer ? (
@@ -635,6 +663,76 @@ function ChatComposer({
 }
 
 /* ----------------------------------------------------------------------------
+ * Suggested AI tools (controlled, Step 17 §25–§28)
+ * ------------------------------------------------------------------------- */
+
+function ToolSuggestions({
+  suggestions,
+  pending,
+  onRun,
+  onConfirm,
+  onCancel,
+  error,
+}: {
+  suggestions: AIToolSuggestion[];
+  pending: AIToolSuggestion | null;
+  onRun: (s: AIToolSuggestion) => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+  error: string | null;
+}) {
+  if (suggestions.length === 0 && !pending) return null;
+  return (
+    <div className="space-y-2 px-3 pb-2 sm:px-4">
+      {error ? (
+        <p role="alert" className="rounded-[0.8rem] border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-[0.76rem] text-rose-100">
+          {error}
+        </p>
+      ) : null}
+
+      {pending ? (
+        <div className="rounded-[1rem] border border-brand-400/30 bg-brand-500/10 p-3.5">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-200">Confirm with CareLink</p>
+          <p className="mt-1 text-sm font-medium text-white">{pending.label}</p>
+          <p className="mt-1 text-[0.82rem] leading-5 text-ink-200">{pending.summary}</p>
+          {pending.kind === 'createAppointment' ? (
+            <p className="mt-1 text-[0.7rem] leading-5 text-ink-400">
+              Your account will receive a real appointment record only if you confirm. Please verify the doctor, date,
+              and time before proceeding.
+            </p>
+          ) : null}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" onClick={onConfirm} className="rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-4 py-1.5 text-[0.8rem] font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/50">
+              Confirm
+            </button>
+            <button type="button" onClick={onCancel} className="rounded-full border border-white/12 bg-white/8 px-4 py-1.5 text-[0.8rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {pending ? null : (
+        <div className="flex flex-wrap gap-2">
+          {suggestions.map((s) => (
+            <button
+              key={s.kind}
+              type="button"
+              onClick={() => onRun(s)}
+              className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40"
+            >
+              <IconSparkle width={12} height={12} aria-hidden />
+              {s.label}
+              {s.requiresConfirmation ? <span className="text-[0.6rem] uppercase tracking-[0.14em] text-brand-200">Confirm</span> : null}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ----------------------------------------------------------------------------
  * Page header
  * ------------------------------------------------------------------------- */
 
@@ -761,6 +859,12 @@ export function AIChatPage() {
     void conv.sendMessage(prompt);
   };
 
+  // Controlled AI tools: reads run immediately via the RLS repository, and
+  // mutations are parked for explicit user confirmation (never auto-executed).
+  const handleToolRun = (suggestion: AIToolSuggestion) => {
+    conv.requestTool(suggestion);
+  };
+
   const isEmergency = conv.status === 'emergency';
 
   return (
@@ -829,6 +933,13 @@ export function AIChatPage() {
                       <span className="agent-thinking-dot size-2 rounded-full bg-brand-300" />
                     </span>
                     <span className="text-sm text-ink-300">CareLink is thinking…</span>
+                    <button
+                      type="button"
+                      onClick={conv.stop}
+                      className="ml-1 inline-flex items-center gap-1 rounded-full border border-white/12 bg-white/8 px-2.5 py-1 text-[0.7rem] font-semibold text-ink-200 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40"
+                    >
+                      Stop
+                    </button>
                   </div>
                 </motion.div>
               ) : null}
@@ -841,6 +952,16 @@ export function AIChatPage() {
           )}
         </div>
       </div>
+
+      {/* Step 17 — controlled AI tools (reads + confirmable mutations) */}
+      <ToolSuggestions
+        suggestions={conv.toolSuggestions}
+        pending={conv.pendingTool}
+        onRun={handleToolRun}
+        onConfirm={() => void conv.confirmTool()}
+        onCancel={conv.cancelTool}
+        error={conv.toolError}
+      />
 
       {/* Step 11 — secure document analysis (additive, non-breaking) */}
       <div className="border-t border-white/10 bg-slate-950/40 px-3 py-3 sm:px-4">

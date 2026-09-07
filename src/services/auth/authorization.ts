@@ -139,6 +139,33 @@ export async function recordAdminAccessDenied(metadata?: Record<string, unknown>
   await recordActivity('admin_access_denied', metadata);
 }
 
+/**
+ * Record a denied ADMIN or SUPER-ADMIN login-lane attempt. The UI never
+ * authorizes; it only records the intent so operators can audit who tried to
+ * enter an administrative lane without a server-side role. Distinguishes the
+ * two lanes via the DB-approved `denied_admin_access` /
+ * `denied_super_admin_access` event vocabulary (Step 17).
+ */
+export async function recordDeniedAdminAccess(
+  requested: 'admin' | 'super_admin',
+  metadata?: Record<string, unknown>
+): Promise<void> {
+  const event = requested === 'super_admin' ? 'denied_super_admin_access' : 'denied_admin_access';
+  await recordActivity(event, { ...(metadata ?? {}), requested } as Record<string, unknown>);
+}
+
+/**
+ * Record an AI tool attempt/action security event (Step 17 §46). The DB
+ * vocabulary accepts `ai_tool_attempt` (every attempt incl. denials) and
+ * `ai_tool_action` (successful mutations). Safe metadata only — never PHI.
+ */
+export async function recordAIActivity(
+  event: 'ai_tool_attempt' | 'ai_tool_action',
+  metadata?: Record<string, unknown>
+): Promise<void> {
+  await recordActivity(event, metadata);
+}
+
 /** Record a logout security event server-side (real mode only; mock no-ops. */
 export async function recordLogoutActivity(): Promise<void> {
   await recordActivity('logout');

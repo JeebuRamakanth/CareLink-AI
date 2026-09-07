@@ -41,9 +41,9 @@ export type SafetyLevel =
   | 'emergency'
   | 'professional-care';
 
-/** mock/live/unavailable provenance for any provider-derived payload. */
+/** mock/live/unavailable/refused provenance for any provider-derived payload. */
 export interface AIProvenance {
-  mode: 'real' | 'mock' | 'unavailable';
+  mode: 'real' | 'mock' | 'unavailable' | 'refused';
   provider: string;
   fetchedAt: string;
   /** verification status of the payload (schema-validated or fallback). */
