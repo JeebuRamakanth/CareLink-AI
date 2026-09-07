@@ -14,6 +14,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { ROUTES } from '../../routes/routeConstants';
 import { cn } from '../../components/common/cn';
 import { isSuperAdmin, hasPermission } from '../../services/auth/authorization';
+import { GlobalAdminSearch } from './GlobalAdminSearch';
 
 interface AdminModule {
   label: string;
@@ -63,9 +64,12 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
             Signed in as {user?.email ?? 'operator'} · <span className="text-brand-200 font-medium">{roleLabel}</span>
           </p>
         </div>
-        <div className="flex items-start gap-2 text-xs text-ink-400">
-          <span className="mt-1 inline-flex h-2 w-2 rounded-full bg-emerald-300" aria-hidden />
-          <span>Server-authorized view — every read rides your Supabase session and RLS enforces what you may see.</span>
+        <div className="flex items-center gap-3">
+          <GlobalAdminSearch />
+          <div className="flex items-start gap-2 text-xs text-ink-400">
+            <span className="mt-1 inline-flex h-2 w-2 rounded-full bg-emerald-300" aria-hidden />
+            <span>Server-authorized view — every read rides your Supabase session and RLS enforces what you may see.</span>
+          </div>
         </div>
       </div>
 

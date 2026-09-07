@@ -61,7 +61,7 @@ import {
 } from './discoveryService';
 import { runAITurn, type AIEngineResult } from './ai/aiEngine';
 import { inputSafetyFloor } from './ai/safetyLayer';
-import type { AgentActionType, SafetyLevel } from '../types';
+import type { AgentActionType, AIProvenance, SafetyLevel } from '../types';
 
 const DISCLAIMER_MEDICAL = DISCLOSURES.medical;
 const DISCLAIMER_EMERGENCY = DISCLOSURES.emergency;
@@ -152,6 +152,38 @@ function mergeAIIntoResult(result: AgentResult, ai: AIEngineResult): AgentResult
     warnings.push('Instruction-like text in the input was treated as data, not commands.');
   }
 
+  const provenanceMode: AIProvenance['mode'] =
+    ai.mode === 'real' ? 'real' : ai.mode === 'unavailable' ? 'unavailable' : ai.mode === 'refused' ? 'refused' : 'mock';
+  const sourceLabel =
+    ai.mode === 'real'
+      ? `CareLink AI (${response.source.provider})`
+      : ai.mode === 'unavailable'
+        ? 'CareLink AI temporarily unavailable'
+        : ai.mode === 'refused'
+          ? 'CareLink security policy'
+          : 'CareLink demo response';
+
+  // For unavailable/refused turns we keep the intent builder's navigational
+  // data but surface the honest AI note (never a fabricated AI statement).
+  if (ai.mode === 'unavailable' || ai.mode === 'refused') {
+    return {
+      ...result,
+      summary: ai.mode === 'refused' ? 'I can’t do that.' : 'CareLink AI is temporarily unavailable.',
+      explanation:
+        ai.mode === 'refused'
+          ? 'Role changes, secrets, and security settings are handled only by authorized system operators — not by the assistant.'
+          : response.explanation,
+      warnings,
+      provenance: {
+        mode: provenanceMode,
+        provider: response.source.provider,
+        fetchedAt: response.source.fetchedAt,
+        verification: 'fallback',
+      },
+      sources: [sourceLabel, ...result.sources],
+    };
+  }
+
   const aiUrgency = safetyToUrgency(response.safetyLevel);
   // Escalate-only, and never let a non-emergency intent jump straight to
   // emergency urgency — the emergency short-circuit owns that path.
@@ -173,12 +205,12 @@ function mergeAIIntoResult(result: AgentResult, ai: AIEngineResult): AgentResult
     warnings,
     safetyLevel: response.safetyLevel,
     provenance: {
-      mode: ai.mode === 'real' ? 'real' : 'mock',
+      mode: provenanceMode,
       provider: response.source.provider,
       fetchedAt: response.source.fetchedAt,
       verification: ai.mode === 'real' ? 'validated' : 'fallback',
     },
-    sources: [response.source.mode === 'real' ? `CareLink AI (${response.source.provider})` : 'CareLink demo response', ...result.sources],
+    sources: [sourceLabel, ...result.sources],
   };
 }
 

@@ -11,7 +11,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { ROUTES } from '../routes/routeConstants';
-import { hasAdminRole, recordAdminAccessDenied } from '../services/auth/authorization';
+import { hasAdminRole, recordAdminAccessDenied, recordDeniedAdminAccess } from '../services/auth/authorization';
 import { Card } from './ui/Card';
 
 interface AdminRouteProps {
@@ -47,6 +47,11 @@ export function AdminRoute({ children, superAdminOnly = false }: AdminRouteProps
 
   if (!roleOk) {
     // Persist the denied admin-area attempt server-side so auditors can see it.
+    // The event names distinguish the attempted lane (denied_admin_access vs
+    // denied_super_admin_access) per the Step 17 security-activity vocabulary.
+    void (superAdminOnly
+      ? recordDeniedAdminAccess('super_admin', { path: location.pathname })
+      : recordDeniedAdminAccess('admin', { path: location.pathname }));
     void recordAdminAccessDenied({
       path: location.pathname,
       requested: superAdminOnly ? 'super_admin' : 'admin',

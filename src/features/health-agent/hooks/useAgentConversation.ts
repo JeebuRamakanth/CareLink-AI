@@ -19,6 +19,16 @@ import { mockAdapters } from '../services/adapters/mockAdapters';
 import { emptyContext } from '../services/contextManager';
 import { drainPendingHandoff } from '../services/pendingHandoff';
 import { useOptionalLocationContext } from '../../../contexts/LocationContext';
+import {
+  runReadTool,
+  resolveFamilyMember,
+  suggestMutation,
+  requiresConfirmation,
+} from '../services/ai/aiTools';
+import type { AIToolKind, AIToolSuggestion, AuthorizedFamilyProfile } from '../services/ai/aiTools';
+import { createAppointment as persistAppointmentRow } from '../../../services/health-data/appointmentsRepository';
+import { isSupabaseConfigured } from '../../../services/supabase/client';
+import { recordAIActivity } from '../../../services/auth/authorization';
 import type {
   AgentLanguage,
   AgentMessage,
@@ -66,6 +76,18 @@ export interface UseAgentConversation {
   clearConversation: () => void;
   suggestedPrompts: typeof QUICK_PROMPTS;
   result: AgentResult | null;
+  /** Stop the in-flight AI turn (abort + reset state). */
+  stop: () => void;
+  /** Suggested controlled AI tools for the latest result (read + confirmable mutations). */
+  toolSuggestions: AIToolSuggestion[];
+  /** A mutation awaiting explicit user confirmation. */
+  pendingTool: AIToolSuggestion | null;
+  /** Request a tool: reads execute immediately, mutations are parked for confirm. */
+  requestTool: (suggestion: AIToolSuggestion) => void;
+  confirmTool: () => Promise<void>;
+  cancelTool: () => void;
+  /** Safe tool error message (surfaced on the tool card). */
+  toolError: string | null;
 }
 
 const createId = (prefix = 'msg') => `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
@@ -98,6 +120,84 @@ const fileToDocument = (file: File): HealthDocument => {
   };
 };
 
+/**
+ * Build controlled AI tool suggestions for the latest result. Read tools are
+ * offered directly; mutations are ALWAYS gated behind explicit confirmation
+ * (requiresConfirmation). Family members resolve ONLY from authorized profiles.
+ */
+function buildToolSuggestions(
+  text: string,
+  result: AgentResult,
+  familyProfiles: AuthorizedFamilyProfile[]
+): AIToolSuggestion[] {
+  const suggestions: AIToolSuggestion[] = [];
+  const t = text.toLowerCase();
+
+  const family = resolveFamilyMember(text, familyProfiles);
+  const familyArg = family ? { familyProfileId: family.id } : {};
+
+  // Appointment intent → view my appointments (read) or book (confirmable).
+  if (result.intent === 'appointment' || /appointment|book|schedule/.test(t)) {
+    if (/book|schedule|appointment/.test(t) && result.doctors.length > 0) {
+      const doc = result.doctors[0];
+      suggestions.push(
+        suggestMutation('createAppointment', {
+          doctorName: doc.fullName,
+          hospitalName: doc.hospitalName,
+          date: '',
+          time: '',
+          appointmentType: 'Consultation',
+          ...familyArg,
+        })
+      );
+    } else {
+      suggestions.push({
+        kind: 'getMyAppointments',
+        label: 'View my appointments',
+        summary: 'Read your upcoming appointments from the CareLink backend.',
+        requiresConfirmation: false,
+        args: { status: 'upcoming', limit: 10 },
+      });
+    }
+  }
+
+  // Doctor intent → search doctors (read).
+  if (result.intent === 'doctor' || /doctor|physician|specialist/.test(t)) {
+    suggestions.push({
+      kind: 'searchDoctors',
+      label: 'Search doctors',
+      summary: 'Search the CareLink doctor registry.',
+      requiresConfirmation: false,
+      args: { query: result.doctors[0]?.fullName ?? '' },
+    });
+  }
+
+  // Hospital intent → search hospitals (read).
+  if (result.intent === 'hospital' || /hospital|nearest|near me/.test(t)) {
+    suggestions.push({
+      kind: 'searchHospitals',
+      label: 'Search hospitals',
+      summary: 'Search the CareLink hospital registry.',
+      requiresConfirmation: false,
+      args: { query: result.hospitals[0]?.name ?? '' },
+    });
+  }
+
+  // Directions for the top hospital when location is present.
+  if (result.hospitals.length > 0 && /direction|route|how (do i|to) get/.test(t)) {
+    const h = result.hospitals[0];
+    suggestions.push({
+      kind: 'getDirections',
+      label: 'Get directions',
+      summary: `Open directions to ${h.name}.`,
+      requiresConfirmation: false,
+      args: { destination: `${h.name}, ${h.address}, ${h.city}`, mode: 'driving' },
+    });
+  }
+
+  return suggestions.slice(0, 3);
+}
+
 export function useAgentConversation(): UseAgentConversation {
   // Resolved registry (Step 9/13): real providers engage when configured,
   // mock fallback otherwise — never a hardcoded mock-only pipeline.
@@ -114,8 +214,22 @@ export function useAgentConversation(): UseAgentConversation {
   const [documents, setDocuments] = useState<HealthDocument[]>([]);
   const [recovery, setRecovery] = useState(recoverySeed);
   const [lastResult, setLastResult] = useState<AgentResult | null>(null);
+  const [toolSuggestions, setToolSuggestions] = useState<AIToolSuggestion[]>([]);
+  const [pendingTool, setPendingTool] = useState<AIToolSuggestion | null>(null);
+  const [toolError, setToolError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const locationCtx = useOptionalLocationContext();
+
+  // Authorized family profiles for the AI tool family-resolver (RLS-scoped:
+  // only profiles the authenticated user actually owns are candidates).
+  const familyProfiles = useMemo<AuthorizedFamilyProfile[]>(
+    () =>
+      (patientProfiles as PatientProfile[])
+        .filter((p) => p.id !== 'self')
+        .map((p) => ({ id: p.id, label: p.label, relation: p.relation })),
+    []
+  );
 
   const activeProfile = useMemo<PatientContext>(() => {
     const profile = patientProfiles.find((p) => p.id === activeProfileId) ?? patientProfiles[0];
@@ -207,7 +321,14 @@ export function useAgentConversation(): UseAgentConversation {
       setMessages((prev) => [...prev, userMessage]);
       setStatus('thinking');
       setError(null);
+      setToolSuggestions([]);
+      setPendingTool(null);
+      setToolError(null);
       clearDocuments();
+
+      // Allow stopping the in-flight turn (abort request; never fake success).
+      const abort = new AbortController();
+      abortRef.current = abort;
 
       try {
         const response = await orchestrator.current.handle({
@@ -218,6 +339,8 @@ export function useAgentConversation(): UseAgentConversation {
           conversationContext: context,
           history: messages,
         });
+
+        if (abort.signal.aborted) return;
 
         const assistantMessage: AgentMessage = {
           id: createId('a'),
@@ -232,13 +355,121 @@ export function useAgentConversation(): UseAgentConversation {
         setMessages((prev) => [...prev, assistantMessage]);
         setContext(response.context);
         setLastResult(response.result);
+        setToolSuggestions(buildToolSuggestions(trimmed, response.result, familyProfiles));
         setStatus(response.result.urgency === 'emergency' ? 'emergency' : 'idle');
       } catch (e) {
+        if (abort.signal.aborted) {
+          setStatus('idle');
+          return;
+        }
         setError(e instanceof Error ? e.message : 'Something went wrong. Please try again.');
         setStatus('error');
+      } finally {
+        abortRef.current = null;
       }
     },
-    [documents, activeProfile, language, context, messages, activeProfileId, clearDocuments]
+    [documents, activeProfile, language, context, messages, activeProfileId, clearDocuments, familyProfiles]
+  );
+
+  const stop = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setStatus('idle');
+    setError(null);
+  }, []);
+
+  /** Run a read-only AI tool (data is server-authorized via its repository). */
+  const runSuggestion = useCallback(async (suggestion: AIToolSuggestion) => {
+    setToolError(null);
+    const res = await runReadTool(suggestion.kind as AIToolKind, suggestion.args);
+    if (!res.ok) {
+      setToolError(res.message);
+      return;
+    }
+    const suffix =
+      suggestion.kind === 'getMyAppointments' && Array.isArray(res.data) && res.data.length > 0
+        ? ` Found ${res.data.length} appointment(s) in your account.`
+        : suggestion.kind === 'searchHospitals' || suggestion.kind === 'searchDoctors'
+          ? ''
+          : '';
+    const note: AgentMessage = {
+      id: createId('tool'),
+      role: 'assistant',
+      content: `${suggestion.label} — ${res.message}${suffix}`,
+      createdAt: nowIso(),
+      documents: [],
+      contextTags: ['tool'],
+      patientProfileId: activeProfileId,
+    };
+    setMessages((prev) => [...prev, note]);
+  }, [activeProfileId]);
+
+  /** Confirm a mutation tool → executes ONLY the RLS-backed repository write. */
+  const confirmTool = useCallback(async () => {
+    const tool = pendingTool;
+    if (!tool) return;
+    setPendingTool(null);
+    setToolError(null);
+    if (!requiresConfirmation(tool.kind)) {
+      void runSuggestion(tool);
+      return;
+    }
+    if (!isSupabaseConfigured()) {
+      setToolError('The CareLink backend is not configured — this action cannot be saved. No fake success was recorded.');
+      void recordAIActivity('ai_tool_attempt', { tool: tool.kind, outcome: 'unavailable' });
+      return;
+    }
+    void recordAIActivity('ai_tool_attempt', { tool: tool.kind, outcome: 'attempted' });
+    if (tool.kind === 'createAppointment') {
+      const familyProfileId = (tool.args.familyProfileId as string | undefined) ?? null;
+      const { appointment, error: err } = await persistAppointmentRow({
+        family_profile_id: familyProfileId,
+        doctor_name: (tool.args.doctorName as string | undefined) ?? 'Doctor',
+        hospital_name: (tool.args.hospitalName as string | undefined) ?? null,
+        appointment_type: ((tool.args.appointmentType as string | undefined) ?? 'Consultation') as never,
+        scheduled_date: (tool.args.date as string | undefined) ?? '',
+        scheduled_time: (tool.args.time as string | undefined) ?? '',
+        status: 'confirmed',
+      });
+      if (err || !appointment) {
+        setToolError(err ?? 'We could not book this appointment. Please try again.');
+        void recordAIActivity('ai_tool_attempt', { tool: tool.kind, outcome: 'failed' });
+        return;
+      }
+      void recordAIActivity('ai_tool_action', { tool: tool.kind, outcome: 'succeeded' });
+      const ok: AgentMessage = {
+        id: createId('tool'),
+        role: 'assistant',
+        content: `Appointment booked for ${tool.args.date} at ${tool.args.time}${familyProfileId ? ' (family profile)' : ''}. Manage it from your appointments page.`,
+        createdAt: nowIso(),
+        documents: [],
+        contextTags: ['appointment'],
+        patientProfileId: activeProfileId,
+      };
+      setMessages((prev) => [...prev, ok]);
+      return;
+    }
+    setToolError('This action is not available yet.');
+    void recordAIActivity('ai_tool_attempt', { tool: tool.kind, outcome: 'denied' });
+  }, [pendingTool, runSuggestion, activeProfileId]);
+
+  const cancelTool = useCallback(() => {
+    setPendingTool(null);
+    setToolError(null);
+  }, []);
+
+  /** Request a tool: reads run immediately; mutations are parked for confirm. */
+  const requestTool = useCallback(
+    (suggestion: AIToolSuggestion) => {
+      if (requiresConfirmation(suggestion.kind)) {
+        setPendingTool(suggestion);
+        setToolError(null);
+        void recordAIActivity('ai_tool_attempt', { tool: suggestion.kind, outcome: 'confirmation-pending' });
+        return;
+      }
+      void runSuggestion(suggestion);
+    },
+    [runSuggestion]
   );
 
   const drainHandoff = useCallback(() => {
@@ -298,5 +529,12 @@ export function useAgentConversation(): UseAgentConversation {
     clearConversation,
     suggestedPrompts: QUICK_PROMPTS,
     result: lastResult,
+    stop,
+    toolSuggestions,
+    pendingTool,
+    requestTool,
+    confirmTool,
+    cancelTool,
+    toolError,
   };
 }

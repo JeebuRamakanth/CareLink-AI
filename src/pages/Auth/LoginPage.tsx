@@ -18,6 +18,18 @@ import { Card } from '../../components/ui/Card';
 import { ROUTES } from '../../routes/routeConstants';
 import { preventDefaultSubmit } from './authFormUtils';
 import { isSupabaseConfigured } from '../../services/supabase/client';
+import { hasAdminRole, isSuperAdmin, recordDeniedAdminAccess } from '../../services/auth/authorization';
+import { cn } from '../../components/common/cn';
+
+/** Login lanes are INTENT ONLY — never authorization. The server verifies the
+ *  authenticated user's database roles; selecting a lane grants nothing. */
+type LoginLane = 'patient' | 'admin' | 'super_admin';
+
+const LANES: { id: LoginLane; label: string; hint: string }[] = [
+  { id: 'patient', label: 'Patient', hint: 'Personal health' },
+  { id: 'admin', label: 'Admin', hint: 'Operations' },
+  { id: 'super_admin', label: 'Super Admin', hint: 'Restricted' },
+];
 
 interface LocationState {
   from?: string;
@@ -61,33 +73,60 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const demoMode = isMockMode || !isSupabaseConfigured();
+  const adminIntent = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    const v = params.get('intent');
+    if (v === 'super-admin' || v === 'super_admin') return 'super-admin';
+    return v === 'admin' ? 'admin' : null;
+  }, [location.search]);
+
   const [showForgot, setShowForgot] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [forgotSubmitting, setForgotSubmitting] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
-  const demoMode = isMockMode || !isSupabaseConfigured();
-  const adminIntent = useMemo(() => {
-    const params = new URLSearchParams(location.search);
-    return params.get('intent') === 'admin' ? params.get('intent') : null;
-  }, [location.search]);
+  const [lane, setLane] = useState<LoginLane>(() =>
+    adminIntent === 'super-admin' ? 'super_admin' : adminIntent === 'admin' ? 'admin' : 'patient'
+  );
+  const [laneDenied, setLaneDenied] = useState(false);
 
+  // The URL may carry the intended admin lane; the UI just preselects it.
   const from = (location.state as LocationState | null)?.from ?? (adminIntent ? ROUTES.admin : ROUTES.profile);
 
   useEffect(() => {
+    if (laneDenied) return; // A lane denial keeps the user on this page.
     if (!initializing && user) {
+      if (lane === 'admin' && !hasAdminRole(user)) {
+        // An authenticated account without an admin role: record the denial and
+        // keep the user on the login page with an honest message —— selecting
+        // the lane is never authorization.
+        void recordDeniedAdminAccess('admin', { path: location.pathname });
+        setLaneDenied(true);
+        return;
+      }
+      if (lane === 'super_admin' && !isSuperAdmin(user)) {
+        void recordDeniedAdminAccess('super_admin', { path: location.pathname });
+        setLaneDenied(true);
+        return;
+      }
       navigate(from, { replace: true });
     }
-  }, [user, initializing, from, navigate]);
+  }, [user, initializing, lane, from, navigate, location.pathname, laneDenied]);
 
   const onSubmit = preventDefaultSubmit(async () => {
     if (submitting) return;
     clearError();
+    setLaneDenied(false);
     setSubmitting(true);
+    // Role verification happens in the effect once the auth context enriches the
+    // user with server-side roles (loadUserAuthorization). A failed
+    // administrative-lane attempt records denied_admin/super_admin_access and
+    // keeps the user here — wrong credentials themselves already fail auth.
     const result = await signIn(email, password);
     setSubmitting(false);
-    if (result.ok) {
-      navigate(from, { replace: true });
-    }
+    if (!result.ok) return;
+    // The effect below performs the gate: if the enriched user lacks the role for
+    // the selected lane it sets laneDenied (recorded), otherwise it navigates.
   });
 
   const openForgot = () => {
@@ -133,30 +172,74 @@ export function LoginPage() {
           </div>
         ) : null}
 
-        {adminIntent && !demoMode ? (
-          <div
-            role="note"
-            className="mb-5 flex items-start gap-3 rounded-[var(--radius-lg)] border border-brand-400/30 bg-brand-500/10 px-4 py-3 text-xs leading-5 text-brand-100"
-          >
-            <span className="mt-0.5 inline-flex size-4 shrink-0 items-center justify-center rounded-full border border-brand-400/40 text-[0.65rem] font-bold" aria-hidden>
-              !
-            </span>
-            <span>
-              <span className="font-semibold text-brand-50">Administrative access:</span>{' '}
-              you are signing in to the CareLink admin console. Access is authorized by the server from your
-              account's database roles — selecting the site alone never grants administrative access.
-            </span>
+        {/* Three login lanes — INTENT ONLY, never authorization. */}
+        <div className="mb-5" role="group" aria-label="Login type">
+          <div className="grid grid-cols-3 gap-1 rounded-[var(--radius-lg)] border border-white/10 bg-white/5 p-1">
+            {LANES.map((l) => (
+              <button
+                key={l.id}
+                type="button"
+                onClick={() => {
+                  setLane(l.id);
+                  setLaneDenied(false);
+                  clearError();
+                }}
+                aria-pressed={lane === l.id}
+                className={cn(
+                  'rounded-[calc(var(--radius-lg)-4px)] px-2 py-2 text-center transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/50',
+                  lane === l.id
+                    ? 'bg-gradient-to-br from-brand-500/30 to-accent-500/15 text-white shadow-[var(--shadow-glow)]'
+                    : 'text-ink-300 hover:bg-white/5 hover:text-white'
+                )}
+              >
+                <span className="block text-[0.82rem] font-semibold">{l.label}</span>
+                <span className="block text-[0.62rem] uppercase tracking-[0.14em] text-ink-400">{l.hint}</span>
+              </button>
+            ))}
           </div>
-        ) : adminIntent ? (
+
+          {lane === 'admin' ? (
+            <div
+              role="note"
+              className="mt-3 flex items-start gap-3 rounded-[var(--radius-lg)] border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-xs leading-5 text-amber-200"
+            >
+              <span className="mt-0.5 inline-flex h-2 w-2 shrink-0 rounded-full bg-amber-300" aria-hidden />
+              <span>
+                <span className="font-semibold text-amber-100">Admin access warning:</span>{' '}
+                you are attempting to sign in to the administrative console. Access is granted only to accounts whose
+                database roles authorize it — selecting this lane never grants access. Attempts by non-authorized
+                accounts are monitored and audited.
+              </span>
+            </div>
+          ) : null}
+
+          {lane === 'super_admin' ? (
+            <div
+              role="alert"
+              className="mt-3 flex items-start gap-3 rounded-[var(--radius-lg)] border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-xs leading-5 text-rose-200"
+            >
+              <span className="mt-0.5 inline-flex size-4 shrink-0 items-center justify-center rounded-full border border-rose-400/40 text-[0.65rem] font-bold" aria-hidden>
+                !
+              </span>
+              <span>
+                <span className="font-semibold text-rose-100">Restricted access:</span>{' '}
+                Super Admin access is restricted to authorized personnel. Access attempts are monitored and audited.
+                Your account must hold a server-verified super-admin role to proceed.
+              </span>
+            </div>
+          ) : null}
+        </div>
+
+        {laneDenied ? (
           <div
-            role="note"
-            className="mb-5 flex items-start gap-3 rounded-[var(--radius-lg)] border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-xs leading-5 text-amber-200"
+            role="alert"
+            className="mb-5 flex items-start gap-3 rounded-[var(--radius-lg)] border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm leading-6 text-rose-100"
           >
-            <span className="mt-0.5 inline-flex h-2 w-2 shrink-0 rounded-full bg-amber-300" aria-hidden />
+            <span className="mt-0.5 inline-flex h-2 w-2 shrink-0 rounded-full bg-rose-300" aria-hidden />
             <span>
-              <span className="font-semibold text-amber-100">Admin console requested:</span>{' '}
-              in demo mode there is no server-provisioned admin role, so this area will not be accessible until a real
-              backend is configured and an operator provisions a role for your account.
+              {lane === 'super_admin'
+                ? 'This account is not authorized for Super Admin access on this server. The attempt has been recorded.'
+                : 'This account is not authorized for administrative access on this server. The attempt has been recorded.'}
             </span>
           </div>
         ) : null}

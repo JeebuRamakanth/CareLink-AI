@@ -149,6 +149,24 @@ export async function adminGetStats(): Promise<AdminResult<AdminStatRow[]>> {
   return listRows<AdminStatRow>('carelink_admin_stats');
 }
 
+export interface AdminGlobalSearchRow {
+  kind: 'patient' | 'doctor' | 'hospital' | 'pharmacy' | 'lab' | 'appointment' | 'review' | 'blood_donor';
+  id: string;
+  title: string;
+  subtitle: string;
+  status: string;
+  extra: Record<string, unknown>;
+}
+
+/**
+ * Server-authorized global admin search. Categories are returned only when the
+ * caller's permissions cover them (definer gate); blood-donor rows are
+ * contact-redacted (blood group, city, eligibility only — never phone/DOB/email/name).
+ */
+export function adminGlobalSearch(q: string, pageSize = 20, page = 0): Promise<AdminResult<AdminGlobalSearchRow[]>> {
+  return listRows<AdminGlobalSearchRow>('carelink_admin_global_search', { q, page_size: pageSize, page });
+}
+
 /** Server-enforced account status change (suspend / reactivate / disable). */
 export async function adminSetAccountStatus(
   userId: string,

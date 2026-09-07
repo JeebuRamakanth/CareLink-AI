@@ -20,6 +20,54 @@ export type ReviewTarget =
 const targetColumn = (target: ReviewTarget) =>
   ({ hospital: 'hospital_id', doctor: 'doctor_id', pharmacy: 'pharmacy_id', lab: 'lab_id' } as const)[target.kind];
 
+export interface ReviewCursorRow {
+  id: string;
+  title: string | null;
+  body: string | null;
+  rating: number | null;
+  author_display: string;
+  provider_kind: 'hospital' | 'doctor' | 'pharmacy' | 'lab' | 'provider';
+  provider_name: string;
+  provider_slug: string;
+  is_verified: boolean;
+  provider_response: string | null;
+  created_at: string;
+}
+
+export interface ReviewsCursorOptions {
+  query?: string;
+  rating?: number | null;
+  kind?: string | null;
+  beforeCreated?: string | null;
+  beforeId?: string | null;
+  limit?: number;
+}
+
+/**
+ * Keyset/cursor page of the PUBLIC published-reviews stream (TRUE infinite
+ * scroll: exclusive-before cursor by (created_at, id) — no duplicates/skips).
+ * Server-side definer restricts to `status='published'` only, so draft/pending
+ * rows never leak; limit is capped at 40.
+ */
+export async function listReviewsCursor(opts: ReviewsCursorOptions = {}): Promise<{
+  rows: ReviewCursorRow[];
+  error: string | null;
+}> {
+  const { data, error } = await withClient(async (client) => {
+    const res = await client.rpc('carelink_reviews_cursor', {
+      p_query: opts.query ?? null,
+      p_rating: opts.rating ?? null,
+      p_kind: opts.kind ?? null,
+      p_before_created: opts.beforeCreated ?? null,
+      p_before_id: opts.beforeId ?? null,
+      p_limit: Math.min(opts.limit ?? 20, 40),
+    });
+    if (res.error) throw res.error;
+    return (res.data as ReviewCursorRow[]) ?? [];
+  });
+  return { rows: data ?? [], error: error?.message ?? null };
+}
+
 /** Published reviews for a provider target (public). */
 export async function listReviews(target: ReviewTarget): Promise<ReviewRow[]> {
   const { data } = await withClient(async (client) => {
