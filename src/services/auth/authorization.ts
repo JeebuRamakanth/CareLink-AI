@@ -89,18 +89,52 @@ export async function loadUserAuthorization(user: CareLinkUser  | null): Promise
 }
 
 export function isSuspended(user: CareLinkUser | null): boolean {
-  return user?.accountStatus === 'suspended';
+  return user?.accountStatus === 'suspended' || user?.accountStatus === 'disabled';
+}
+
+/**
+ * Role hierarchy ranks — the SINGLE source of truth for "at least this role"
+ * checks in the UI. Mirrors the database hierarchy enforced by
+ * `carelink_has_permission_or_higher` (patient < … < admin < super_admin).
+ */
+export const ROLE_RANK: Record<string, number> = {
+  patient: 0,
+  doctor: 1,
+  hospital_admin: 2,
+  lab_admin: 2,
+  pharmacy_admin: 2,
+  admin: 3,
+  super_admin: 4,
+};
+
+/** Highest rank among the user's server-resolved roles (0 when none). */
+function highestRank(user: CareLinkUser | null): number {
+  const roles = Array.isArray(user?.roles) ? (user?.roles as string[]) : [];
+  return roles.reduce((max, r) => Math.max(max, ROLE_RANK[r] ?? 0), 0);
+}
+
+/**
+ * Centralized "role or higher" check. SUPER_ADMIN satisfies ADMIN; ADMIN does
+ * NOT satisfy SUPER_ADMIN. Never derived from localStorage/URL/user_metadata —
+ * only from server-resolved `user.roles`; a suspended/disabled account always
+ * fails (matching the backend status-aware predicates).
+ */
+export function hasRoleOrHigher(user: CareLinkUser | null, requiredRole: string): boolean {
+  if (!user || isSuspended(user)) return false;
+  return highestRank(user) >= (ROLE_RANK[requiredRole] ?? 0);
 }
 
 export function hasAdminRole(user: CareLinkUser | null): boolean {
-  return Array.isArray(user?.roles) && (user.roles as string[]).some((r) => r === 'admin' || r === 'super_admin');
+  // Admin area = admin floor or higher (super_admin inherits it).
+  return hasRoleOrHigher(user, 'admin');
 }
 
 export function isSuperAdmin(user: CareLinkUser | null): boolean {
-  return Array.isArray(user?.roles) && (user.roles as string[]).includes('super_admin');
+  return hasRoleOrHigher(user, 'super_admin');
 }
 
 export function hasPermission(user: CareLinkUser | null, code: string): boolean {
+  if (!user || isSuspended(user)) return false;
   if (isSuperAdmin(user)) return true;
   return Array.isArray(user?.permissions) ? (user.permissions as string[]).includes(code) : false;
 }
@@ -116,22 +150,40 @@ async function recordActivity(event: string, metadata?: Record<string, unknown>)
   }
 }
 
-/** Resolve which admin/super-admin event applies to an enriched user, or null. */
-function adminLoginEventFor(user: CareLinkUser | null): string | null {
-  if (!user) return null;
-  const roles = Array.isArray(user.roles) ? (user.roles as string[]) : [];
-  if (roles.includes('super_admin')) return 'super_admin_login';
-  if (roles.includes('admin')) return 'admin_login';
-  return null;
-}
+/** Login lanes are intent only; they gate the destination, never authorization. */
+export type LoginLane = 'patient' | 'admin' | 'super_admin';
 
-/** Record a login security event server-side (real mode only; mock no-ops). */
+/**
+ * Record a login security event server-side (real mode only; mock no-ops).
+ *
+ * The recorded event is determined by the SELECTED LANE plus the server-verified
+ * authorization — never by role alone:
+ *   - suspended/disabled account        → `suspended_login_denied`
+ *   - lane=admin, user lacks admin      → `admin_login_denied`
+ *   - lane=super_admin, user lacks SA   → `super_admin_login_denied`
+ *   - lane=admin, authorized            → `admin_login_success`
+ *   - lane=super_admin, authorized      → `super_admin_login_success`
+ *   - lane=patient (or none)            → `login_success`
+ * Returns the event name recorded (useful for the caller/UX).
+ */
 export async function recordLoginActivity(
   user: CareLinkUser | null,
+  lane: LoginLane = 'patient',
   metadata?: Record<string, unknown>,
-): Promise<void> {
-  const event = adminLoginEventFor(user) ?? 'login_success';
-  await recordActivity(event, { ...(metadata ?? {}), roles: (user?.roles ?? []).join(',') });
+): Promise<string> {
+  let event: string;
+  if (!user) return '';
+  if (isSuspended(user)) {
+    event = 'suspended_login_denied';
+  } else if (lane === 'super_admin') {
+    event = isSuperAdmin(user) ? 'super_admin_login_success' : 'super_admin_login_denied';
+  } else if (lane === 'admin') {
+    event = hasAdminRole(user) ? 'admin_login_success' : 'admin_login_denied';
+  } else {
+    event = 'login_success';
+  }
+  await recordActivity(event, { ...(metadata ?? {}), lane, roles: (user.roles ?? []).join(',') });
+  return event;
 }
 
 /** Record a denied admin-area access attempt (server-side, auditable). */
@@ -144,14 +196,17 @@ export async function recordAdminAccessDenied(metadata?: Record<string, unknown>
  * authorizes; it only records the intent so operators can audit who tried to
  * enter an administrative lane without a server-side role. Distinguishes the
  * two lanes via the DB-approved `denied_admin_access` /
- * `denied_super_admin_access` event vocabulary (Step 17).
+ * `denied_super_admin_access` event vocabulary (Step 17) and the lane-specific
+ * `admin_login_denied` / `super_admin_login_denied` events (Step 19).
  */
 export async function recordDeniedAdminAccess(
   requested: 'admin' | 'super_admin',
   metadata?: Record<string, unknown>
 ): Promise<void> {
-  const event = requested === 'super_admin' ? 'denied_super_admin_access' : 'denied_admin_access';
-  await recordActivity(event, { ...(metadata ?? {}), requested } as Record<string, unknown>);
+  const legacy = requested === 'super_admin' ? 'denied_super_admin_access' : 'denied_admin_access';
+  const laneEvent = requested === 'super_admin' ? 'super_admin_login_denied' : 'admin_login_denied';
+  await recordActivity(legacy, { ...(metadata ?? {}), requested } as Record<string, unknown>);
+  await recordActivity(laneEvent, { ...(metadata ?? {}), requested } as Record<string, unknown>);
 }
 
 /**

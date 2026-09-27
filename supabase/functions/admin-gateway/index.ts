@@ -102,17 +102,23 @@
          if (userData.user.email.toLowerCase() !== payload.email.trim().toLowerCase()) {
            return jsonResponse({ error: 'unauthorized' }, 401);
          }
-         const grantRes = await supabase.rpc('carelink_grant_role', {
-           target_user: callerId,
-           role_name: 'super_admin',
+         const grantRes = await supabase.rpc('carelink_owner_bootstrap', {
+           self_email: payload.email.trim().toLowerCase(),
          });
          if (grantRes.error) {
-           if (/only super_admin/i.test(grantRes.error.message)) {
-             return jsonResponse({ error: 'bootstrap-already-completed' }, 409);
+           if (/email must match/i.test(grantRes.error.message)) {
+             return jsonResponse({ error: 'unauthorized' }, 401);
+           }
+           if (/suspended/i.test(grantRes.error.message)) {
+             return jsonResponse({ error: 'account-suspended' }, 403);
            }
            return jsonResponse({ error: 'forbidden' }, 403);
          }
-         return jsonResponse({ ok: true, roleId: grantRes.data });
+         // false = a super_admin already exists (idempotent no-op).
+         if (grantRes.data === false) {
+           return jsonResponse({ error: 'bootstrap-already-completed' }, 409);
+         }
+         return jsonResponse({ ok: true });
        }
        case 'grant_role': {
         if (!isUuid(payload.targetUser) || !payload.role) return jsonResponse({ error: 'malformed-request' }, 400);

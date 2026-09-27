@@ -58,6 +58,31 @@ export async function listFamilyProfiles(): Promise<FamilyProfileRow[]> {
   return readLocalFamily(userId);
 }
 
+/**
+ * Resolve a SINGLE authorized family profile by id through the guarded
+ * backend RPC `carelink_resolve_family_profile`. Returns null for any id the
+ * caller does not own (IDOR firewall) — the backend, not the UI, decides.
+ * Falls back to the RLS-scoped local/list path when the RPC is unavailable.
+ */
+export async function resolveAuthorizedFamilyProfile(familyId: string): Promise<FamilyProfileRow | null> {
+  if (!familyId) return null;
+  const client = await getSupabaseClient();
+  if (client) {
+    // Typed client has no generated RPC map; cast mirrors the other repositories.
+    const { data, error } = await (client as unknown as {
+      rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;
+    }).rpc('carelink_resolve_family_profile', { family_id: familyId });
+    if (error) return null;
+    const row = (Array.isArray(data) ? data[0] : data) as FamilyProfileRow | null;
+    return row ?? null;
+  }
+  // Backend unavailable: only ever return a row from the caller's OWN local set.
+  const session = await restoreSession();
+  const userId = session.user?.id;
+  if (!userId) return null;
+  return readLocalFamily(userId).find((r) => r.id === familyId) ?? null;
+}
+
 export interface FamilyProfileInput {
   relation: FamilyRelation;
   label: string;

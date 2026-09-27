@@ -103,12 +103,13 @@ reset request.jwt.claims;
 set role authenticated;
 set request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111"}';
 -- RLS denies the cross-user UPDATE by matching 0 rows (no-op), not by raising.
+with changed as (
+  update public.medical_documents set file_name = 'stolen.pdf'
+  where id = '7c300001-0000-0000-0000-000000000001'
+  returning 1
+)
 select harness.ok(
-  (select count(*) = 0 from (
-     update public.medical_documents set file_name = 'stolen.pdf'
-     where id = '7c300001-0000-0000-0000-000000000001'
-     returning 1
-   ) changed),
+  (select count(*) = 0 from changed),
   '210: A cannot modify E medical document (RAG/cross-user leakage blocked)'
 );
 reset role;
@@ -180,8 +181,16 @@ select harness.ok(
   (select count(*) from public.reviews where body like '%DROP TABLE%') = 1,
   '210: injection-styled review body persisted as data (no SQL executed)'
 );
-select harness.expect_error(
-  $$update public.reviews set title = 'stolen' where id = '7c400001-0000-0000-0000-000000000001'$$,
+reset role;
+reset request.jwt.claims;
+-- A (not the owner) attempts to tamper with E's review.
+set role authenticated;
+set request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111"}';
+with tampered as (
+  update public.reviews set title = 'stolen' where id = '7c400001-0000-0000-0000-000000000001' returning 1
+)
+select harness.ok(
+  (select count(*) = 0 from tampered),
   '210: A cannot edit E review (cross-user review tamper blocked)'
 );
 reset role;
@@ -196,10 +205,18 @@ on conflict (id) do nothing;
 
 set role authenticated;
 set request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111"}';
-select harness.expect_error(
-  $$update public.appointments set status = 'cancelled' where id = '7c500001-0000-0000-0000-000000000001'$$,
+with cancelled as (
+  update public.appointments set status = 'cancelled' where id = '7c500001-0000-0000-0000-000000000001' returning 1
+)
+select harness.ok(
+  (select count(*) = 0 from cancelled),
   '210: A cannot cancel E appointment (cross-user appointment manipulation blocked)'
 );
+reset role;
+reset request.jwt.claims;
+-- Owner (E) confirms the row is untouched (A's cross-user write changed nothing).
+set role authenticated;
+set request.jwt.claims = '{"sub":"55555555-5555-5555-5555-555555555555"}';
 select harness.ok(
   (select status from public.appointments where id = '7c500001-0000-0000-0000-000000000001') = 'confirmed',
   '210: E appointment unchanged after A cancel attempt'

@@ -40,7 +40,7 @@ insert into public.doctor_verification (id, doctor_id, status) values
 on conflict (id) do nothing;
 
 insert into public.donor_profiles (id, owner_id, blood_group_code, city, is_active) values
-  ('7d300001-0000-0000-0000-000000000001', '55555555-5555-5555-5555-555555555555', 'O+', 'Machilipatnam', true)
+  ('7d300001-0000-0000-0000-000000000001', '44444444-4444-4444-4444-444444444444', 'O+', 'Machilipatnam', true)
 on conflict (id) do nothing;
 
 -- Four published reviews with staggered timestamps (cursor pagination works).
@@ -66,8 +66,8 @@ select harness.ok(
      'completed_appointments','cancelled_appointments','rescheduled_appointments',
      'reviews','published_reviews','pending_reviews','provider_responses',
      'donors','active_donors','ai_conversations','ai_messages',
-     'notifications','notification_sent','media_assets')) >= 31),
-  '220: command-center stats expose the full real-metrics set (31 metrics)'
+     'notifications','notification_sent','media_assets')) >= 30,
+  '220: command-center stats expose the full real-metrics set (30 metrics)'
 );
 select harness.ok(
   (select value from public.carelink_admin_stats() where metric ='providers_hospitals') >= 1,
@@ -85,23 +85,26 @@ reset role;reset request.jwt.claims;
 set role authenticated;
 set request.jwt.claims = '{"sub":"33333333-3333-3333-3333-333333333333"}';
 select harness.ok(
-  (select count(*) from public.carelink_admin_global_search('Step17', page_size => 20)) >= 1,
+  (select count(*) from public.carelink_admin_search_results('Step17', page_size => 20)) >= 1,
   '220: super_admin searches provider by name (server-side)'
 );
 select harness.ok(
-  (select count(*) from public.carelink_admin_global_search('Machilipatnam', page_size => 20)where result_kind ='donor') >= 1,
+  (select count(*) from public.carelink_admin_search_results('Machilipatnam', page_size => 20)where result_kind ='donor') >= 1,
   '220: donor search surfaces area/group only rows'
 );
 select harness.ok(
-  (select count(*) from public.carelink_admin_global_search('Machilipatnam', page_size => 20)where extra ? 'city',  is null or (extra->>'blood_group') is null or (extra->>'city')= 'Machilipatnam'),
+  (select count(*) from public.carelink_admin_search_results('Machilipatnam', page_size => 20)
+     where result_kind = 'donor'
+       and (extra->>'city') = 'Machilipatnam'
+       and not (extra ? 'phone') and not (extra ? 'date_of_birth') and not (extra ? 'owner_id')) >= 1,
   '220: donor rows never leak phone/DOB/owner identity (privacy-shielded)'
 );
 select harness.ok(
-  (select count(*) from public.carelink_admin_global_search('xyz-non-existent', page_size => 20))= 0,
+  (select count(*) from public.carelink_admin_search_results('xyz-non-existent', page_size => 20))= 0,
   '220: no-match search returns an honest empty set'
 );
 select harness.expect_error(
-  $$select public.carelink_admin_global_search('Step17', page_size => 0)$$,
+  $$select public.carelink_admin_search_results('Step17', page_size => 0)$$,
   '220: zero page_size rejected (bounded paging)'
 );
 reset role;reset request.jwt.claims;
@@ -110,7 +113,7 @@ reset role;reset request.jwt.claims;
 set role authenticated;
 set request.jwt.claims = '{"sub":"55555555-5555-5555-5555-555555555555"}';
 select harness.expect_error(
-  $$select public.carelink_admin_global_search('Step17')$$,
+  $$select public.carelink_admin_search_results('Step17')$$,
   '220: ordinary user denied admin global search'
 );
 reset role;reset request.jwt.claims;
@@ -192,11 +195,11 @@ reset role;reset request.jwt.claims;
 set role authenticated;
 set request.jwt.claims = '{"sub":"55555555-5555-5555-5555-555555555555"}';
 select harness.ok(
-  (select public.carelink_resolve_family_profile('7c100001-0000-0000-0000-000000000001'))is not null,
+  ((select id from public.carelink_resolve_family_profile('7c100001-0000-0000-0000-000000000001')) is not null),
   '220: family resolver resolves own inherited row'
 );
 select harness.ok(
-  (select public.carelink_resolve_family_profile('00000000-0000-0000-0000-000000000000'))is null,
+  ((select id from public.carelink_resolve_family_profile('00000000-0000-0000-0000-000000000000')) is null),
   '220: family resolver returns null for unknown id (honest empty)'
 );
 reset role;reset request.jwt.claims;

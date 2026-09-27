@@ -190,13 +190,11 @@ begin
 
   -- First-only + idempotent: when ANY super_admin already exists, this is a
   -- safe no-op (never mints a second super_admin, never duplicates rows。
-.
   if exists (select 1 from public.user_roles where role_id ='super_admin') then
     return false;
   end if;
 
   -- Insert the trusted role row for THE CALLER (auth.uid(), never user input。
-。
   insert into public.user_roles ( id , user_id , role_id , granted_by )
   values (gen_random_uuid(), actor, 'super_admin', actor)
   on conflict ( user_id , role_id ) do nothing
@@ -284,12 +282,12 @@ as $$
     -- Instruction-override / secret-elevation markers。
     or lower(payload) ~ 'ignore (all |any )?(previous|prior|above) instructions'
     or lower(payload) ~ 'reveal (all|your|the) (patient|user|system|hidden|secret)'
-    or lower(payload) ~ '(service[- ]?role|api[- ]?key|access token|refresh token) (key|secret|value|:=|:)'
+    or lower(payload) ~ '(service[-_ ]?role|api[-_ ]?key|access[-_ ]?token|refresh[-_ ]?token|secret[-_ ]?key)'
     or lower(payload) ~ 'skip (rl s|row level security|security checks)'
     -- Agentic self-harm / unsafe autonomy attempts。
     or lower(payload) ~ '(disable|turn off|bypass) (security|safety|authorization|rl s)'
-    or lower(payload) ~ '(make|set|grant) me (an? |the )(admin|super[- ]?admin)'
-    or lower(payload) ~ 'run (sql|arbitrary rpc|service[- ]?role)'
+    or lower(payload) ~ '(make|set|grant) me (an? |the )(admin|super[-_ ]?admin)'
+    or lower(payload) ~ 'run (sql|arbitrary rpc|service[-_ ]?role)'
   );
 $$;
 

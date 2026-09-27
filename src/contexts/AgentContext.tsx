@@ -69,7 +69,7 @@ const createWelcomeConversation = (): AgentConversation => {
   };
 };
 
-interface AgentContextValue {
+export interface AgentContextValue {
   conversations: AgentConversation[];
   activeConversation: AgentConversation;
   activeConversationId: string;
@@ -676,4 +676,9 @@ export function useAgent() {
     throw new Error('useAgent must be used within an AgentProvider');
   }
   return context;
+}
+
+/** Optional accessor — null when rendered outside an AgentProvider. */
+export function useOptionalAgent(): AgentContextValue | null {
+  return useContext(AgentContext) ?? null;
 }

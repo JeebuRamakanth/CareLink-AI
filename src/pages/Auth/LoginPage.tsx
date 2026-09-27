@@ -18,7 +18,7 @@ import { Card } from '../../components/ui/Card';
 import { ROUTES } from '../../routes/routeConstants';
 import { preventDefaultSubmit } from './authFormUtils';
 import { isSupabaseConfigured } from '../../services/supabase/client';
-import { hasAdminRole, isSuperAdmin, recordDeniedAdminAccess } from '../../services/auth/authorization';
+import { hasAdminRole, isSuperAdmin, isSuspended, recordDeniedAdminAccess } from '../../services/auth/authorization';
 import { cn } from '../../components/common/cn';
 
 /** Login lanes are INTENT ONLY — never authorization. The server verifies the
@@ -96,6 +96,12 @@ export function LoginPage() {
   useEffect(() => {
     if (laneDenied) return; // A lane denial keeps the user on this page.
     if (!initializing && user) {
+      // Suspended/disabled accounts never proceed into an administrative lane.
+      if (isSuspended(user) && lane !== 'patient') {
+        void recordDeniedAdminAccess(lane === 'super_admin' ? 'super_admin' : 'admin', { path: location.pathname, reason: 'suspended' });
+        setLaneDenied(true);
+        return;
+      }
       if (lane === 'admin' && !hasAdminRole(user)) {
         // An authenticated account without an admin role: record the denial and
         // keep the user on the login page with an honest message —— selecting
@@ -109,7 +115,10 @@ export function LoginPage() {
         setLaneDenied(true);
         return;
       }
-      navigate(from, { replace: true });
+      // Destination is lane-driven for admin lanes (both land on /admin; the
+      // console itself is server-gated by role). Patient lane honours `from`.
+      const destination = lane === 'admin' || lane === 'super_admin' ? ROUTES.admin : from;
+      navigate(destination, { replace: true });
     }
   }, [user, initializing, lane, from, navigate, location.pathname, laneDenied]);
 
@@ -118,15 +127,22 @@ export function LoginPage() {
     clearError();
     setLaneDenied(false);
     setSubmitting(true);
-    // Role verification happens in the effect once the auth context enriches the
-    // user with server-side roles (loadUserAuthorization). A failed
-    // administrative-lane attempt records denied_admin/super_admin_access and
-    // keeps the user here — wrong credentials themselves already fail auth.
-    const result = await signIn(email, password);
+    // Role verification happens server-side (loadUserAuthorization) inside
+    // signIn; the SELECTED lane determines the destination (Admin → /admin,
+    // Super Admin → /admin, Patient → intended/from). Authorization (never the
+    // lane) decides whether access is permitted. A denied administrative-lane
+    // attempt is recorded lane-aware (admin_login_denied / super_admin_login_denied)
+    // and keeps the user here — wrong credentials already fail auth.
+    const result = await signIn(email, password, lane);
     setSubmitting(false);
     if (!result.ok) return;
-    // The effect below performs the gate: if the enriched user lacks the role for
-    // the selected lane it sets laneDenied (recorded), otherwise it navigates.
+    if (result.laneDenied) {
+      setLaneDenied(true);
+      return;
+    }
+    // Destination is lane-driven for admin lanes; the gate routes still enforce.
+    const destination = lane === 'admin' || lane === 'super_admin' ? ROUTES.admin : from;
+    navigate(destination, { replace: true });
   });
 
   const openForgot = () => {
