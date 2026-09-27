@@ -47,9 +47,10 @@ check(
 );
 check(
   'auth: admin/super-admin login + denied events wired',
-  has('src/services/auth/authorization.ts', "adminLoginEventFor") &&
-    has('src/services/auth/authorization.ts', "recordActivity('admin_access_denied'"),
-  'adminLoginEventFor + admin_access_denied missing'
+  has('src/services/auth/authorization.ts', 'super_admin_login_success') &&
+    has('src/services/auth/authorization.ts', 'admin_login_success') &&
+    has('src/services/auth/authorization.ts', 'admin_access_denied'),
+  'lane-aware login events + admin_access_denied missing'
 );
 check(
   'auth: AuthContext passes enriched user to recordLoginActivity',
@@ -219,6 +220,59 @@ check(
   'notifications: bell reads only own notifications',
   has('src/components/notifications/NotificationBell.tsx', 'listNotifications') && has('src/components/notifications/NotificationBell.tsx', 'markNotificationRead'),
   'NotificationBell must use the recipient-scoped notification repo'
+);
+
+// 11. Step 19 — centralized role hierarchy + lane-aware auth wiring.
+const authz = read('src/services/auth/authorization.ts');
+check(
+  'auth: centralized role hierarchy helper (ROLE_RANK + hasRoleOrHigher)',
+  authz.includes('export const ROLE_RANK') && authz.includes('export function hasRoleOrHigher'),
+  'authorization.ts must expose ROLE_RANK + hasRoleOrHigher'
+);
+check(
+  'auth: hasAdminRole/isSuperAdmin derive from hasRoleOrHigher (no scattered exact-role checks)',
+  authz.includes("hasRoleOrHigher(user, 'admin')") && authz.includes("hasRoleOrHigher(user, 'super_admin')"),
+  'hasAdminRole/isSuperAdmin must delegate to hasRoleOrHigher'
+);
+check(
+  'auth: lane-aware login audit events',
+  authz.includes('super_admin_login_success') && authz.includes('admin_login_success') && authz.includes('suspended_login_denied'),
+  'recordLoginActivity must be lane-aware'
+);
+check(
+  'auth: AuthContext passes the selected lane to recordLoginActivity',
+  has('src/contexts/AuthContext.tsx', 'recordLoginActivity(enriched, lane') &&
+    has('src/contexts/AuthContext.tsx', 'lane?: LoginLane'),
+  'AuthContext.signIn must accept + forward the lane'
+);
+check(
+  'auth: LoginPage forwards the lane and gates the destination',
+  has('src/pages/Auth/LoginPage.tsx', 'signIn(email, password, lane)') &&
+    has('src/pages/Auth/LoginPage.tsx', 'isSuspended'),
+  'LoginPage must pass the lane and refuse suspended accounts'
+);
+check(
+  'db: hardening migration exists (suspended-super-admin closure)',
+  has('supabase/migrations/0030_step19_owner_auth_hardening.sql', 'carelink_admin_has_permission') &&
+    has('supabase/migrations/0030_step19_owner_auth_hardening.sql', 'carelink_is_super_admin'),
+  'migration 0030 must re-define the status-aware predicates'
+);
+check(
+  'db: lane-aware audit vocabulary includes *_login_denied',
+  has('supabase/migrations/0030_step19_owner_auth_hardening.sql', 'admin_login_denied') &&
+    has('supabase/migrations/0030_step19_owner_auth_hardening.sql', 'super_admin_login_denied'),
+  'DB event vocabulary must accept the lane-denial events'
+);
+check(
+  'ai: real family resolver wired through the backend ownership firewall',
+  has('src/features/health-agent/services/ai/aiTools.ts', 'carelink_resolve_family_profile') &&
+    has('src/services/health-data/familyRepository.ts', 'resolveAuthorizedFamilyProfile'),
+  'AI family context must resolve via carelink_resolve_family_profile'
+);
+check(
+  'ai: chat hook uses real RLS-scoped family profiles (no fake set)',
+  has('src/features/health-agent/hooks/useAgentConversation.ts', 'useOptionalAgent'),
+  'useAgentConversation must read family profiles from AgentContext'
 );
 
 console.log(`\nCareLink wiring audit — ${checks.length} checks`);

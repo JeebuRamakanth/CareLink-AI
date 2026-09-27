@@ -35,6 +35,7 @@ import {
   recordLoginActivity,
   recordLogoutActivity,
 } from '../services/auth/authorization';
+import type { LoginLane } from '../services/auth/authorization';
 
 export interface AuthState {
   user: CareLinkUser | null;
@@ -49,7 +50,7 @@ export interface AuthState {
 }
 
 export interface AuthContextValue extends AuthState {
-  signIn: (email: string, password: string) => Promise<{ ok: boolean; error?: AuthError }>;
+  signIn: (email: string, password: string, lane?: LoginLane) => Promise<{ ok: boolean; error?: AuthError; laneDenied?: boolean }>;
   signUp: (email: string, password: string) => Promise<{ ok: boolean; error?: AuthError }>;
   signOut: () => Promise<void>;
   requestPasswordReset: (email: string) => Promise<{ ok: boolean; error?: AuthError }>;
@@ -128,7 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return unsubscribe;
   }, [drainPendingProfileSave]);
 
-  const signIn = useCallback(async (email: string, password: string) => {
+  const signIn = useCallback(async (email: string, password: string, lane: LoginLane = 'patient') => {
     setError(null);
     const { result, error: err } = await signInService(email, password);
     if (err) {
@@ -140,7 +141,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(enriched);
       setSource(result.user.source);
       setIsMockMode(result.user.source === 'mock');
-      void recordLoginActivity(enriched, { source: result.user.source });
+      // Lane-aware audit: the SELECTED lane (not role alone) determines the
+      // recorded event; suspended accounts record suspended_login_denied.
+      void recordLoginActivity(enriched, lane, { source: result.user.source });
+      // Report lane denial so the caller keeps the user on the login page. The
+      // server is still the enforcement point (routes + RLS), this is UX intent.
+      const denied =
+        isSuspended(enriched) ||
+        (lane === 'admin' && !hasAdminRole(enriched)) ||
+        (lane === 'super_admin' && !(enriched?.roles ?? []).includes('super_admin'));
+      return { ok: true, laneDenied: denied };
     }
     return { ok: true };
   }, []);

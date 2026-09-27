@@ -9,7 +9,7 @@
 --     NO fabricated numbers, NO fake percentages — insufficient data simply
 --     returns honest zeros/empty. Dashboards decide how to present..
 --
---  2. GLOBAL ADMIN SEARCH — a single guarded RPC carelink_admin_global_search
+--  2. GLOBAL ADMIN SEARCH — a single guarded RPC carelink_admin_search_results
 --     across patients, doctors, hospitals, pharmacies, labs, donors (privacy-shielded,
 --     appointment header rows, review rows). Authorization-aware: every result is
 --     presented per the caller's session permission, page-bounded, and never exposes
@@ -68,15 +68,20 @@ security definer
 set search_path = ''
 as $$
 begin
+  if public.carelink_is_suspended() then
+    raise exception 'account suspended';
+  end if;
   if not public.carelink_admin_has_permission('dashboard.view') then
     raise exception 'permission denied';
   end if;
   return query
+  -- Accounts / patients
   select 'users',count(*) from public.profiles p
   union all select 'active_users',count(*) from public.profiles p where p.account_status = 'active'
   union all select 'suspended_users',count(*) from public.profiles p where p.account_status in ('suspended','disabled')
   union all select 'patients',count(*) from public.profiles p
   union all select 'active_patients',count(*) from public.profiles p where p.account_status = 'active'
+  -- Providers
   union all select 'providers_hospitals',count(*) from public.hospitals h
   union all select 'active_hospitals',count(*) from public.hospitals h
     where exists (select 1 from public.hospital_verification v where v.hospital_id = h.id and v.status = 'verified')
@@ -89,28 +94,55 @@ begin
   union all select 'providers_labs',count(*) from public.labs l
   union all select 'active_labs',count(*) from public.labs l
     where exists (select 1 from public.lab_verification v where v.lab_id = l.id and v.status = 'verified')
+  -- Appointments by status
+  union all select 'total_appointments',count(*) from public.appointments a
   union all select 'appointments',count(*) from public.appointments a
+  union all select 'active_appointments',count(*) from public.appointments a where a.status in ('confirmed','upcoming')
+  union all select 'pending_appointments',count(*) from public.appointments a where a.status = 'upcoming'
   union all select 'confirmed_appointments',count(*) from public.appointments a where a.status = 'confirmed'
   union all select 'upcoming_appointments',count(*) from public.appointments a where a.status = 'upcoming'
   union all select 'completed_appointments',count(*) from public.appointments a where a.status = 'completed'
   union all select 'cancelled_appointments',count(*) from public.appointments a where a.status = 'cancelled'
   union all select 'rescheduled_appointments',count(*) from public.appointments a where a.status = 'rescheduled'
+  -- Reviews
+  union all select 'total_reviews',count(*) from public.reviews r
   union all select 'reviews',count(*) from public.reviews r
   union all select 'published_reviews',count(*) from public.reviews r where r.status = 'published'
   union all select 'pending_reviews',count(*) from public.reviews r where r.status in ('pending','hidden')
   union all select 'provider_responses',count(*) from public.provider_responses pr
+  -- Blood donors
+  union all select 'blood_donors',count(*) from public.donor_profiles dp where dp.is_active
   union all select 'donors',count(*) from public.donor_profiles dp
   union all select 'active_donors',count(*) from public.donor_profiles dp where dp.is_active = true
+  -- AI
   union all select 'ai_conversations',count(*) from public.conversations c
   union all select 'ai_messages',count(*) from public.conversation_messages cm
+  union all select 'ai_tool_actions',count(*) from public.security_activity_events sae where sae.event in ('ai_tool_attempt','ai_tool_action')
+  -- Provider verification statistics
+  union all select 'verification_verified',(select count(*) from public.hospital_verification where status='verified') + (select count(*) from public.doctor_verification where status='verified') + (select count(*) from public.pharmacy_verification where status='verified') + (select count(*) from public.lab_verification where status='verified')
+  union all select 'verification_pending',(select count(*) from public.hospital_verification where status='pending') + (select count(*) from public.doctor_verification where status='pending') + (select count(*) from public.pharmacy_verification where status='pending') + (select count(*) from public.lab_verification where status='pending')
+  union all select 'verification_rejected',(select count(*) from public.hospital_verification where status='rejected') + (select count(*) from public.doctor_verification where status='rejected') + (select count(*) from public.pharmacy_verification where status='rejected') + (select count(*) from public.lab_verification where status='rejected')
+  -- Notifications by status
   union all select 'notifications',count(*) from public.notifications n
+  union all select 'notifications_sent',count(*) from public.notifications n where n.status in ('sent','read')
   union all select 'notification_sent',count(*) from public.notifications n where n.status in ('sent','read')
-  union all select 'media_assets',count(*) from public.provider_media pm;end;$$;
+  union all select 'notifications_pending',count(*) from public.notifications n where n.status in ('scheduled','pending')
+  -- Media
+  union all select 'media_assets',count(*) from public.provider_media pm;
+end;
+$$;
 
 -- ---------------------------------------------------------------------------
 -- 2. Global admin search — server-side, page-bounded, donor-privacy-safe
 -- ---------------------------------------------------------------------------
-create or replace function public.carelink_admin_global_search(
+-- ---------------------------------------------------------------------------
+-- 2. Global admin search — server-side, page-bounded, donor-privacy-safe.
+--    Canonical RPC name (Step 17 shape). The original 0028 pairing defined a
+--    second overload of carelink_admin_global_search with an incompatible
+--    return type; that name is owned by the AI-tools migration, so the richer
+--    command-center search uses its own explicit name.
+-- ---------------------------------------------------------------------------
+create or replace function public.carelink_admin_search_results(
   search_text text default null,
   page_size int default 20,
   page int default 0
@@ -130,6 +162,9 @@ set search_path = ''
 as $$
 declare v_search text;
 begin
+  if public.carelink_is_suspended() then
+    raise exception 'account suspended';
+  end if;
   if not public.carelink_admin_has_permission('dashboard.view') then
     raise exception 'permission denied';
   end if;
@@ -195,7 +230,6 @@ begin
   ) labs
   union all
   -- Blood donors: privacy-shielded — NO phone/DOB/owner identity surfaces.
-
   select * from (
     select 'donor'::text, dp.id::text,
            'Blood donor (area: ' || coalesce(dp.city,'unknown') || ')',
@@ -351,7 +385,7 @@ do $$
 declare fn text;
 begin
   foreach fn in array array[
-    'carelink_admin_global_search(text,int,int)',
+    'carelink_admin_search_results(text,int,int)',
     'carelink_reviews_feed_cursor(timestamptz,uuid,int,int,int,text,uuid,text)',
     'carelink_resolve_family_profile(uuid)'
   ]

@@ -16,7 +16,8 @@
  */
 
 import { listAppointments } from '../../../../services/health-data/appointmentsRepository';
-import { listHospitals, listDoctors } from '../../../../services/health-data/providersRepository';
+import { listHospitals, listDoctors, listPharmacies, listLabs } from '../../../../services/health-data/providersRepository';
+import { resolveAuthorizedFamilyProfile } from '../../../../services/health-data/familyRepository';
 import { isSupabaseConfigured } from '../../../../services/supabase/client';
 import { recordAIActivity } from '../../../../services/auth/authorization';
 import { directionsUrl } from '../../../../services/maps/mapsService';
@@ -64,7 +65,7 @@ const ALLOWED_ARGS: Record<string, string[]> = {
   getMyAppointments: ['status', 'limit'],
   getAppointmentAvailability: ['doctorSlug'],
   getDirections: ['destination', 'originLabel', 'lat', 'lng', 'mode'],
-  getAuthorizedMedicalContext: ['relation'],
+  getAuthorizedMedicalContext: ['relation', 'familyProfileId'],
   createAppointment: ['doctorName', 'hospitalName', 'date', 'time', 'familyProfileId', 'appointmentType'],
   cancelAppointment: ['appointmentId'],
   createReminder: ['label', 'date', 'time'],
@@ -138,6 +139,18 @@ export async function runReadTool(kind: AIToolKind, args: Record<string, unknown
       const filtered = q ? rows.filter((r) => (r.name ?? '').toLowerCase().includes(q)) : rows;
       return { ok: true, message: `Found ${filtered.length} doctor(s).`, data: filtered.slice(0, 5) };
     }
+    case 'searchPharmacies': {
+      const rows = await listPharmacies();
+      const q = typeof safe.query === 'string' ? safe.query.toLowerCase() : '';
+      const filtered = q ? rows.filter((r) => (r.name ?? '').toLowerCase().includes(q)) : rows;
+      return { ok: true, message: `Found ${filtered.length} pharmacy(ies).`, data: filtered.slice(0, 5) };
+    }
+    case 'searchLabs': {
+      const rows = await listLabs();
+      const q = typeof safe.query === 'string' ? safe.query.toLowerCase() : '';
+      const filtered = q ? rows.filter((r) => (r.name ?? '').toLowerCase().includes(q)) : rows;
+      return { ok: true, message: `Found ${filtered.length} lab(s).`, data: filtered.slice(0, 5) };
+    }
     case 'getMyAppointments': {
       const rows = await listAppointments();
       return { ok: true, message: `You have ${rows.length} appointment(s).`, data: rows.slice(0, 10) };
@@ -159,8 +172,25 @@ export async function runReadTool(kind: AIToolKind, args: Record<string, unknown
       });
       return { ok: true, message: url, data: [{ url }] };
     }
-    case 'getAuthorizedMedicalContext':
+    case 'getAuthorizedMedicalContext': {
+      // Minimum-necessary context only. When a family member is named, resolve
+      // it through the backend ownership firewall (carelink_resolve_family_profile)
+      // — a spoofed family_profile_id can never surface another user's data.
+      const familyId = typeof safe.familyProfileId === 'string' ? safe.familyProfileId : '';
+      if (familyId) {
+        const row = await resolveAuthorizedFamilyProfile(familyId);
+        if (!row) {
+          return { ok: false, message: 'You are not authorized to access that family profile.' };
+        }
+        const relation = typeof safe.relation === 'string' ? safe.relation : row.relation;
+        return {
+          ok: true,
+          message: `Authorized family context: ${relation}. Only minimum-necessary information is used.`,
+          data: [{ relation, label: row.label ?? null }],
+        };
+      }
       return { ok: true, message: 'Context is already limited to the minimum necessary for this conversation.', data: [] };
+    }
     default:
       void recordAIActivity('ai_tool_attempt', { tool: kind, outcome: 'denied-unknown-tool' });
       return { ok: false, message: 'This tool is not available.' };

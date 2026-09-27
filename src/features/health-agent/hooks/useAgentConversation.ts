@@ -29,6 +29,7 @@ import type { AIToolKind, AIToolSuggestion, AuthorizedFamilyProfile } from '../s
 import { createAppointment as persistAppointmentRow } from '../../../services/health-data/appointmentsRepository';
 import { isSupabaseConfigured } from '../../../services/supabase/client';
 import { recordAIActivity } from '../../../services/auth/authorization';
+import { useOptionalAgent } from '../../../contexts/AgentContext';
 import type {
   AgentLanguage,
   AgentMessage,
@@ -39,7 +40,7 @@ import type {
   PatientProfile,
   RecoveryTrend,
 } from '../types';
-import { patientProfiles, recoverySeed } from '../data/mockData';
+import { patientProfiles as mockPatientProfiles, recoverySeed } from '../data/mockData';
 import {
   ACCEPTED_MIMES,
   detectDocumentKind,
@@ -220,19 +221,30 @@ export function useAgentConversation(): UseAgentConversation {
   const abortRef = useRef<AbortController | null>(null);
 
   const locationCtx = useOptionalLocationContext();
+  // Real, RLS-scoped patient profiles (self + authenticated family members)
+  // loaded by AgentContext. The AI family resolver and the profile switcher
+  // both read from this single source — never a fake/locally-invented set.
+  const agentCtx = useOptionalAgent();
+
+  // Single source of truth for patient/family profiles: the real RLS-scoped set
+  // loaded by AgentContext (self + authenticated family members) when present,
+  // otherwise the welcome/mock set. Real family rows are a superset of "self".
+  const realFamily = agentCtx?.patientProfiles ?? null;
+  const profiles: PatientProfile[] = realFamily && realFamily.length > 0 ? realFamily : mockPatientProfiles;
 
   // Authorized family profiles for the AI tool family-resolver (RLS-scoped:
-  // only profiles the authenticated user actually owns are candidates).
-  const familyProfiles = useMemo<AuthorizedFamilyProfile[]>(
-    () =>
-      (patientProfiles as PatientProfile[])
-        .filter((p) => p.id !== 'self')
-        .map((p) => ({ id: p.id, label: p.label, relation: p.relation })),
-    []
-  );
+  // only profiles the authenticated user actually owns are candidates). The "self"
+  // entry is excluded — family resolution is about OTHER members. `patientProfiles`
+  // is AgentContext state, so its identity changes only when membership changes.
+  const familyProfiles = useMemo<AuthorizedFamilyProfile[]>(() => {
+    const source = realFamily && realFamily.length > 0 ? realFamily : mockPatientProfiles;
+    return source
+      .filter((p) => p.id !== 'self')
+      .map((p) => ({ id: p.id, label: p.label, relation: p.relation }));
+  }, [realFamily]);
 
   const activeProfile = useMemo<PatientContext>(() => {
-    const profile = patientProfiles.find((p) => p.id === activeProfileId) ?? patientProfiles[0];
+    const profile = profiles.find((p) => p.id === activeProfileId) ?? profiles[0];
     const loc = locationCtx?.location;
     // Only pass coordinates when a real location is available (geolocation or
     // manual with coords). The default label-only location carries no lat/lng,
@@ -241,7 +253,7 @@ export function useAgentConversation(): UseAgentConversation {
       ? { label: loc.label, lat: loc.lat, lng: loc.lng }
       : undefined;
     return { activeProfileId: profile.id, profile, location };
-  }, [activeProfileId, locationCtx]);
+  }, [activeProfileId, locationCtx, profiles]);
 
   const addDocuments = useCallback((files: File[]): HealthDocument[] => {
     const valid: HealthDocument[] = [];
@@ -512,7 +524,7 @@ export function useAgentConversation(): UseAgentConversation {
     error,
     language,
     setLanguage,
-    patientProfiles,
+    patientProfiles: profiles,
     activeProfileId,
     setActiveProfileId,
     activeProfile,

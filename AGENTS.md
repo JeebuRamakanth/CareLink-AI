@@ -419,3 +419,113 @@ Single engine, never a second agent system. All AI goes through one gateway.
 - Gotchas: admin RPC tests assert persisted state as the harness owner (bypasses RLS —
   client roles never see those rows); `reviews` FK cascades on provider delete so the
   orphaned-review fixture drops the FK in the disposable test DB only.
+
+## Step 19 — Owner auth hierarchy completion + real owner login (VERIFIED)
+
+### Critical defects found & fixed (Step 18 was merged but NOT deployable)
+- **Two migrations numbered `0028_`** both defined `carelink_admin_global_search`
+  and `carelink_admin_stats` with INCOMPATIBLE shapes → the whole replay chain
+  aborted at `0028_step17_carelink_command_center.sql` (`cannot change return
+  type of existing function`). Fix: `0028_step17` now names its richer search
+  `carelink_admin_search_results(text,int,int)` (6-col shape) and its
+  `carelink_admin_stats` is merged into ONE superset definition (union of both
+  metric sets). `0028_ai_tools_search_reviews_infinite.sql` keeps the canonical
+  `carelink_admin_global_search`. `220_step17_command_center.sql` updated.
+- **`0029_step18_owner_auth_hierarchy.sql` had a syntax error** — two stray lines
+  (a lone `.` and a lone fullwidth period) inside `carelink_owner_bootstrap` →
+  the migration could never apply. Removed.
+- **AI response guardrail regex gap** — the secret pattern required
+  `(key|secret|…)` after `service[- ]?role`, so `service_role` leaked undetected.
+  Now matches `service[-_ ]?role|api[-_ ]?key|…`.
+
+### REAL privilege-escalation vulnerability (closed by migration `0030`)
+`carelink_admin_has_permission(p)` read
+`(not is_suspended() and has_permission(p)) or is_super_admin()` — precedence
+made it `(not suspended and has_permission) OR is_super_admin`, and
+`carelink_is_super_admin()` only checked role membership. A **SUSPENDED
+super_admin passed every admin gate**, and RLS policies on supervisor tables
+(ai_agents, appointment_types, patient_context_snapshots, …) used the
+status-blind predicate too.
+Fix (`supabase/migrations/0030_step19_owner_auth_hardening.sql`):
+- `carelink_is_super_admin()` / `carelink_is_admin()` now require an ACTIVE
+  account (suspended/disabled ⇒ false) — every RLS policy inherits it.
+- `carelink_has_permission()` gated on not-suspended.
+- `carelink_admin_has_permission()` de-parenthesized to
+  `not suspended and carelink_has_permission(p)`.
+- `carelink_has_permission_or_higher()` floor fixed: `super_admin` floor is
+  satisfied ONLY by super_admin (admin no longer passes).
+- Drops no grants (CREATE OR REPLACE preserves them; revoking from `anon` would
+  break the anon-evaluated RLS predicates).
+
+### Frontend role hierarchy (centralized — no scattered exact-role checks)
+`src/services/auth/authorization.ts` exports `ROLE_RANK` +
+`hasRoleOrHigher(user, requiredRole)`; `hasAdminRole`/`isSuperAdmin`/
+`hasPermission` delegate to it and fail for suspended/disabled accounts (mirrors
+the DB). Roles come ONLY from server-resolved `user.roles`
+(`carelink_current_user_roles`) — localStorage/URL/user_metadata are never
+authorization inputs.
+
+### Lane-aware login + audit
+- `AuthContext.signIn(email, password, lane?)` forwards the lane;
+  `recordLoginActivity(user, lane, meta)` records `admin_login_success` /
+  `super_admin_login_success` / `admin_login_denied` / `super_admin_login_denied`
+  / `suspended_login_denied` — the LANE, not the role, decides the event. `0030`
+  extends the DB vocabulary with the `*_login_denied` events.
+- `LoginPage` gates the destination on the lane and refuses suspended accounts.
+- Owner bootstrap: `admin-gateway` Edge Function `bootstrap` now calls the
+  self-only `carelink_owner_bootstrap(self_email)` instead of
+  `carelink_grant_role` (which required an existing super_admin — the
+  first-owner chicken-and-egg).
+
+### AI family-profile integration (real, RLS-scoped)
+- `familyRepository.resolveAuthorizedFamilyProfile(id)` calls the guarded RPC
+  `carelink_resolve_family_profile` (ownership firewall; NULL for non-owned ids).
+- `aiTools.getAuthorizedMedicalContext` resolves a `familyProfileId` through that
+  RPC — a spoofed family id never surfaces another user's data.
+- `useAgentConversation` reads patient/family profiles from `AgentContext`
+  (`useOptionalAgent`) instead of the hardcoded mock list, so the AI family
+  resolver and the profile switcher share ONE real source.
+- `searchPharmacies` / `searchLabs` tools now return real registry rows.
+
+### Tests / verification
+- New suite `supabase/tests/230_step19_owner_auth_hierarchy.sql`: hierarchy
+  floors, suspended escalation closure, owner bootstrap (first/idempotent/
+  second/spoofed/ordinary/anon/suspended), lane-audit vocabulary, AI guardrail.
+- Repaired latent test bugs surfaced now that the chain applies cleanly:
+  `210_ai_security_matrix.sql` used `from (update …) changed` (invalid SQL) and
+  ran the review/appointment tamper + owner-visibility checks under the wrong
+  role; `220_step17_command_center.sql` had a stray `)` (syntax), a malformed
+  donor-privacy predicate, a 30-vs-31 metric count, search calls needing the new
+  name, a `donor_profiles` owner-unique collision (E→D), and composite-row
+  `is not null` in the family-resolver check.
+- `scripts/verify-wiring.mjs` extended to 40 checks.
+- Results: build green (746 modules), lint green (18 pre-existing warnings, none
+  in Step 19 files), SQL **517 PASS / 0 FAIL** from clean replay, wiring 40/40.
+- Browser (mock mode, work host): patient register → `/profile`; direct `/admin`
+  URL as patient → "Administrative access denied"; **localStorage
+  `roles:["super_admin","admin"]` spoof → still denied** (roles re-resolved);
+  Super Admin lane as patient → "not authorized for Super Admin access … the
+  attempt has been recorded"; `/ai`, `/documents`, `/reviews`, `/appointments`
+  render cleanly.
+
+### BLOCKED (live Supabase required — cannot be faked)
+No Supabase URL/anon key, AI base URL, or Cloudinary creds exist in this
+environment, and the real owner account `ramakanthjeebu05@gmail.com` lives in
+the owner's Supabase project. The REAL owner Admin/Super-Admin-login E2E
+(TEST A–B) is **BLOCKED — LIVE SUPABASE ENVIRONMENT REQUIRED**; verified instead
+in mock mode at the UI + authorization layer and at the DB layer via the SQL
+suite. Owner-side steps to go live:
+1. Apply migrations through `0030` (`supabase db push` or SQL editor, in order).
+2. Set `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` (anon only) and
+   `SUPER_ADMIN_BOOTSTRAP_SECRET` on the `admin-gateway` function. NEVER put
+   `service_role` in `VITE_*`.
+3. Ensure the owner auth user exists (Supabase Auth UI / invite for
+   `ramakanthjeebu05@gmail.com` with the owner's real password — do NOT create a
+   duplicate). If it already exists, keep its UUID.
+4. Run the bootstrap once: sign in as the owner, then
+   `curl -X POST "$ADMIN_GATEWAY_URL" -H "Authorization: Bearer <owner JWT>" -H "x-bootstrap-secret: $SUPER_ADMIN_BOOTSTRAP_SECRET" -d '{"action":"bootstrap","email":"ramakanthjeebu05@gmail.com"}'`
+   → self-only, first-only, audited (`owner_bootstrap`). Then sign out/in so the
+   session picks up the fresh role row.
+5. Admin Login and Super Admin Login both work for the same account/password;
+   both land on `/admin` (admin floor; super_admin inherits).
+
