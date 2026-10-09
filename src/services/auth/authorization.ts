@@ -34,6 +34,12 @@ export type AccountStatus = 'active' | 'suspended' | 'disabled';
  */
 export async function loadUserAuthorization(user: CareLinkUser  | null): Promise<CareLinkUser | null> {
   if (!user) return null;
+  // DEV-ONLY test identity: never consult the backend for a synthetic user and
+  // never grant roles/permissions — a dev-test login must not inherit real
+  // admin/super-admin access even if localStorage were tampered with.
+  if (user.source === 'dev-test') {
+    return { ...user, accountStatus: 'active', roles: [], permissions: [] };
+  }
   if (!isSupabaseConfigured()) {
     return { ...user, accountStatus: 'active', roles: [], permissions: [] };
   }
@@ -90,6 +96,11 @@ export async function loadUserAuthorization(user: CareLinkUser  | null): Promise
 
 export function isSuspended(user: CareLinkUser | null): boolean {
   return user?.accountStatus === 'suspended' || user?.accountStatus === 'disabled';
+}
+
+/** True when the session is the isolated DEV-ONLY test identity. */
+export function isDevTestUser(user: CareLinkUser | null): boolean {
+  return user?.source === 'dev-test';
 }
 
 /**

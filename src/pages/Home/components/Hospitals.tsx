@@ -31,12 +31,14 @@ export function Hospitals() {
               </div>
               <div className="mt-auto flex items-center justify-between">
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="rounded-full border border-emerald-400/25 bg-emerald-500/12 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-emerald-200">
-                    Open
+                  <span className={`rounded-full border px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.16em] ${h.isOpen ? 'border-emerald-400/25 bg-emerald-500/12 text-emerald-200' : 'border-white/10 bg-white/5 text-ink-300'}`}>
+                    {h.isOpen ? 'Open' : 'Hours unlisted'}
                   </span>
-                  <DemoBadge />
+                  <DemoBadge>Sourced</DemoBadge>
                 </span>
-                <span className="text-[0.76rem] text-ink-400">{h.distanceKm} km · {h.estimatedTravelTimeMin} min</span>
+                <span className="text-[0.76rem] text-ink-400">
+                  {h.distanceKm > 0 ? `${h.distanceKm} km` : 'Distance unavailable'}
+                </span>
               </div>
               <Link to={`/hospitals/${h.detailSlug}`} className="inline-flex items-center gap-1.5 text-[0.82rem] font-semibold text-brand-200 transition hover:text-white">
                 View hospital <IconArrowRight width={14} height={14} aria-hidden />
@@ -55,7 +57,7 @@ export function Hospitals() {
           </span>
         </div>
         <SectionFootnote>
-          Distances and travel times are demo estimates from the mock discovery network, not live values.
+          Facilities are shown from the sourced CareLink directory for Machilipatnam. Distance is shown only when a verified location is available.
         </SectionFootnote>
       </SectionBox>
     </Section>

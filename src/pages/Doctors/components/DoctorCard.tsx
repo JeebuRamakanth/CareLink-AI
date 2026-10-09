@@ -57,13 +57,19 @@ export function DoctorCard({ doctor, className = '' }: DoctorCardProps) {
           )}
         </CardHeader>
         <div className="space-y-2 text-sm text-ink-300">
-          <p>{doctor.education[0] ?? 'Board-certified specialist'}</p>
-          <p>{doctor.years_of_experience} years of experience</p>
+          <p>{doctor.education[0] ?? 'Qualifications not listed'}</p>
+          <p>{doctor.years_of_experience > 0 ? `${doctor.years_of_experience} years of experience` : 'Experience not listed'}</p>
           <p>{doctor.location}</p>
           <div className="flex flex-wrap items-center gap-2">
             <span>★ {doctor.rating.toFixed(1)}</span>
             <span className="text-ink-500">•</span>
             <span>({doctor.review_count} reviews)</span>
+            {!doctor.is_verified ? (
+              <>
+                <span className="text-ink-500">•</span>
+                <span className="text-ink-400">Unverified listing</span>
+              </>
+            ) : null}
           </div>
         </div>
         <CardActions>

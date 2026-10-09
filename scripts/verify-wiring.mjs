@@ -103,7 +103,7 @@ check(
 );
 check(
   'reviews: composer mounted on hospital detail page',
-  hospPage.includes('<ReviewComposer target={{ kind: \'hospital\', id: hospital.id }}'),
+  hospPage.includes("<ReviewComposer target={{ kind: 'hospital', id: effectiveHospital.id }}"),
   'HospitalDetailsPage must render ReviewComposer'
 );
 
@@ -273,6 +273,56 @@ check(
   'ai: chat hook uses real RLS-scoped family profiles (no fake set)',
   has('src/features/health-agent/hooks/useAgentConversation.ts', 'useOptionalAgent'),
   'useAgentConversation must read family profiles from AgentContext'
+);
+
+// --- Step 21: Machilipatnam directory + review eligibility + dev test auth ---
+check(
+  'directory: Machilipatnam hospital data present with provenance',
+  has('src/data/hospitals.ts', 'Machilipatnam') &&
+    has('src/data/hospitals.ts', 'provenance') &&
+    has('src/data/hospitals.ts', 'krishna.ap.gov.in'),
+  'src/data/hospitals.ts must carry sourced Machilipatnam facilities + provenance'
+);
+check(
+  'directory: Machilipatnam doctor data present with provenance',
+  has('src/data/doctors.ts', 'Machilipatnam') && has('src/data/doctors.ts', 'provenance'),
+  'src/data/doctors.ts must carry sourced Machilipatnam doctors + provenance'
+);
+check(
+  'directory: no fabricated ratings in the directory data',
+  !/rating:\s*[1-4]/.test(read('src/data/hospitals.ts')) &&
+    !/rating:\s*[1-4]/.test(read('src/data/doctors.ts')),
+  'directory ratings must be 0 until real eligible reviews exist'
+);
+check(
+  'directory: hospital card does not fabricate a doctor count',
+  !has('src/pages/Hospitals/components/HospitalCard.tsx', 'Math.max(8,') ,
+  'HospitalCard must not invent a doctors count'
+);
+check(
+  'db: Machilipatnam directory migration exists',
+  has('supabase/migrations/0031_step21_machilipatnam_directory.sql', 'mph-district-hospital-machilipatnam') &&
+    has('supabase/migrations/0031_step21_machilipatnam_directory.sql', 'THIRD_PARTY_DIRECTORY'),
+  'migration 0031 must seed the sourced directory with honest data_status'
+);
+check(
+  'db: review eligibility enforced by a trigger',
+  has('supabase/migrations/0032_step21_review_eligibility.sql', 'carelink_review_eligibility') &&
+    has('supabase/migrations/0032_step21_review_eligibility.sql', 'appointment is not completed'),
+  'migration 0032 must require a completed appointment on review insert'
+);
+check(
+  'auth: dev test login is double-gated (DEV build + explicit opt-in)',
+  has('src/config/env.ts', 'VITE_ENABLE_DEV_TEST_AUTH') &&
+    has('src/config/env.ts', 'raw.DEV === true') &&
+    has('src/services/auth/devTestAuth.ts', 'isDevTestAuthEnabled'),
+  'dev test auth must require import.meta.env.DEV AND an explicit env opt-in'
+);
+check(
+  'auth: dev test identity never inherits roles',
+  has('src/services/auth/authorization.ts', "user.source === 'dev-test'") &&
+    has('src/services/auth/devTestAuth.ts', 'roles: []'),
+  'dev-test user must resolve to empty roles and skip backend role lookup'
 );
 
 console.log(`\nCareLink wiring audit — ${checks.length} checks`);

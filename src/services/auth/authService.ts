@@ -17,6 +17,7 @@
 import { env } from '../../config';
 import { log } from '../../lib/security';
 import { getSupabaseClient, isSupabaseConfigured } from '../supabase/client';
+import { authenticateDevTestUser, isDevTestAuthEnabled } from './devTestAuth';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export interface CareLinkUser {
@@ -24,8 +25,11 @@ export interface CareLinkUser {
   email: string;
   /** Display name from profile if available. */
   displayName?: string;
-  /** Whether this session came from a real provider or local mock mode. */
-  source: 'supabase' | 'mock';
+  /**
+   * Whether this session came from a real provider, local mock mode, or the
+   * isolated DEV TEST identity (dev-only; never available in production).
+   */
+  source: 'supabase' | 'mock' | 'dev-test';
   /** Server-side account status ('active' | 'suspended' | 'disabled'| null when no profile. */
   accountStatus?: 'active' | 'suspended' | 'disabled';
   /** Server-side role codes ('admin', 'super_admin'…) resolved from the trusted DB. */
@@ -36,7 +40,7 @@ export interface CareLinkUser {
 
 export interface AuthSession {
   user: CareLinkUser | null;
-  source: 'supabase' | 'mock' | 'none';
+  source: 'supabase' | 'mock' | 'dev-test' | 'none';
 }
 
 export interface AuthResult {
@@ -132,6 +136,19 @@ export async function waitForAuthSession(
  */
 export async function signIn(email: string, password: string): Promise<{ result?: AuthResult; error?: AuthError }> {
   const cleanEmail = email.trim().toLowerCase();
+
+  // DEV-ONLY test identities (isolated; no real privileges). Checked first so a
+  // simple identifier like "abcd" need not be a valid email. In a production
+  // build `isDevTestAuthEnabled()` is always false, so this branch is dead.
+  if (isDevTestAuthEnabled()) {
+    const devUser = authenticateDevTestUser(email, password);
+    if (devUser) {
+      persistDevTestSession(devUser);
+      log.info('auth', 'dev-test signin', { id: devUser.id });
+      return { result: { user: devUser } };
+    }
+  }
+
   if (!isValidEmail(cleanEmail) || !password) {
     return { error: safeError('Please check your email and password.', 'invalid-credentials') };
   }
@@ -169,6 +186,7 @@ export async function signOut(): Promise<void> {
     }
   }
   clearMockSession();
+  clearDevTestSession();
 }
 
 /**
@@ -177,6 +195,14 @@ export async function signOut(): Promise<void> {
  * from the provider.
  */
 export async function restoreSession(): Promise<AuthSession> {
+  // DEV-ONLY: a persisted dev-test identity restores first (works even when a
+  // backend is configured, so testers can exercise the real app shell without
+  // holding a real account). Never active in a production build.
+  if (isDevTestAuthEnabled()) {
+    const devUser = readDevTestSession();
+    if (devUser) return { user: devUser, source: 'dev-test' };
+  }
+
   if (!isSupabaseConfigured()) {
     const user = readMockSession();
     return { user, source: user ? 'mock' : 'none' };
@@ -331,4 +357,38 @@ function createMockId(): string {
   return `mock-${Math.random().toString(36).slice(2)}-${Date.now().toString(36)}`;
 }
 
-export const authDebug = { isMockMode: () => env.supabase.configured === false };
+// --- Dev-only test session storage (separate key; never a production path) ---
+const DEV_TEST_USER_KEY = 'carelink_ai_dev_test_auth_user';
+
+function persistDevTestSession(user: CareLinkUser): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(DEV_TEST_USER_KEY, JSON.stringify(user));
+  } catch {
+    // ignore
+  }
+}
+
+function readDevTestSession(): CareLinkUser | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(DEV_TEST_USER_KEY);
+    return raw ? (JSON.parse(raw) as CareLinkUser) : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearDevTestSession(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.removeItem(DEV_TEST_USER_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+export const authDebug = {
+  isMockMode: () => env.supabase.configured === false,
+  isDevTestAuthEnabled,
+};

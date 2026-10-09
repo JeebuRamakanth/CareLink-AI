@@ -19,6 +19,7 @@ import { ROUTES } from '../../routes/routeConstants';
 import { preventDefaultSubmit } from './authFormUtils';
 import { isSupabaseConfigured } from '../../services/supabase/client';
 import { hasAdminRole, isSuperAdmin, isSuspended, recordDeniedAdminAccess } from '../../services/auth/authorization';
+import { env } from '../../config';
 import { cn } from '../../components/common/cn';
 
 /** Login lanes are INTENT ONLY — never authorization. The server verifies the
@@ -74,6 +75,7 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const demoMode = isMockMode || !isSupabaseConfigured();
+  const devTestEnabled = env.devTestAuth.enabled;
   const adminIntent = useMemo(() => {
     const params = new URLSearchParams(location.search);
     const v = params.get('intent');
@@ -250,6 +252,22 @@ export function LoginPage() {
             </div>
           ) : null}
         </div>
+
+        {/* DEV-ONLY test-identity hint. Rendered only when the build opted in
+            (VITE_ENABLE_DEV_TEST_AUTH=true in a dev build). Never in prod. */}
+        {devTestEnabled ? (
+          <div
+            role="status"
+            className="mb-5 flex items-start gap-3 rounded-[var(--radius-lg)] border border-brand-400/30 bg-brand-500/10 px-4 py-3 text-xs leading-5 text-brand-100"
+          >
+            <span className="mt-0.5 inline-flex h-2 w-2 shrink-0 rounded-full bg-brand-300" aria-hidden />
+            <span>
+              <span className="font-semibold text-white">Dev test login:</span>{' '}
+              sign in with <span className="font-mono text-white">abcd</span> / <span className="font-mono text-white">1234</span>.
+              This is an isolated local test identity with no real account or privileges and is disabled in production builds.
+            </span>
+          </div>
+        ) : null}
 
         {laneDenied ? (
           <div

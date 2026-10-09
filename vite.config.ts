@@ -31,6 +31,8 @@ export default defineConfig({
       "work-2-crsryonekndqocml.prod-runtime.all-hands.dev",
       "work-1-dzxvhyaqsevvklre.prod-runtime.all-hands.dev",
       "work-2-dzxvhyaqsevvklre.prod-runtime.all-hands.dev",
+      "work-1-dftqicztbwppqixm.prod-runtime.all-hands.dev",
+      "work-2-dftqicztbwppqixm.prod-runtime.all-hands.dev",
     ],
   },
 });

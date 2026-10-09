@@ -41,6 +41,13 @@ const LAB_SEARCH_BASE_URL = str('VITE_LAB_SEARCH_BASE_URL');
 const DOCUMENT_ANALYSIS_BASE_URL = str('VITE_DOCUMENT_ANALYSIS_BASE_URL');
 const MEDICINE_INTELLIGENCE_BASE_URL = str('VITE_MEDICINE_INTELLIGENCE_BASE_URL');
 
+// Dev-only authentication test mode (Phase 9). BOTH gates must hold:
+//   1. the build is a development build (import.meta.env.DEV), AND
+//   2. the operator explicitly opted in with VITE_ENABLE_DEV_TEST_AUTH=true.
+// A production build has DEV === false, so this can never activate in prod —
+// and a browser-supplied flag alone cannot turn it on (it is read at build time).
+const DEV_TEST_AUTH_FLAG = str('VITE_ENABLE_DEV_TEST_AUTH');
+
 export const env = {
   mode: raw.MODE ?? (import.meta.env.DEV ? 'development' : 'production'),
   apiBaseUrl: API_BASE_URL,
@@ -81,6 +88,11 @@ export const env = {
 
   documents: { baseUrl: DOCUMENT_ANALYSIS_BASE_URL, configured: DOCUMENT_ANALYSIS_BASE_URL.length > 0 },
   medicine: { baseUrl: MEDICINE_INTELLIGENCE_BASE_URL, configured: MEDICINE_INTELLIGENCE_BASE_URL.length > 0 },
+
+  // Dev-only test login. Enabled only in a DEV build with an explicit opt-in.
+  devTestAuth: {
+    enabled: (raw.DEV === true) && DEV_TEST_AUTH_FLAG.toLowerCase() === 'true',
+  },
 } as const;
 
 export type Env = typeof env;

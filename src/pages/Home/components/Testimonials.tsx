@@ -7,7 +7,7 @@ import { SectionBox } from './homePrimitives';
 
 export function Testimonials() {
   return (
-    <Section title="What patients say" description="Verified voices from the CareLink.AI community." eyebrow="Voices">
+    <Section title="What patients say" description="How patient voices appear on CareLink. The examples below are clearly labelled samples." eyebrow="Voices">
       <SectionBox className="min-h-[220px]">
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {featuredReviews.map((r) => (
@@ -26,9 +26,13 @@ export function Testimonials() {
               <div className="mt-auto flex items-center justify-between border-t border-white/5 pt-3">
                 <span className="text-[0.76rem] text-ink-300">
                   {r.patient_name}
-                  {r.patient_verified && (
+                  {r.patient_verified ? (
                     <span className="ml-1.5 rounded-full border border-emerald-400/25 bg-emerald-500/12 px-2 py-0.5 text-[0.62rem] font-semibold uppercase tracking-[0.16em] text-emerald-200">
                       Verified
+                    </span>
+                  ) : (
+                    <span className="ml-1.5 rounded-full border border-amber-400/25 bg-amber-500/10 px-2 py-0.5 text-[0.62rem] font-semibold uppercase tracking-[0.16em] text-amber-200">
+                      Sample
                     </span>
                   )}
                 </span>

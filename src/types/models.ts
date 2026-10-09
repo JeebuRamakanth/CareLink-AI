@@ -13,6 +13,30 @@ export interface BaseEntity {
   status: string;
 }
 
+/**
+ * Honest provenance for directory records. Distinguishes officially verified
+ * data from provider-supplied, third-party directory, and development fixtures
+ * so the UI never presents a third-party listing as verified.
+ */
+export type DataStatus =
+  | 'VERIFIED'
+  | 'PROVIDER_LISTED'
+  | 'SOURCE_LISTED'
+  | 'THIRD_PARTY_DIRECTORY'
+  | 'DEVELOPMENT_SEED';
+
+export interface DataProvenance {
+  /** Who/what produced the record, e.g. 'krishna.ap.gov.in', 'star-health'. */
+  data_source: string;
+  /** Public URL of the source the record was derived from (when available). */
+  source_url?: string;
+  /** Provider-specific external id / reference (when available). */
+  source_ref?: string;
+  /** When the record was last fetched/derived from the source (ISO date). */
+  fetched_at?: string;
+  data_status: DataStatus;
+}
+
 export interface Hospital extends BaseEntity {
   status: EntityStatus;
   name: string;
@@ -50,6 +74,7 @@ export interface Hospital extends BaseEntity {
   tags?: string[];
   is_verified?: boolean;
   doctor_count?: number;
+  provenance?: DataProvenance;
 }
 
 export interface HospitalFilters {
@@ -95,6 +120,7 @@ export interface Doctor extends BaseEntity {
   image_url?: string;
   next_available_at?: string;
   license_number?: string;
+  provenance?: DataProvenance;
 }
 
 export interface DoctorFilters {

@@ -1,3 +1,5 @@
+import { hospitalsData } from '../../../data/hospitals';
+
 export type DoctorReviewFilterOption =
   | 'All'
   | '5 Star'
@@ -79,6 +81,7 @@ export interface DoctorHospitalConnection {
   address: string;
   role: string;
   hours: string;
+  verified?: boolean;
 }
 
 export interface DoctorProfile {
@@ -524,4 +527,95 @@ export const doctorProfiles: DoctorProfile[] = [
 export function getDoctorProfileById(id: string | undefined) {
   if (!id) return null;
   return doctorProfiles.find((profile) => profile.id === id) ?? null;
+}
+
+/**
+ * Build a doctor profile view from a Doctor directory record (Supabase registry
+ * or the sourced Machilipatnam fallback data). Lets the EXISTING profile page
+ * render any real directory doctor without a second, hand-authored dataset.
+ * Nothing is invented: qualifications/experience/fees that a source did not
+ * publish stay empty, and an unverified directory listing carries an honest
+ * "not verified" match note.
+ */
+export function buildDoctorProfileFromDirectory(doctor: import('../../../types').Doctor): DoctorProfile {
+  const initials = doctor.full_name
+    .split(/\s+/)
+    .map((part) => part.charAt(0))
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+
+  const primaryHospitalId = doctor.hospital_ids?.[0] ?? '';
+  const hospitalById = new Map(hospitalsData.map((h) => [h.id, h]));
+  const linkedHospitals = (doctor.hospital_ids ?? []).map((id) => hospitalById.get(id)).filter((h): h is NonNullable<typeof h> => Boolean(h));
+  const hospitalNames = linkedHospitals.map((h) => h.name);
+  const primaryHospital = linkedHospitals[0];
+  const hospitalName = primaryHospital?.name ?? doctor.city ?? '';
+
+  return {
+    id: doctor.id,
+    name: doctor.full_name,
+    specialty: doctor.specialty,
+    subSpecialty: (doctor.sub_specialties ?? []).join(', '),
+    profileInitials: initials,
+    yearsExperience: doctor.years_of_experience ?? 0,
+    rating: doctor.rating ?? 0,
+    totalReviews: doctor.review_count ?? 0,
+    verified: Boolean(doctor.is_verified),
+    imageUrl: doctor.image_url,
+    hospitalAffiliation: hospitalName,
+    hospitalId: primaryHospitalId,
+    availabilityStatus: 'Availability unlisted',
+    nextAvailable: '',
+    consultationFee: 'Fee unlisted',
+    location: doctor.location,
+    languages: doctor.languages ?? [],
+    profileMatch: doctor.is_verified
+      ? undefined
+      : {
+          score: 0,
+          label: 'Directory listing',
+          disclaimer: 'This is an imported public directory listing, not a verified match score. Credentials are pending verification.',
+          tags: [],
+          description: doctor.bio,
+        },
+    profileSummary: doctor.bio,
+    education: doctor.education ?? [],
+    qualifications: [],
+    certifications: [],
+    specializations: [doctor.specialty, ...(doctor.sub_specialties ?? [])].filter(Boolean),
+    expertiseAreas: doctor.sub_specialties ?? [],
+    hospitalsWorkedWith: hospitalNames,
+    memberships: [],
+    consultationModes: doctor.consultation_modes ?? [],
+    professionalHighlights: [],
+    performanceMetrics: [],
+    expertiseList: [],
+    starBreakdown: [],
+    categoryRatings: [],
+    reviews: [],
+    availabilitySlots: [],
+    consultationInfo: {
+      fee: 'Fee unlisted',
+      duration: '',
+      modes: doctor.consultation_modes ?? [],
+      inPerson: '',
+      online: '',
+      location: hospitalName,
+      mockDisclaimer: '',
+    },
+    hospitalConnection: {
+      id: primaryHospitalId,
+      name: hospitalName,
+      rating: primaryHospital?.rating ?? 0,
+      location: primaryHospital?.city ?? doctor.city,
+      specialties: primaryHospital?.specialties ?? doctor.sub_specialties ?? [],
+      distance: '',
+      address: primaryHospital ? [primaryHospital.address, primaryHospital.city, primaryHospital.state].filter(Boolean).join(', ') : '',
+      role: 'Associated hospital',
+      hours: primaryHospital?.facilities?.twenty_four_hours ? 'Open 24x7' : '',
+      verified: Boolean(primaryHospital?.is_verified),
+    },
+    relatedDoctors: [],
+  };
 }

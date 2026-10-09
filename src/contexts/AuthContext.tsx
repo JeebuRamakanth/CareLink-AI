@@ -39,7 +39,7 @@ import type { LoginLane } from '../services/auth/authorization';
 
 export interface AuthState {
   user: CareLinkUser | null;
-  source: 'supabase' | 'mock' | 'none';
+  source: 'supabase' | 'mock' | 'dev-test' | 'none';
   initializing: boolean;
   error: AuthError | null;
   isMockMode: boolean;

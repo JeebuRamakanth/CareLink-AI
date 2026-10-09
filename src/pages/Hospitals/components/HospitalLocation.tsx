@@ -137,7 +137,7 @@ export function HospitalLocation({
               <div className="rounded-[1.5rem] border border-white/10 bg-slate-950/80 p-4 text-sm text-ink-300">
                 <p className="text-ink-400">Distance</p>
                 <p className="mt-2 text-white">
-                  {hospital.distanceKm.toFixed(1)} km
+                  {hospital.distanceKm > 0 ? `${hospital.distanceKm.toFixed(1)} km` : 'Distance unavailable'}
                 </p>
               </div>
             </div>

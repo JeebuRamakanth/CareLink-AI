@@ -52,8 +52,10 @@ export function DoctorHero({ doctor, onBack }: DoctorHeroProps) {
                 </div>
                 <div className="rounded-[1.5rem] border border-white/10 bg-slate-950/75 p-4">
                   <p className="text-sm uppercase tracking-[0.24em] text-ink-300">Professional status</p>
-                  <p className="mt-2 text-xl font-semibold text-white">Verified specialist</p>
-                  <p className="mt-1 text-sm text-ink-400">Affiliated with {doctor.hospitalAffiliation}</p>
+                  <p className="mt-2 text-xl font-semibold text-white">{doctor.verified ? 'Verified specialist' : 'Unverified listing'}</p>
+                  <p className="mt-1 text-sm text-ink-400">
+                    {doctor.hospitalAffiliation ? `Affiliated with ${doctor.hospitalAffiliation}` : 'Hospital affiliation unlisted'}
+                  </p>
                 </div>
               </div>
             </div>

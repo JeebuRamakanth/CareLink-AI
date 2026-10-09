@@ -9,6 +9,7 @@ type HospitalConnectionProps = {
     rating: number;
     location: string;
     specialties: string[];
+    verified?: boolean;
   };
   onViewHospital: () => void;
   onGetDirections: () => void;
@@ -30,7 +31,7 @@ export function HospitalConnection({ hospital, onViewHospital, onGetDirections }
             <p className="text-sm uppercase tracking-[0.28em] text-brand-200">Hospital connection</p>
             <h2 className="mt-3 text-2xl font-semibold text-white">Practice location and affiliation</h2>
           </div>
-          <Badge tone="success">Hospital verified</Badge>
+          <Badge tone={hospital.verified ? 'success' : 'neutral'}>{hospital.verified ? 'Hospital verified' : 'Directory listing'}</Badge>
         </div>
 
         <div className="rounded-[1.75rem] border border-white/10 bg-slate-950/80 p-5">

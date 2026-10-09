@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Container } from '../../components/ui/Container';
 import { Button } from '../../components/ui/Button';
@@ -22,15 +22,42 @@ import { HospitalConnection } from './components/HospitalConnection';
 import { RelatedDoctors } from './components/RelatedDoctors';
 import { DoctorBookingModal } from './components/DoctorBookingModal';
 import { AppointmentSuccessModal } from '../Appointments/components/AppointmentSuccessModal';
-import { getDoctorProfileById, doctorReviewFilters } from './data/doctorProfileData';
+import { getDoctorProfileById, doctorReviewFilters, buildDoctorProfileFromDirectory } from './data/doctorProfileData';
 import type { DoctorReviewFilterOption } from './data/doctorProfileData';
+import { getDoctorById } from '../../services/doctorService';
 import type { AppointmentRecord } from '../Appointments/data/appointmentsData';
 import { ROUTES } from '../../routes/routeConstants';
 
 export function DoctorProfilePage() {
   const { doctorId } = useParams<{ doctorId: string }>();
   const navigate = useNavigate();
-  const doctor = useMemo(() => getDoctorProfileById(doctorId), [doctorId]);
+  const previewDoctor = useMemo(() => getDoctorProfileById(doctorId), [doctorId]);
+  const [directoryDoctor, setDirectoryDoctor] = useState<ReturnType<typeof buildDoctorProfileFromDirectory> | null>(null);
+
+  // Fallback: an id that is not a hand-authored preview profile is resolved from
+  // the real directory (Supabase registry or sourced Machilipatnam fallback) and
+  // adapted to the SAME profile shape so the existing UI renders it.
+  useEffect(() => {
+    let cancelled = false;
+    if (!doctorId || previewDoctor) {
+      setDirectoryDoctor(null);
+      return;
+    }
+    (async () => {
+      try {
+        const real = await getDoctorById(doctorId);
+        if (cancelled) return;
+        setDirectoryDoctor(real ? buildDoctorProfileFromDirectory(real) : null);
+      } catch {
+        if (!cancelled) setDirectoryDoctor(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [doctorId, previewDoctor]);
+
+  const doctor = previewDoctor ?? directoryDoctor ?? null;
   const [selectedReviewFilter, setSelectedReviewFilter] = useState<DoctorReviewFilterOption>('All');
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [isBookingOpen, setIsBookingOpen] = useState(false);

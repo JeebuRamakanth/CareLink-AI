@@ -687,3 +687,48 @@ export const hospitalDetails: HospitalDetail[] = [
 export function getHospitalDetailById(id: string) {
   return hospitalDetails.find((hospital) => hospital.id === id);
 }
+
+/**
+ * Build a detail view from a Hospital directory record (the Supabase registry or
+ * the sourced Machilipatnam fallback data). This lets the EXISTING detail page
+ * render any real directory hospital without a second, hand-authored dataset —
+ * it never invents facts: missing figures stay 0/empty and the UI shows its
+ * honest "unavailable"/"unlisted" states.
+ */
+export function buildHospitalDetailFromDirectory(hospital: import('../../../types').Hospital): HospitalDetail {
+  const location = [hospital.address, hospital.city, hospital.state].filter(Boolean).join(', ');
+  return {
+    id: hospital.id,
+    name: hospital.name,
+    type: hospital.type,
+    location: location || hospital.city,
+    address: hospital.address,
+    phone: hospital.phone ?? '',
+    rating: hospital.rating ?? 0,
+    reviewCount: hospital.review_count ?? 0,
+    verified: Boolean(hospital.is_verified),
+    mainSpecialties: hospital.specialties ?? [],
+    emergencyAvailable: Boolean(hospital.facilities?.emergency),
+    consultationAvailability: hospital.availability_status ?? '',
+    distanceKm: hospital.distance_km ?? 0,
+    about: hospital.description ?? '',
+    yearsInService: 0,
+    departments: hospital.departments ?? [],
+    specialties: hospital.specialties ?? [],
+    facilities: [
+      ...(hospital.facilities?.emergency ? ['Emergency'] : []),
+      ...(hospital.facilities?.icu ? ['ICU'] : []),
+      ...(hospital.facilities?.ambulance ? ['Ambulance'] : []),
+      ...(hospital.facilities?.blood_bank ? ['Blood Bank'] : []),
+      ...(hospital.facilities?.parking ? ['Parking'] : []),
+      ...(hospital.facilities?.twenty_four_hours ? ['24x7'] : []),
+      ...(hospital.facilities?.telehealth ? ['Telehealth'] : []),
+    ],
+    patientExperienceIndicators: [],
+    starBreakdown: [],
+    categoryRatings: [],
+    reviews: [],
+    doctors: [],
+    specialtyDiscovery: [],
+  };
+}
