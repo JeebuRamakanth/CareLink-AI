@@ -66,7 +66,7 @@ function EyeIcon({ visible }: { visible: boolean }) {
 }
 
 export function LoginPage() {
-  const { signIn, user, initializing, error, isMockMode, clearError, requestPasswordReset } = useAuth();
+  const { signIn, signOut, user, initializing, error, isMockMode, clearError, requestPasswordReset } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [email, setEmail] = useState('');
@@ -137,6 +137,11 @@ export function LoginPage() {
     setSubmitting(false);
     if (!result.ok) return;
     if (result.laneDenied) {
+      // Authentication succeeded, but this account is not authorized for the
+      // selected administrative lane. Clear the newly-created session before
+      // leaving the login page so a denied lane cannot retain a hidden session
+      // that later changes behavior when the lane/URL changes.
+      await signOut();
       setLaneDenied(true);
       return;
     }
