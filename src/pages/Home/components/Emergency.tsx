@@ -49,19 +49,21 @@ export function Emergency() {
                 </p>
                 <div className="flex items-center justify-between">
                   <span className="inline-flex items-center gap-1.5">
-                    <span className="rounded-full border border-emerald-400/25 bg-emerald-500/12 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-emerald-200">
-                      Open
+                    <span className={`rounded-full border px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.16em] ${h.isOpen ? 'border-emerald-400/25 bg-emerald-500/12 text-emerald-200' : 'border-white/10 bg-white/5 text-ink-300'}`}>
+                      {h.isOpen ? 'Open' : 'Hours unlisted'}
                     </span>
-                    <DemoBadge />
+                    <DemoBadge>Sourced</DemoBadge>
                   </span>
-                  <span className="text-[0.74rem] text-ink-400">{h.distanceKm} km · {h.estimatedTravelTimeMin} min</span>
+                  <span className="text-[0.74rem] text-ink-400">
+                    {h.distanceKm > 0 ? `${h.distanceKm} km` : 'Distance unavailable'}
+                  </span>
                 </div>
               </li>
             ))}
           </ul>
         </div>
         <SectionFootnote>
-          Distances and travel times are demo estimates from the mock discovery network, not live values. Always confirm with the facility.
+          Emergency-capable facilities from the sourced CareLink directory. Contact the facility or local emergency services to confirm availability.
         </SectionFootnote>
       </SectionBox>
     </Section>

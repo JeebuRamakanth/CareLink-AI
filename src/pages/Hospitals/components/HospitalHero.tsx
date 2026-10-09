@@ -24,9 +24,9 @@ export function HospitalHero({ hospital, onBack }: HospitalHeroProps) {
             <Button variant="secondary" size="sm" onClick={onBack}>
               Back to Reviews
             </Button>
-            <Badge tone="brand">Verified hospital</Badge>
+            <Badge tone={hospital.verified ? 'brand' : 'neutral'}>{hospital.verified ? 'Verified hospital' : 'Directory listing'}</Badge>
             {hospital.emergencyAvailable && <Badge tone="accent">24/7 emergency</Badge>}
-            <Badge tone="neutral">{hospital.distanceKm.toFixed(1)} km away</Badge>
+            <Badge tone="neutral">{hospital.distanceKm > 0 ? `${hospital.distanceKm.toFixed(1)} km away` : 'Distance unavailable'}</Badge>
           </div>
 
           <div className="space-y-4">
@@ -35,7 +35,10 @@ export function HospitalHero({ hospital, onBack }: HospitalHeroProps) {
               {hospital.name}
             </h1>
             <p className="text-base leading-8 text-ink-300">
-              {hospital.type} in {hospital.location} with premium specialty care and modern patient experience pathways.
+              {hospital.type} in {hospital.location}
+              {hospital.verified
+                ? ' with premium specialty care and modern patient experience pathways.'
+                : '. Listed in the CareLink directory; details are shown as published by the source.'}
             </p>
           </div>
 
@@ -66,24 +69,28 @@ export function HospitalHero({ hospital, onBack }: HospitalHeroProps) {
           <div className="relative space-y-6">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-sm uppercase tracking-[0.28em] text-ink-400">Premium care</p>
-                <p className="mt-2 text-lg font-semibold text-white">Global hospital experience</p>
+                <p className="text-sm uppercase tracking-[0.28em] text-ink-400">{hospital.verified ? 'Premium care' : 'Directory listing'}</p>
+                <p className="mt-2 text-lg font-semibold text-white">{hospital.verified ? 'Global hospital experience' : 'Sourced facility record'}</p>
               </div>
               <div className="rounded-3xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-ink-200">
-                {hospital.yearsInService}+ years
+                {hospital.yearsInService > 0 ? `${hospital.yearsInService}+ years` : 'Years unlisted'}
               </div>
             </div>
 
             <div className="grid gap-3 rounded-[1.75rem] border border-white/10 bg-slate-950/80 p-5">
               <p className="text-sm uppercase tracking-[0.3em] text-ink-400">Patient experience</p>
-              <div className="space-y-3">
-                {hospital.patientExperienceIndicators.map((item) => (
-                  <div key={item.label} className="flex items-center justify-between gap-4 text-sm text-ink-300">
-                    <span>{item.label}</span>
-                    <span className="font-semibold text-white">{item.value}</span>
-                  </div>
-                ))}
-              </div>
+              {hospital.patientExperienceIndicators.length > 0 ? (
+                <div className="space-y-3">
+                  {hospital.patientExperienceIndicators.map((item) => (
+                    <div key={item.label} className="flex items-center justify-between gap-4 text-sm text-ink-300">
+                      <span>{item.label}</span>
+                      <span className="font-semibold text-white">{item.value}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-ink-400">Experience indicators are not published for this facility.</p>
+              )}
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">

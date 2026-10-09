@@ -14,10 +14,13 @@ import { HospitalSpecialties } from './components/HospitalSpecialties';
 import { HospitalDoctorPreview } from './components/HospitalDoctorPreview';
 import { HospitalLocation } from './components/HospitalLocation';
 import { fetchRealDoctorsByHospital } from '../../services/health-data';
+import { getDoctors } from '../../services/doctorService';
+import { doctorsData } from '../../data/doctors';
 import { ReviewComposer } from '../../components/reviews/ReviewComposer';
 import { buildTelHref } from '../../lib/location';
-import { getHospitalDetailById } from './data/hospitalDetailsData';
+import { getHospitalDetailById, buildHospitalDetailFromDirectory } from './data/hospitalDetailsData';
 import type { HospitalDoctorItem, HospitalDoctorTopic, ReviewFilterOption } from './data/hospitalDetailsData';
+import { getHospitalById } from '../../services/hospitalService';
 import { ROUTES } from '../../routes/routeConstants';
 
 const doctorTopics: HospitalDoctorTopic[] = ['All', 'Cardiology', 'Diabetes', 'Neurology', 'Migraine', 'Orthopedics'];
@@ -53,26 +56,54 @@ export function HospitalDetailsPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const hospital = useMemo(() => (hospitalId ? getHospitalDetailById(hospitalId) : undefined), [hospitalId]);
-  const doctorsSectionRef = useRef<HTMLDivElement | null>(null);
-  const locationSectionRef = useRef<HTMLDivElement | null>(null);
-  const [liveDoctors, setLiveDoctors] = useState<HospitalDoctorItem[]>([]);
-  const [liveDoctorsLoaded, setLiveDoctorsLoaded] = useState(false);
+  const [directoryHospital, setDirectoryHospital] = useState<ReturnType<typeof buildHospitalDetailFromDirectory> | null>(null);
 
+  // Fallback: when the id is not one of the hand-authored preview details, look
+  // it up in the real directory (Supabase registry or sourced Machilipatnam
+  // fallback) and adapt it to the SAME detail shape so the existing UI renders.
   useEffect(() => {
     let cancelled = false;
-    if (!hospitalId) {
-      setLiveDoctorsLoaded(true);
+    if (!hospitalId || hospital) {
+      setDirectoryHospital(null);
       return;
     }
     (async () => {
       try {
+        const real = await getHospitalById(hospitalId);
+        if (cancelled) return;
+        setDirectoryHospital(real ? buildHospitalDetailFromDirectory(real) : null);
+      } catch {
+        if (!cancelled) setDirectoryHospital(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [hospitalId, hospital]);
+
+  const effectiveHospital = hospital ?? directoryHospital ?? undefined;
+  const doctorsSectionRef = useRef<HTMLDivElement | null>(null);
+  const locationSectionRef = useRef<HTMLDivElement | null>(null);
+  const [liveDoctors, setLiveDoctors] = useState<HospitalDoctorItem[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!hospitalId) return;
+    (async () => {
+      try {
         const real = await fetchRealDoctorsByHospital(hospitalId);
         if (cancelled) return;
-        setLiveDoctors(real.map(toHospitalDoctorItem));
+        if (real.length > 0) {
+          setLiveDoctors(real.map(toHospitalDoctorItem));
+        } else {
+          // Local/no-backend fallback: show only doctors EXPLICITLY linked to
+          // this hospital in the directory data (never by name/city matching).
+          const all = await getDoctors();
+          if (cancelled) return;
+          setLiveDoctors(all.filter((d) => (d.hospital_ids ?? []).includes(hospitalId)).map(toHospitalDoctorItem));
+        }
       } catch {
-        if (cancelled) return;
-      } finally {
-        if (!cancelled) setLiveDoctorsLoaded(true);
+        // keep the synchronous staticLinkedDoctors fallback
       }
     })();
     return () => {
@@ -92,7 +123,15 @@ export function HospitalDetailsPage() {
   });
   const [selectedReviewFilter, setSelectedReviewFilter] = useState<ReviewFilterOption>('All');
 
-  const effectiveDoctors = liveDoctorsLoaded && liveDoctors.length > 0 ? liveDoctors : (hospital?.doctors ?? []);
+  // Doctors explicitly linked to this hospital in the offline directory data.
+  const staticLinkedDoctors = useMemo(
+    () => (hospitalId ? doctorsData.filter((d) => (d.hospital_ids ?? []).includes(hospitalId)).map(toHospitalDoctorItem) : []),
+    [hospitalId]
+  );
+
+  const effectiveDoctors = liveDoctors.length > 0
+    ? liveDoctors
+    : (effectiveHospital?.doctors?.length ? effectiveHospital.doctors : staticLinkedDoctors);
 
   const filteredDoctors = useMemo(() => {
     if (!effectiveDoctors.length) return [];
@@ -109,8 +148,8 @@ export function HospitalDetailsPage() {
   }, [effectiveDoctors, selectedDoctorTopic]);
 
   const filteredReviews = useMemo(() => {
-    if (!hospital) return [];
-    let reviews = [...hospital.reviews];
+    if (!effectiveHospital) return [];
+    let reviews = [...effectiveHospital.reviews];
     if (selectedReviewFilter === 'Most Recent') {
       return reviews.sort((a, b) => (new Date(b.date).getTime() > new Date(a.date).getTime() ? 1 : -1));
     }
@@ -122,7 +161,7 @@ export function HospitalDetailsPage() {
       reviews = reviews.filter((review) => review.rating === stars);
     }
     return reviews.sort((a, b) => (new Date(b.date).getTime() > new Date(a.date).getTime() ? 1 : -1));
-  }, [hospital, selectedReviewFilter]);
+  }, [effectiveHospital, selectedReviewFilter]);
 
   const handleViewDoctors = () => {
     doctorsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -133,7 +172,7 @@ export function HospitalDetailsPage() {
   };
 
   const handleGetDirections = () => {
-    if (!hospital) return;
+    if (!effectiveHospital) return;
     // Open the maps provider's directions deep-link in a new tab. The patient
     // origin is included only when a real location is available — never
     // fabricated. Destination is the hospital address (no patient health data).
@@ -141,7 +180,7 @@ export function HospitalDetailsPage() {
       ? { label: locationCtx.location.label, lat: locationCtx.location.lat, lng: locationCtx.location.lng }
       : undefined;
     const url = directionsUrl({
-      destination: `${hospital.name}, ${hospital.address}`,
+      destination: `${effectiveHospital.name}, ${effectiveHospital.address}`,
       origin,
       mode: 'driving',
     });
@@ -149,8 +188,8 @@ export function HospitalDetailsPage() {
   };
 
   const handleContact = () => {
-    if (!hospital) return;
-    const href = hospital.phone ? buildTelHref(hospital.phone) : '';
+    if (!effectiveHospital) return;
+    const href = effectiveHospital.phone ? buildTelHref(effectiveHospital.phone) : '';
     if (href && typeof window !== 'undefined') window.location.href = href;
     else if (typeof window !== 'undefined') window.alert('No contact number is listed for this hospital yet.');
   };
@@ -160,7 +199,7 @@ export function HospitalDetailsPage() {
     window.document.getElementById('carelink-hospital-review-composer')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
 
-  if (!hospital) {
+  if (!effectiveHospital) {
     return (
       <Container className="py-10">
         <div className="rounded-[2rem] border border-white/10 bg-slate-950/80 p-10 text-center text-ink-300">
@@ -180,7 +219,7 @@ export function HospitalDetailsPage() {
   return (
     <Container className="py-8 sm:py-10 lg:py-16">
       <div className="space-y-10">
-        <HospitalHero hospital={hospital} onBack={() => navigate(ROUTES.reviews)} />
+        <HospitalHero hospital={effectiveHospital} onBack={() => navigate(ROUTES.reviews)} />
         <HospitalQuickActions
           onViewLocation={handleViewLocation}
           onGetDirections={handleGetDirections}
@@ -191,9 +230,9 @@ export function HospitalDetailsPage() {
 
         <div className="grid gap-8 xl:grid-cols-[0.95fr_0.85fr] xl:items-start">
           <div className="space-y-8">
-            <HospitalOverview hospital={hospital} />
+            <HospitalOverview hospital={effectiveHospital} />
             <div id="carelink-hospital-review-composer" className="scroll-mt-28">
-              <ReviewComposer target={{ kind: 'hospital', id: hospital.id }} />
+              <ReviewComposer target={{ kind: 'hospital', id: effectiveHospital.id }} />
             </div>
             <HospitalReviewSection
               reviews={filteredReviews}
@@ -201,14 +240,14 @@ export function HospitalDetailsPage() {
               filters={reviewFilters}
               onFilterChange={setSelectedReviewFilter}
             />
-            <HospitalSpecialties specialties={hospital.specialtyDiscovery} />
+            <HospitalSpecialties specialties={effectiveHospital.specialtyDiscovery} />
           </div>
           <div className="space-y-8">
             <HospitalRatingSummary
-              rating={hospital.rating}
-              reviewCount={hospital.reviewCount}
-              starBreakdown={hospital.starBreakdown}
-              categoryRatings={hospital.categoryRatings}
+              rating={effectiveHospital.rating}
+              reviewCount={effectiveHospital.reviewCount}
+              starBreakdown={effectiveHospital.starBreakdown}
+              categoryRatings={effectiveHospital.categoryRatings}
             />
             <div ref={doctorsSectionRef}>
               <HospitalDoctorPreview
@@ -219,7 +258,7 @@ export function HospitalDetailsPage() {
               />
             </div>
             <div ref={locationSectionRef}>
-              <HospitalLocation hospital={hospital} onGetDirections={handleGetDirections} />
+              <HospitalLocation hospital={effectiveHospital} onGetDirections={handleGetDirections} />
             </div>
           </div>
         </div>

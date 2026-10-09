@@ -5,12 +5,6 @@ import { IconArrowRight, IconClock } from '../../../components/agent/AgentIcons'
 import { featuredDoctors } from './homeData';
 import { SectionBox, StarRow } from './homePrimitives';
 
-const availabilityTone: Record<string, string> = {
-  available: 'border-emerald-400/25 bg-emerald-500/12 text-emerald-200',
-  busy: 'border-amber-400/25 bg-amber-500/12 text-amber-200',
-  limited: 'border-amber-400/25 bg-amber-500/12 text-amber-200',
-};
-
 export function Doctors() {
   return (
     <Section title="Doctors you can book with" description="Trusted clinicians across the network, with next available slots." eyebrow="Doctors">
@@ -28,16 +22,16 @@ export function Doctors() {
                 {d.specialty} · {d.hospitalName}
               </p>
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className={`rounded-full border px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.16em] ${availabilityTone[d.availabilityStatus] ?? 'border-white/10 bg-white/5 text-ink-200'}`}>
-                  {d.availabilityStatus}
+                <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-ink-300">
+                  Availability unlisted
                 </span>
                 <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[0.68rem] font-medium text-ink-200">
-                  {d.yearsOfExperience} yrs exp
+                  {d.yearsOfExperience > 0 ? `${d.yearsOfExperience} yrs exp` : 'Experience not listed'}
                 </span>
               </div>
               <p className="mt-auto flex items-center gap-1.5 text-[0.78rem] text-ink-300">
                 <IconClock width={13} height={13} aria-hidden className="text-ink-400" />
-                Next: {d.nextAvailableSlot}
+                {d.nextAvailableSlot === 'Not listed' ? 'No published slots' : `Next: ${d.nextAvailableSlot}`}
               </p>
               <Link to={`/doctors/${d.detailSlug}`} className="inline-flex items-center gap-1.5 text-[0.82rem] font-semibold text-brand-200 transition hover:text-white">
                 View profile <IconArrowRight width={14} height={14} aria-hidden />

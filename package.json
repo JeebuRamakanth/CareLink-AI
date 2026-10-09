@@ -13,7 +13,9 @@
     "android:run": "npm run build && npx cap run android",
     "android:apk": "npm run android:sync && cd android && ./gradlew assembleDebug",
     "android:aab": "npm run android:sync && cd android && ./gradlew bundleRelease",
-    "android:assets": "node scripts/generate-android-assets.mjs"
+    "android:assets": "node scripts/generate-android-assets.mjs",
+    "verify:wiring": "node scripts/verify-wiring.mjs",
+    "verify:directory": "node scripts/verify-directory.mjs"
   },
   "dependencies": {
     "@capacitor/app": "^8.1.1",

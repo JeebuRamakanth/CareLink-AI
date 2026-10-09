@@ -131,20 +131,26 @@ insert into auth.users (id, email) values ('77777777-7777-7777-7777-777777777777
 on conflict (id) do nothing;
 insert into public.profiles (id, display_name) values ('77777777-7777-7777-7777-777777777777', 'Review Author')
 on conflict (id) do nothing;
+
+insert into public.appointments (id, owner_id, scheduled_date, scheduled_time, status, hospital_id) values
+  ('21010000-0000-0000-0000-0000000000a1','77777777-7777-7777-7777-777777777777','2026-07-01','10:00','completed','210a0000-0000-0000-0000-000000000001'),
+  ('21010000-0000-0000-0000-0000000000a2','77777777-7777-7777-7777-777777777777','2026-07-02','10:00','completed','210a0000-0000-0000-0000-000000000001'),
+  ('21010000-0000-0000-0000-0000000000b1','88888888-8888-8888-8888-888888888888','2026-07-03','10:00','completed','210a0000-0000-0000-0000-000000000001')
+on conflict (id) do nothing;
 set role authenticated;
 set request.jwt.claims = '{"sub":"77777777-7777-7777-7777-777777777777"}';
-insert into public.reviews (id, owner_id, hospital_id, title, body, overall_rating, status, created_at)
-select '21010000-0000-0000-0000-000000000001', '77777777-7777-7777-7777-777777777777', '210a0000-0000-0000-0000-000000000001', 'Great', 'Wonderful care', 5, 'published', now() - interval '1 hour'
+insert into public.reviews (id, owner_id, hospital_id, title, body, overall_rating, status, created_at, appointment_id)
+select '21010000-0000-0000-0000-000000000001', '77777777-7777-7777-7777-777777777777', '210a0000-0000-0000-0000-000000000001', 'Great', 'Wonderful care', 5, 'published', now() - interval '1 hour', '21010000-0000-0000-0000-0000000000a1'
 where not exists (select 1 from public.reviews where id ='21010000-0000-0000-0000-000000000001');
-insert into public.reviews (id, owner_id, hospital_id, title, body, overall_rating, status, created_at)
-select '21030000-0000-0000-0000-000000000003', '77777777-7777-7777-7777-777777777777', '210a0000-0000-0000-0000-000000000001', 'Draft', 'Pending moderation', 2, 'pending', now() - interval '3 hours'
+insert into public.reviews (id, owner_id, hospital_id, title, body, overall_rating, status, created_at, appointment_id)
+select '21030000-0000-0000-0000-000000000003', '77777777-7777-7777-7777-777777777777', '210a0000-0000-0000-0000-000000000001', 'Draft', 'Pending moderation', 2, 'pending', now() - interval '3 hours', '21010000-0000-0000-0000-0000000000a2'
 where not exists (select 1 from public.reviews where id ='21030000-0000-0000-0000-000000000003');
 -- The second published review belongs to a different author（8888）; seed it via the harness superuser
 -- to keep the one-published-review-per-author-target invariant and RLS-owner policy satisfied.
 set role authenticated;
 set request.jwt.claims = '{"sub":"88888888-8888-8888-8888-888888888888"}';
-insert into public.reviews (id, owner_id, hospital_id, title, body, overall_rating, status, created_at)
-select '21020000-0000-0000-0000-000000000002', '88888888-8888-8888-8888-888888888888', '210a0000-0000-0000-0000-000000000001', 'OK', 'Average', 3, 'published', now() - interval '2 hours'
+insert into public.reviews (id, owner_id, hospital_id, title, body, overall_rating, status, created_at, appointment_id)
+select '21020000-0000-0000-0000-000000000002', '88888888-8888-8888-8888-888888888888', '210a0000-0000-0000-0000-000000000001', 'OK', 'Average', 3, 'published', now() - interval '2 hours', '21010000-0000-0000-0000-0000000000b1'
 where not exists (select 1 from public.reviews where id ='21020000-0000-0000-0000-000000000002');
 
 -- Scope by a unique title so earlier suites' published reviews don't skew counts.

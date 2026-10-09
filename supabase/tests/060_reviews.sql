@@ -4,11 +4,32 @@
 --    C=super_admin.)
 -- ===========================================================================
 
--- A completed appointment for verification path (service fixture for A)
-insert into public.appointments (id, owner_id, doctor_name, scheduled_date, scheduled_time, status)
+-- A completed appointment for verification path (service fixture for A),
+-- plus provider ids so the Step 21 eligibility trigger can check provider
+-- consistency.
+insert into public.appointments (id, owner_id, doctor_name, scheduled_date, scheduled_time, status, doctor_id, hospital_id)
 values
-  ('a0000005-0000-0000-0000-000000000005', '11111111-1111-1111-1111-111111111111', 'Doctor One', '2026-08-01', '10:00', 'completed'),
-  ('b0000005-0000-0000-0000-000000000005', '22222222-2222-2222-2222-222222222222', 'Doctor One', '2026-08-02', '11:00', 'upcoming');
+  ('a0000005-0000-0000-0000-000000000005', '11111111-1111-1111-1111-111111111111', 'Doctor One', '2026-08-01', '10:00', 'completed', '5e111111-1111-1111-1111-111111111111', '5a111111-1111-1111-1111-111111111111'),
+  ('b0000005-0000-0000-0000-000000000005', '22222222-2222-2222-2222-222222222222', 'Doctor One', '2026-08-02', '11:00', 'upcoming', null, '5a111111-1111-1111-1111-111111111111');
+
+-- ---------------------------------------------------------------------------
+-- Step 21 eligibility floor: a client review with NO completed appointment is
+-- rejected by the database trigger (not merely hidden in the UI).
+-- ---------------------------------------------------------------------------
+set role authenticated;
+set request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111"}';
+select harness.expect_error(
+  $$insert into public.reviews (owner_id, hospital_id, overall_rating)
+    values (auth.uid(), '5a111111-1111-1111-1111-111111111111', 5)$$,
+  'reviews: review without a completed appointment rejected (Step 21)'
+);
+select harness.expect_error(
+  $$insert into public.reviews (owner_id, hospital_id, overall_rating, appointment_id)
+    values (auth.uid(), '5a111111-1111-1111-1111-111111111111', 5, 'b0000005-0000-0000-0000-000000000005')$$,
+  'reviews: review against another patient appointment rejected (Step 21)'
+);
+reset role;
+reset request.jwt.claims;
 
 -- ---------------------------------------------------------------------------
 -- Authoring + duplicate protection
@@ -22,8 +43,8 @@ select harness.expect_ok(
   'reviews: A publishes review of Hospital One'
 );
 select harness.expect_error(
-  $$insert into public.reviews (owner_id, hospital_id, overall_rating)
-    values (auth.uid(), '5a111111-1111-1111-1111-111111111111', 1)$$,
+  $$insert into public.reviews (owner_id, hospital_id, overall_rating, appointment_id)
+    values (auth.uid(), '5a111111-1111-1111-1111-111111111111', 1, 'a0000005-0000-0000-0000-000000000005')$$,
   'reviews: duplicate published review of same target rejected'
 );
 select harness.expect_error(
@@ -41,9 +62,12 @@ reset request.jwt.claims;
 
 set role authenticated;
 set request.jwt.claims = '{"sub":"22222222-2222-2222-2222-222222222222"}';
+insert into public.appointments (id, owner_id, doctor_name, scheduled_date, scheduled_time, status, hospital_id)
+values ('b0000006-0000-0000-0000-000000000006', '22222222-2222-2222-2222-222222222222', 'Doctor One', '2026-08-09', '12:00', 'completed', '5a111111-1111-1111-1111-111111111111')
+on conflict (id) do nothing;
 select harness.expect_ok(
   $$insert into public.reviews (id, owner_id, hospital_id, overall_rating, body, appointment_id)
-    values ('b0000006-0000-0000-0000-000000000006', auth.uid(), '5a111111-1111-1111-1111-111111111111', 2, 'Meh', 'b0000005-0000-0000-0000-000000000005')$$,
+    values ('b0000006-0000-0000-0000-000000000006', auth.uid(), '5a111111-1111-1111-1111-111111111111', 2, 'Meh', 'b0000006-0000-0000-0000-000000000006')$$,
   'reviews: B publishes own review of Hospital One'
 );
 -- B cannot edit A's review (0 rows); verified unchanged below
@@ -52,11 +76,6 @@ update public.reviews set body = 'vandalized', overall_rating = 1 where id = 'a0
 select harness.expect_error(
   $$insert into public.review_verification (review_id, verified_interaction) values ('b0000006-0000-0000-0000-000000000006', true)$$,
   'reviews: client cannot forge verified status by direct insert'
-);
--- B's appointment is not completed -> verification must return false, no row
-select harness.ok(
-  not public.carelink_verify_review('b0000006-0000-0000-0000-000000000006'),
-  'reviews: verification of non-completed appointment returns false'
 );
 -- B cannot verify A's review (not author, not admin)
 select harness.expect_error(

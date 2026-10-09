@@ -334,6 +334,63 @@ Single engine, never a second agent system. All AI goes through one gateway.
   AI base URL, Cloudinary, or Maps key are present —— runtime remains truthful
   demo/mock; live DB paths exercised at repo/adapter/sql-suite level。
 
+## Step 21 — Machilipatnam directory + review eligibility + dev test login (VERIFIED)
+Real, source-backed healthcare discovery for Machilipatnam, Krishna District, AP —
+connected to the EXISTING UI without redesigning it.
+
+- **Directory data** (`src/data/hospitals.ts`, `src/data/doctors.ts`) replaced the old
+  US mock set. 13 facilities (government + private + PHC) and 5 attributable
+  doctors. EVERY record carries `provenance` (`src/types/models.ts` → `DataProvenance`/
+  `DataStatus`): `VERIFIED` (krishna.ap.gov.in / official site), `PROVIDER_LISTED`,
+  `SOURCE_LISTED`, `THIRD_PARTY_DIRECTORY`. NO fabricated ratings/review counts
+  (0 until real reviews), no fabricated experience, no invented coordinates, no
+  fabricated portraits (omitted → existing fallback avatar), nothing marked verified.
+- **DB seed**: `supabase/migrations/0031_step21_machilipatnam_directory.sql` inserts the
+  same facilities/doctors into the existing registry tables (hospitals / hospital_* /
+  doctors / doctor_* / qualifications / *_verification), reusing `doctor_hospitals`
+  for real many-to-many links. Adds a `source_url` column + extends the `data_status`
+  CHECK. Ids `7f…` / slugs `mph-…`. Doctors stay `pending` (never auto-verified).
+- **Review eligibility**: `0032_step21_review_eligibility.sql` adds a BEFORE
+  INSERT/UPDATE trigger requiring a genuine COMPLETED appointment owned by the
+  author (+ provider consistency when the appointment records an id). Unconditional,
+  no bypass flag — hiding the button is now backed by a DB rule.
+- **Dev test login** (`src/services/auth/devTestAuth.ts`): `abcd` / `1234` →
+  synthetic `source:'dev-test'` identity with EMPTY roles. Double-gated: only when
+  `import.meta.env.DEV === true` AND `VITE_ENABLE_DEV_TEST_AUTH=true` (build-time, not
+  a browser flag). `loadUserAuthorization` short-circuits dev-test users to empty
+  roles, so localStorage role spoofs are still denied (verified in browser).
+  Production `vite preview` ignores the flag entirely (verified).
+- **UI integration (no redesign — reused EXISTING components)**: list pages already
+  consume `getHospitals`/`getDoctors`; added directory→detail adapters
+  (`buildHospitalDetailFromDirectory`, `buildDoctorProfileFromDirectory`) so the
+  existing hospital/doctor detail pages render any directory id, with static
+  linked-doctor fallback (only doctors EXPLICITLY linked, never name/city matching).
+  Made previously-fabricated UI strings honest: `HospitalCard` doctor count,
+  `DoctorCard` credentials, `HospitalHero` verified/experience/distance,
+  `HospitalLocation` distance, `DoctorHero`/`DoctorProfessionalProfile`/`HospitalConnection`
+  verified badges, `DoctorMatchSummary` "Premium match" → "Directory listing".
+  Home page Emergency/Hospitals/Doctors/Testimonials + stats now derive from the real
+  directory (invented "Aurora/Luma/Beacon" hospitals removed; reviews relabelled
+  SAMPLE). `hospitalsData` swap also feeds the blood-bank section.
+- **Tests**: `scripts/verify-directory.mjs` (12 directory-integrity checks, wired to
+  `npm run verify:directory`); wiring audit extended to 48 checks; NEW SQL suite
+  `supabase/tests/240_step21_directory_eligibility.sql`. SQL suite now **540 PASS / 0 FAIL**
+  from clean replay. Existing suites (060/200/210/220) updated so review fixtures carry
+  legitimate completed appointments.
+- **Browser (dev-test login, work host)**: `/hospitals` (13 sourced facilities, honest
+  "Distance unavailable"/"Unlisted"), `/hospitals/mph-save-hospital` (2 correctly linked
+  doctors), `/doctors` (5 listed), `/doctors/doc-venkat-basu` (honest "Unverified listing"),
+  home page sourced, `/admin` denied as dev-test user (even after a role-spoof), booking
+  flow on preview doctors intact. Build green, lint green, wiring 48/48, directory 12/12.
+- **BLOCKED (live credentials)**: no real Supabase URL/anon key, Cloudinary, Maps, or AI
+  base URL exist here, so live directory/AI paths are exercised at repo/adapter/SQL-suite
+  level; runtime stays honest demo. Google Places images are NOT copied — no image filed
+  because no licensed source was available (UI falls back).
+- Gotchas: Vite dev server module cache can serve a stale module after edits — restart
+  `npm run dev` before trusting browser output. `vite.config.ts` `allowedHosts` must list
+  this workspace's work host. The home-page review samples are intentionally labelled
+  "Sample".
+
 ## Post-Step-1.5 sanity repair (committed 11d58ca)
 - Committed syntax corruption existed in `storageService.ts` (`uploadDocumentToStorage`),
   `src/services/media/imageOptimizer.ts`,和 `src/services/media/magicBytes.ts` — misplaced

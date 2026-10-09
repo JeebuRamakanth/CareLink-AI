@@ -22,28 +22,38 @@ export function DoctorMatchSummary({ matchInfo, patientsTreated, treatmentRate, 
       <div className="space-y-5">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-sm uppercase tracking-[0.28em] text-brand-200">Clinical match</p>
-            <h2 className="mt-3 text-2xl font-semibold text-white">Best match for your care needs</h2>
+            <p className="text-sm uppercase tracking-[0.28em] text-brand-200">{matchInfo.score > 0 ? 'Clinical match' : 'Directory information'}</p>
+            <h2 className="mt-3 text-2xl font-semibold text-white">
+              {matchInfo.score > 0 ? 'Best match for your care needs' : 'About this listing'}
+            </h2>
           </div>
-          <Badge tone="brand">Premium match</Badge>
+          <Badge tone={matchInfo.score > 0 ? 'brand' : 'neutral'}>{matchInfo.score > 0 ? 'Premium match' : 'Directory listing'}</Badge>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Stat label="Match score" value={`${matchInfo.score}%`} />
-          <Stat label="Match label" value={matchInfo.label} />
-          <Stat label="Patients treated" value={`${patientsTreated.toLocaleString()}`} />
-          <Stat label="Treatment success" value={treatmentRate} />
-          <Stat label="Verified reviews" value={`${verifiedReviewCount} reviews`} />
-        </div>
+        {matchInfo.score > 0 ? (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Stat label="Match score" value={`${matchInfo.score}%`} />
+            <Stat label="Match label" value={matchInfo.label} />
+            <Stat label="Patients treated" value={`${patientsTreated.toLocaleString()}`} />
+            <Stat label="Treatment success" value={treatmentRate} />
+            <Stat label="Verified reviews" value={`${verifiedReviewCount} reviews`} />
+          </div>
+        ) : (
+          <div className="rounded-[1.5rem] border border-amber-400/25 bg-amber-500/10 p-4 text-sm leading-6 text-amber-100">
+            {matchInfo.disclaimer}
+          </div>
+        )}
 
         <div className="rounded-[1.5rem] border border-white/10 bg-slate-950/80 p-5">
           <p className="text-sm uppercase tracking-[0.24em] text-ink-400">Match details</p>
           <p className="mt-3 text-sm leading-7 text-ink-300">{matchInfo.description}</p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {matchInfo.tags.map((tag) => (
-              <Badge key={tag} tone="accent">{tag}</Badge>
-            ))}
-          </div>
+          {matchInfo.tags.length > 0 ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {matchInfo.tags.map((tag) => (
+                <Badge key={tag} tone="accent">{tag}</Badge>
+              ))}
+            </div>
+          ) : null}
         </div>
       </div>
     </motion.section>

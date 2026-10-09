@@ -237,8 +237,11 @@ on conflict (id) do nothing;
 -- A review whose target provider is deleted afterwards to simulate an orphan.
 -- (Disposable-test only: the production FK is left untouched; we drop the FK
 --  in the test DB so the review row is preserved to prove the flagging query.)
-insert into public.reviews (id, owner_id, doctor_id, overall_rating, status, title) values
-  ('7b500001-0000-0000-0000-000000000001', '55555555-5555-5555-5555-555555555555', '7b200001-0000-0000-0000-000000000001', 4, 'published', 'Orphaned review')
+insert into public.appointments (id, owner_id, doctor_id, scheduled_date, scheduled_time, status) values
+  ('7b500005-0000-0000-0000-000000000005', '55555555-5555-5555-5555-555555555555', '7b200001-0000-0000-0000-000000000001', '2026-05-05', '09:00', 'completed')
+on conflict (id) do nothing;
+insert into public.reviews (id, owner_id, doctor_id, overall_rating, status, title, appointment_id) values
+  ('7b500001-0000-0000-0000-000000000001', '55555555-5555-5555-5555-555555555555', '7b200001-0000-0000-0000-000000000001', 4, 'published', 'Orphaned review', '7b500005-0000-0000-0000-000000000005')
 on conflict (id) do nothing;
 alter table public.reviews drop constraint if exists reviews_doctor_id_fkey;
 delete from public.doctors where id = '7b200001-0000-0000-0000-000000000001';

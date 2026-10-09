@@ -35,7 +35,9 @@ export function HospitalCard({ hospital, className = '' }: HospitalCardProps) {
   const insuranceAccepted = (insurance_partners?.length ?? 0) > 0;
   const bloodBankAvailable = facilities.blood_bank;
   const ambulanceAvailable = facilities.ambulance;
-  const doctorsCount = doctor_count ?? Math.max(8, departments.length + 3);
+  // Never fabricate a doctor count: show the real linked-doctor count when the
+  // backend provides it, otherwise state that it is unlisted.
+  const doctorsCount = doctor_count && doctor_count > 0 ? `${doctor_count} available` : 'Unlisted';
 
   return (
     <article
@@ -120,7 +122,7 @@ export function HospitalCard({ hospital, className = '' }: HospitalCardProps) {
             </div>
             <div className="text-right">
               <p className="text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-ink-400">Doctors</p>
-              <p className="mt-1 font-semibold text-white">{doctorsCount} available</p>
+              <p className="mt-1 font-semibold text-white">{doctorsCount}</p>
             </div>
           </div>
         </div>

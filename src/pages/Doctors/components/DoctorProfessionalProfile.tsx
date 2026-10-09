@@ -23,7 +23,7 @@ export function DoctorProfessionalProfile({ doctor }: DoctorProfessionalProfileP
               <p className="text-sm uppercase tracking-[0.28em] text-brand-200">Professional Profile</p>
               <h2 className="mt-3 text-2xl font-semibold text-white">Evidence-based care rooted in clinical expertise</h2>
             </div>
-            <Badge tone="success">Verified practitioner</Badge>
+            <Badge tone={doctor.verified ? 'success' : 'neutral'}>{doctor.verified ? 'Verified practitioner' : 'Credentials pending verification'}</Badge>
           </div>
           <p className="mt-4 max-w-3xl text-sm leading-7 text-ink-300">{doctor.profileSummary}</p>
         </div>
