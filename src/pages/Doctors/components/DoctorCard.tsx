@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { BaseCard } from '../../../components/cards/BaseCard';
 import { CardActions } from '../../../components/cards/CardActions';
 import { CardBadge } from '../../../components/cards/CardBadge';
@@ -5,6 +6,7 @@ import { CardBody } from '../../../components/cards/CardBody';
 import { CardFooter } from '../../../components/cards/CardFooter';
 import { CardHeader } from '../../../components/cards/CardHeader';
 import { CardImage } from '../../../components/cards/CardImage';
+import { ROUTES } from '../../../routes/routeConstants';
 import type { Doctor } from '../../../types';
 
 type DoctorCardProps = {
@@ -78,12 +80,18 @@ export function DoctorCard({ doctor, className = '' }: DoctorCardProps) {
         </CardActions>
       </CardBody>
       <CardFooter>
-        <button type="button" className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-ink-200">
+        <Link
+          to={`${ROUTES.doctors}/${doctor.id}`}
+          className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-ink-200 transition hover:border-brand-400/30 hover:bg-brand-400/12 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40"
+        >
           View profile
-        </button>
-        <button type="button" className="rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-3 py-2 text-sm font-semibold text-white">
+        </Link>
+        <Link
+          to={`${ROUTES.doctors}/${doctor.id}`}
+          className="rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-3 py-2 text-sm font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40"
+        >
           Book visit
-        </button>
+        </Link>
       </CardFooter>
     </BaseCard>
   );

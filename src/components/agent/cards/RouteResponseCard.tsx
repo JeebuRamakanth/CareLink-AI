@@ -5,6 +5,7 @@
 
 import { ResponseCardShell, CardActionButton, SuggestedReplies } from '../ResponseCardShell';
 import { IconRoute, IconClock, IconLocation } from '../AgentIcons';
+import { directionsUrl } from '../../../services/maps/mapsService';
 import type { RouteResult } from '../../../services/agent/agentTypes';
 
 interface Props {
@@ -26,10 +27,14 @@ export function RouteResponseCard({ data, title, explanation, suggestedReplies, 
   const handleDirections = () => {
     if (onGetDirections) {
       onGetDirections(data);
-    } else {
-      // Abstracted hook for a real maps provider.
-      window.alert(`Directions to ${data.destinationName} (mock): ${data.distanceKm} km · ~${data.estimatedTravelTimeMin} min via ${transportLabel[data.transportMode]}`);
+      return;
     }
+    // Open a real maps provider deep-link instead of a mock alert.
+    const url = directionsUrl({
+      destination: `${data.destinationName}, ${data.destinationAddress}`,
+      mode: data.transportMode,
+    });
+    if (typeof window !== 'undefined') window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   return (

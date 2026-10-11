@@ -66,13 +66,13 @@ const getDistanceThreshold = (distanceValue: string): number | null => {
   }
 };
 
-export function useHospitals() {
+export function useHospitals(initialSearchTerm = '') {
   const locationCtx = useOptionalLocationContext();
   const [hospitals, setHospitals] = useState<Hospital[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filters, setFilters] = useState<HospitalFilterState>(initialFilters);
+  const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
+  const [filters, setFilters] = useState<HospitalFilterState>(() => ({ ...initialFilters, hospital: initialSearchTerm }));
 
   // Recomputed distance from the LIVE patient location when coordinates exist.
   // Never fabricates a distance: null when the user has no coordinates.

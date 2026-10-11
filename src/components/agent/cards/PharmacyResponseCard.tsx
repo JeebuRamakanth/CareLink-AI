@@ -1,10 +1,14 @@
 /**
  * Step 7 — Pharmacy recommendation card.
  * Mock-only: availability is a PLACEHOLDER, never claimed as real-time stock.
+ * "View pharmacy" and "Get Directions" deep-link to real app routes / maps.
  */
 
+import { useNavigate } from 'react-router-dom';
 import { ResponseCardShell, CardActionButton, NextStepRow, SuggestedReplies } from '../ResponseCardShell';
 import { IconPharmacy, IconLocation, IconRoute } from '../AgentIcons';
+import { ROUTES } from '../../../routes/routeConstants';
+import { directionsUrl } from '../../../services/maps/mapsService';
 import type { PharmacyRecommendation } from '../../../services/agent/agentTypes';
 
 interface Props {
@@ -17,12 +21,15 @@ interface Props {
 }
 
 export function PharmacyResponseCard({ data, title, explanation, suggestedReplies, onPickReply, onGetDirections }: Props) {
+  const navigate = useNavigate();
+
   const handleDirections = (pharmacy: PharmacyRecommendation) => {
     if (onGetDirections) {
       onGetDirections(pharmacy);
-    } else if (pharmacy.route) {
-      window.alert(`Directions to ${pharmacy.name} (mock): ${pharmacy.route.distanceKm} km · ~${pharmacy.route.estimatedTravelTimeMin} min`);
+      return;
     }
+    // Real maps deep-link — never a mock alert.
+    window.open(directionsUrl({ destination: `${pharmacy.name}, ${pharmacy.address}`, mode: 'driving' }), '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -74,7 +81,7 @@ export function PharmacyResponseCard({ data, title, explanation, suggestedReplie
             </p>
 
             <div className="mt-4 flex flex-wrap gap-2">
-              <CardActionButton variant="secondary" onClick={() => window.alert(`View pharmacy profile for ${pharmacy.name} (mock)`)} ariaLabel={`View pharmacy ${pharmacy.name}`}>
+              <CardActionButton variant="secondary" onClick={() => navigate(ROUTES.pharmacies)} ariaLabel={`View pharmacy ${pharmacy.name}`}>
                 View pharmacy
               </CardActionButton>
               <CardActionButton variant="primary" icon={<IconRoute width={15} height={15} />} onClick={() => handleDirections(pharmacy)} ariaLabel={`Get directions to ${pharmacy.name}`}>

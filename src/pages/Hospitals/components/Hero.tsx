@@ -1,5 +1,12 @@
 import { Section } from '../../../components/ui/Section';
 
+function focusHospitalSearch() {
+  if (typeof document === 'undefined') return;
+  const input = document.getElementById('hospital-search-input') as HTMLInputElement | null;
+  input?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  input?.focus({ preventScroll: true });
+}
+
 export function Hero() {
   return (
     <Section title="Hospitals" description="Discover hospital partners and care availability across the network." eyebrow="Network">
@@ -19,10 +26,18 @@ export function Hero() {
               </p>
             </div>
             <div className="flex flex-wrap gap-3 pt-1">
-              <button type="button" className="rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-4 py-2 text-sm font-semibold text-white">
+              <button
+                type="button"
+                onClick={focusHospitalSearch}
+                className="rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/50"
+              >
                 Find a hospital
               </button>
-              <button type="button" className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-ink-200">
+              <button
+                type="button"
+                onClick={focusHospitalSearch}
+                className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-ink-200 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40"
+              >
                 Explore network
               </button>
             </div>

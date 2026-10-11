@@ -6,8 +6,11 @@ import { HospitalResultsSection } from './components/HospitalResultsSection';
 import { ResultsToolbar } from './components/ResultsToolbar';
 import { LocationBanner } from '../../components/location/LocationBanner';
 import { useHospitals } from './hooks/useHospitals';
+import { useSearchParams } from 'react-router-dom';
 
 export function HospitalsPage() {
+  const [searchParams] = useSearchParams();
+  const initialQuery = searchParams.get('q') ?? searchParams.get('city') ?? '';
   const {
     filteredHospitals,
     loading,
@@ -19,7 +22,7 @@ export function HospitalsPage() {
     resetFilters,
     refresh,
     activeFilterLabels,
-  } = useHospitals();
+  } = useHospitals(initialQuery);
 
   const resultsState = error ? 'error' : loading ? 'loading' : filteredHospitals.length === 0 ? 'empty' : 'success';
 

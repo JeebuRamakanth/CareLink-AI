@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { motion, MotionConfig } from 'framer-motion';
 import { Button } from '../../../components/ui/Button';
 import { ROUTES } from '../../../routes/routeConstants';
@@ -103,13 +104,13 @@ export function Hero() {
               { label: 'Appointments', href: ROUTES.appointments },
               { label: 'Reviews', href: ROUTES.reviews },
             ].map((c) => (
-              <a
+              <Link
                 key={c.label}
-                href={c.href}
+                to={c.href}
                 className="surface-panel flex items-center justify-between gap-2 rounded-[1rem] border border-white/10 px-3.5 py-2.5 text-[0.82rem] font-semibold text-ink-100 transition hover:-translate-y-0.5 hover:border-brand-400/30 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40"
               >
                 {c.label} <IconArrowRight width={14} height={14} aria-hidden />
-              </a>
+              </Link>
             ))}
           </div>
         </motion.div>

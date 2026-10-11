@@ -5,6 +5,7 @@
  */
 
 import type { ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { cn } from '../common/cn';
 import { Badge } from '../ui/Badge';
@@ -173,11 +174,17 @@ export function CardActionButton({ children, onClick, to, variant = 'secondary',
   );
 
   if (to) {
-    return (
-      <a href={to} className={classes} aria-label={ariaLabel}>
+    const external = /^(https?:|tel:|mailto:)/.test(to);
+    return external ? (
+      <a href={to} className={classes} aria-label={ariaLabel} target="_blank" rel="noopener noreferrer">
         {icon}
         <span>{children}</span>
       </a>
+    ) : (
+      <Link to={to} className={classes} aria-label={ariaLabel}>
+        {icon}
+        <span>{children}</span>
+      </Link>
     );
   }
   return (

@@ -7,8 +7,9 @@
 import { useNavigate } from 'react-router-dom';
 import { ResponseCardShell, CardActionButton, NextStepRow, SuggestedReplies } from '../ResponseCardShell';
 import { IconDoctor, IconStar, IconClock, IconRoute, IconCalendar } from '../AgentIcons';
-import type { DoctorRecommendation } from '../../../services/agent/agentTypes';
 import { ROUTES } from '../../../routes/routeConstants';
+import { directionsUrl } from '../../../services/maps/mapsService';
+import type { DoctorRecommendation } from '../../../services/agent/agentTypes';
 
 interface Props {
   data: DoctorRecommendation[];
@@ -39,9 +40,10 @@ export function DoctorResponseCard({ data, title, explanation, suggestedReplies,
   const handleDirections = (doctor: DoctorRecommendation) => {
     if (onGetDirections) {
       onGetDirections(doctor);
-    } else if (doctor.route) {
-      window.alert(`Directions to ${doctor.hospitalName} (mock): ${doctor.route.distanceKm} km · ~${doctor.route.estimatedTravelTimeMin} min`);
+      return;
     }
+    // Real maps deep-link to the doctor's hospital — never a mock alert.
+    window.open(directionsUrl({ destination: `${doctor.hospitalName}`, mode: 'driving' }), '_blank', 'noopener,noreferrer');
   };
 
   return (

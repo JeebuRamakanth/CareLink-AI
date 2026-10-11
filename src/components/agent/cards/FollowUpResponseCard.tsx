@@ -3,6 +3,7 @@
  * Reminder is a PLACEHOLDER until calendar/notifications are connected.
  */
 
+import { useState } from 'react';
 import { ResponseCardShell, CardActionButton, SuggestedReplies } from '../ResponseCardShell';
 import { IconClock, IconCalendar } from '../AgentIcons';
 import type { FollowUpCardData } from '../../../services/agent/agentTypes';
@@ -25,6 +26,8 @@ const formatDate = (iso?: string): string => {
 };
 
 export function FollowUpResponseCard({ data, title, explanation, suggestedReplies, onPickReply }: Props) {
+  const [unavailableNoted, setUnavailableNoted] = useState(false);
+
   return (
     <ResponseCardShell
       accent="brand"
@@ -49,9 +52,19 @@ export function FollowUpResponseCard({ data, title, explanation, suggestedReplie
         ) : null}
       </div>
 
-      <CardActionButton variant="primary" onClick={() => window.alert('Reminder set (mock). Connect your calendar to enable real reminders.')} ariaLabel={data.suggestedAction}>
+      <CardActionButton
+        variant="primary"
+        onClick={() => setUnavailableNoted(true)}
+        ariaLabel={data.suggestedAction}
+      >
         {data.suggestedAction}
       </CardActionButton>
+
+      {unavailableNoted ? (
+        <p role="status" className="rounded-[0.8rem] border border-amber-400/25 bg-amber-500/10 px-3.5 py-2.5 text-[0.78rem] leading-5 text-amber-100">
+          Calendar reminders aren’t connected yet, so no reminder was scheduled. Note the date above and set a reminder in your own calendar.
+        </p>
+      ) : null}
 
       <SuggestedReplies replies={suggestedReplies ?? []} onPick={(r) => onPickReply?.(r)} />
     </ResponseCardShell>

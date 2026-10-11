@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { ROUTES } from '../../../routes/routeConstants';
 import type { Hospital } from '../../../types';
 
 type HospitalCardProps = {
@@ -8,6 +10,7 @@ type HospitalCardProps = {
 
 export function HospitalCard({ hospital, className = '' }: HospitalCardProps) {
   const [isFavorite, setIsFavorite] = useState(false);
+  const detailHref = `${ROUTES.hospitals}/${hospital.slug ?? hospital.id}`;
 
   const {
     name,
@@ -141,18 +144,18 @@ export function HospitalCard({ hospital, className = '' }: HospitalCardProps) {
         </div>
 
         <div className="flex flex-col gap-2 pt-1 sm:flex-row">
-          <button
-            type="button"
-            className="flex-1 rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-ink-200 transition hover:border-brand-400/30 hover:bg-brand-400/12 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40"
+          <Link
+            to={detailHref}
+            className="flex-1 rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-center text-sm font-semibold text-ink-200 transition hover:border-brand-400/30 hover:bg-brand-400/12 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40"
           >
             View details
-          </button>
-          <button
-            type="button"
-            className="flex-1 rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40"
+          </Link>
+          <Link
+            to={`${ROUTES.appointments}?hosp=${hospital.id}`}
+            className="flex-1 rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-4 py-2.5 text-center text-sm font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40"
           >
             Book appointment
-          </button>
+          </Link>
         </div>
       </div>
     </article>

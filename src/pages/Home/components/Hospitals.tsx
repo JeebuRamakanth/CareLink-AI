@@ -9,18 +9,18 @@ export function Hospitals() {
   return (
     <Section title="Hospitals near you" description="Top-rated facilities from the CareLink.AI network, ranked by distance." eyebrow="Hospitals">
       <SectionBox className="min-h-[220px]">
-        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {nearestHospitals.map((h) => (
-            <li key={h.id} className="flex flex-col gap-3 rounded-[1.25rem] border border-white/10 bg-slate-950/40 p-5 transition hover:border-brand-400/30">
-              <div className="flex items-start justify-between gap-2">
-                <Link to={`/hospitals/${h.detailSlug}`} className="text-base font-semibold text-white transition hover:text-brand-200">
+            <li key={h.id} className="flex min-w-0 flex-col gap-3 rounded-[1.25rem] border border-white/10 bg-slate-950/40 p-5 transition hover:border-brand-400/30">
+              <div className="flex min-w-0 items-start justify-between gap-2">
+                <Link to={`/hospitals/${h.detailSlug}`} className="min-w-0 break-words text-base font-semibold text-white transition hover:text-brand-200">
                   {h.name}
                 </Link>
                 <StarRow rating={h.rating} />
               </div>
-              <p className="flex items-center gap-1.5 text-[0.8rem] text-ink-300">
-                <IconLocation width={14} height={14} aria-hidden className="text-ink-400" />
-                {h.address}, {h.city}
+              <p className="flex min-w-0 items-start gap-1.5 text-[0.8rem] text-ink-300">
+                <IconLocation width={14} height={14} aria-hidden className="mt-0.5 shrink-0 text-ink-400" />
+                <span className="min-w-0 break-words">{h.address}, {h.city}</span>
               </p>
               <div className="flex flex-wrap items-center gap-1.5">
                 {h.specialties.slice(0, 3).map((s) => (

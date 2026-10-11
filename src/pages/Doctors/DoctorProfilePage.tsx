@@ -62,6 +62,7 @@ export function DoctorProfilePage() {
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [isBookingOpen, setIsBookingOpen] = useState(false);
   const [bookingMessage, setBookingMessage] = useState<string | null>(null);
+  const [contactNotice, setContactNotice] = useState<string | null>(null);
   const [successAppointment, setSuccessAppointment] = useState<AppointmentRecord | null>(null);
   const topSectionRef = useRef<HTMLDivElement | null>(null);
   const { addAppointment } = useAppointmentContext();
@@ -135,10 +136,9 @@ export function DoctorProfilePage() {
         <DoctorQuickActions
           onBookAppointment={() => setIsBookingOpen(true)}
           onContactDoctor={() => {
-            if (typeof window === 'undefined') return;
             // No contact channel is stored for the static demo profile set; do not
             // fabricate one. A real provider record carries phone/email via the DB.
-            window.alert('No contact method is listed for this doctor yet.');
+            setContactNotice('No contact method is listed for this doctor yet.');
           }}
           onViewHospital={() => navigate(`/hospitals/${doctor.hospitalConnection.id}`)}
           onGetDirections={() => {
@@ -163,6 +163,11 @@ export function DoctorProfilePage() {
         {bookingMessage ? (
           <div className="rounded-[1.75rem] border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm text-emerald-100">
             {bookingMessage}
+          </div>
+        ) : null}
+        {contactNotice ? (
+          <div role="status" className="rounded-[1.75rem] border border-amber-400/25 bg-amber-500/10 p-4 text-sm text-amber-100">
+            {contactNotice}
           </div>
         ) : null}
 
@@ -208,7 +213,21 @@ export function DoctorProfilePage() {
               onSlotSelect={setSelectedSlot}
             />
             <DoctorConsultationInfo consultationInfo={doctor.consultationInfo} />
-            <HospitalConnection hospital={doctor.hospitalConnection} onViewHospital={() => navigate(`/hospitals/${doctor.hospitalConnection.id}`)} onGetDirections={() => window.alert('Open directions for the selected hospital (mocked).')} />
+            <HospitalConnection
+              hospital={doctor.hospitalConnection}
+              onViewHospital={() => navigate(`/hospitals/${doctor.hospitalConnection.id}`)}
+              onGetDirections={() => {
+                const origin = locationCtx?.location && typeof locationCtx.location.lat === 'number'
+                  ? { label: locationCtx.location.label, lat: locationCtx.location.lat, lng: locationCtx.location.lng }
+                  : undefined;
+                const url = directionsUrl({
+                  destination: `${doctor.hospitalConnection.name}, ${doctor.hospitalConnection.location}`,
+                  origin,
+                  mode: 'driving',
+                });
+                if (typeof window !== 'undefined') window.open(url, '_blank', 'noopener,noreferrer');
+              }}
+            />
           </div>
         </div>
 

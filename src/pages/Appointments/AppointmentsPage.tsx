@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Container } from '../../components/ui/Container';
 import { AppointmentsFilters } from './components/AppointmentsFilters';
@@ -6,6 +7,7 @@ import { AppointmentCard } from './components/AppointmentCard';
 import { CancelModal } from './components/CancelModal';
 import { RescheduleModal } from './components/RescheduleModal';
 import { useAppointments } from './hooks/useAppointments';
+import { ROUTES } from '../../routes/routeConstants';
 import type { AppointmentRecord, AppointmentStatus } from './data/appointmentsData';
 import './appointments.css';
 
@@ -20,12 +22,26 @@ const statusLabels: Record<AppointmentStatus | 'all', string> = {
 
 export function AppointmentsPage() {
   const { appointments, rescheduleAppointment, cancelAppointment } = useAppointments();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<AppointmentStatus | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [currentActionAppointment, setCurrentActionAppointment] = useState<AppointmentRecord | null>(null);
   const [pendingCancelId, setPendingCancelId] = useState<string | null>(null);
   const [isRescheduleOpen, setIsRescheduleOpen] = useState(false);
   const [isCancelOpen, setIsCancelOpen] = useState(false);
+
+  // Deep-link from the agent / hospital / doctor cards: a "Book" action carries
+  // the selected provider so we land on the page that owns the booking flow
+  // (doctor profile) or the provider detail — never a context-less list.
+  useEffect(() => {
+    const doctor = searchParams.get('doc');
+    const hospital = searchParams.get('hosp');
+    const lab = searchParams.get('lab');
+    if (doctor) navigate(`${ROUTES.doctors}/${doctor}`, { replace: true });
+    else if (hospital) navigate(`${ROUTES.hospitals}/${hospital}`, { replace: true });
+    else if (lab) navigate(ROUTES.labs, { replace: true });
+  }, [searchParams, navigate]);
 
   const filteredAppointments = useMemo(() => {
     return appointments.filter((appointment) => {

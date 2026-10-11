@@ -20,8 +20,9 @@ export function FilterBar({ searchValue, filters, onSearchChange, onFilterChange
       <div className="rounded-[1.4rem] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] p-4 shadow-[0_20px_80px_rgba(0,0,0,0.2)] sm:p-5">
         <div className="grid gap-3 lg:grid-cols-[1.2fr_0.9fr_0.8fr_0.8fr]">
           <div className="rounded-[1rem] border border-white/10 bg-slate-950/60 p-3">
-            <label className="text-[0.72rem] font-semibold uppercase tracking-[0.26em] text-ink-400">Search doctor</label>
+            <label className="text-[0.72rem] font-semibold uppercase tracking-[0.26em] text-ink-400" htmlFor="doctor-search-input">Search doctor</label>
             <input
+              id="doctor-search-input"
               value={searchValue}
               onChange={(event) => onSearchChange(event.target.value)}
               placeholder="Search by name or specialty"
