@@ -108,7 +108,7 @@ export interface MedicineRow {
   updated_at: ISODate;
 }
 
-export type AppointmentStatus = 'confirmed' | 'upcoming' | 'completed' | 'cancelled' | 'rescheduled';
+export type AppointmentStatus = 'pending' | 'confirmed' | 'upcoming' | 'completed' | 'cancelled' | 'rescheduled';
 export type AppointmentType = 'Consultation' | 'Follow-up' | 'Telehealth';
 
 export interface AppointmentRow {

@@ -68,7 +68,19 @@ export function HospitalDoctorPreview({ doctors, topics, selectedTopic, onTopicC
         <div className="grid gap-4">
           {doctors.length === 0 ? (
             <div className="rounded-[1.75rem] border border-white/10 bg-slate-950/70 p-6 text-center text-ink-300">
-              No doctors found for this specialty yet.
+              <p className="font-semibold text-white">No verified doctors listed for this facility yet</p>
+              <p className="mx-auto mt-2 max-w-xl text-sm leading-6">
+                The CareLink directory does not currently hold verified doctor affiliations for this hospital. Rather than show unrelated records, we leave this section empty.
+              </p>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="mt-4"
+                onClick={() => navigate('/doctors')}
+              >
+                Search all doctors
+              </Button>
             </div>
           ) : (
             doctors.map((doctor) => {

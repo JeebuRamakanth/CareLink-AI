@@ -28,10 +28,18 @@ export function AppointmentSuccessModal({
       >
         <div className="flex items-start justify-between border-b border-white/10 px-6 py-6">
           <div>
-            <p className="text-sm uppercase tracking-[0.28em] text-brand-200">Appointment confirmed</p>
-            <h2 className="mt-2 text-3xl font-semibold text-white">Your CareLink consultation is booked</h2>
+            <p className="text-sm uppercase tracking-[0.28em] text-brand-200">
+              {appointment.status === 'pending' ? 'Request submitted' : 'Appointment confirmed'}
+            </p>
+            <h2 className="mt-2 text-3xl font-semibold text-white">
+              {appointment.status === 'pending'
+                ? 'Your appointment request has been sent'
+                : 'Your CareLink consultation is booked'}
+            </h2>
             <p className="mt-3 text-sm leading-6 text-ink-300">
-              A premium appointment summary has been added to your care command center. You can view details or continue managing your care.
+              {appointment.status === 'pending'
+                ? 'The facility will review your request and confirm the exact time. Until then it appears as PENDING — it is not a confirmed appointment yet.'
+                : 'A premium appointment summary has been added to your care command center. You can view details or continue managing your care.'}
             </p>
           </div>
           <button type="button" onClick={onClose} className="rounded-full border border-white/10 px-4 py-2 text-sm text-ink-300 transition hover:border-white/20 hover:text-white">
@@ -42,7 +50,9 @@ export function AppointmentSuccessModal({
         <div className="grid gap-6 p-6 sm:grid-cols-[1fr_0.95fr]">
           <div className="space-y-5 rounded-[1.75rem] border border-white/10 bg-slate-950/80 p-6">
             <div className="rounded-[1.75rem] border border-brand-400/20 bg-brand-500/10 p-5">
-              <p className="text-sm uppercase tracking-[0.24em] text-emerald-200">Success</p>
+              <p className="text-sm uppercase tracking-[0.24em] text-emerald-200">
+                {appointment.status === 'pending' ? 'Pending confirmation' : 'Success'}
+              </p>
               <p className="mt-3 text-lg font-semibold text-white">{appointment.doctorName}</p>
               <p className="mt-2 text-sm text-ink-300">{appointment.hospitalName} • {appointment.appointmentType}</p>
             </div>

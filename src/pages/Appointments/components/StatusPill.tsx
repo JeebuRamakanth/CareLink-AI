@@ -6,6 +6,7 @@ type StatusPillProps = {
 };
 
 const toneMap: Record<AppointmentStatus, 'brand' | 'success' | 'warning' | 'neutral'> = {
+  pending: 'warning',
   confirmed: 'brand',
   upcoming: 'success',
   completed: 'neutral',

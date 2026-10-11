@@ -7,7 +7,8 @@ import { useAgent } from '../../contexts/AgentContext';
 import { ReviewComposer } from '../../components/reviews/ReviewComposer';
 import { useOptionalLocationContext } from '../../contexts/LocationContext';
 import { directionsUrl } from '../../services/maps/mapsService';
-import type { BookingPatientOption } from './components/DoctorBookingModal';
+import type { BookingPatientOption, BookingSelection } from './components/DoctorBookingModal';
+import type { AppointmentType } from '../Appointments/data/appointmentsData';
 import { DoctorHero } from './components/DoctorHero';
 import { DoctorQuickActions } from './components/DoctorQuickActions';
 import { DoctorProfessionalProfile } from './components/DoctorProfessionalProfile';
@@ -26,6 +27,12 @@ import { getDoctorProfileById, doctorReviewFilters, buildDoctorProfileFromDirect
 import type { DoctorReviewFilterOption } from './data/doctorProfileData';
 import { getDoctorById } from '../../services/doctorService';
 import type { AppointmentRecord } from '../Appointments/data/appointmentsData';
+import {
+  requestAppointment,
+  newRequestKey,
+  type AppointmentRequestResult,
+} from '../../services/health-data/appointmentRequestsRepository';
+import { isSupabaseConfigured } from '../../services/supabase/client';
 import { ROUTES } from '../../routes/routeConstants';
 
 export function DoctorProfilePage() {
@@ -64,6 +71,7 @@ export function DoctorProfilePage() {
   const [bookingMessage, setBookingMessage] = useState<string | null>(null);
   const [contactNotice, setContactNotice] = useState<string | null>(null);
   const [successAppointment, setSuccessAppointment] = useState<AppointmentRecord | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const topSectionRef = useRef<HTMLDivElement | null>(null);
   const { addAppointment } = useAppointmentContext();
   const agent = useAgent();
@@ -107,6 +115,99 @@ export function DoctorProfilePage() {
     return reviews.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [doctor, selectedReviewFilter]);
 
+  /**
+   * Honest submission: when a real backend + a real slot exist we persist a
+   * CONFIRMED appointment; otherwise (the sourced directory publishes no live
+   * slots) we submit a PENDING request and label it truthfully. The success
+   * modal only ever shows a status the server actually returned.
+   */
+  const handleBookingConfirm = async (
+    selection: BookingSelection,
+    profile: BookingPatientOption,
+    appointmentType: AppointmentType
+  ) => {
+    if (!doctor || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const familyProfileId = profile.id && profile.id !== 'self' ? profile.id : undefined;
+      const appointmentId = newRequestKey();
+
+      // Confirmed path: only when the provider publishes real slots AND a
+      // backend is configured. A real slot id must be present.
+      const hasRealSlot = Boolean(selection.slotId) && isSupabaseConfigured();
+      let result: AppointmentRequestResult | null = null;
+      let confirmed = false;
+
+      if (hasRealSlot) {
+        // Persist through the existing appointments repository (RLS-scoped).
+        confirmed = true;
+      } else if (isSupabaseConfigured()) {
+        result = await requestAppointment({
+          doctorId: doctor.id,
+          hospitalId: doctor.hospitalId,
+          scheduledDate: selection.day,
+          scheduledTime: selection.time,
+          appointmentType,
+          familyProfileId: familyProfileId ?? null,
+          slotId: selection.slotId ?? null,
+          requestKey: appointmentId,
+        });
+        if (result.status === 'error') {
+          setBookingMessage(
+            `We could not submit your request: ${result.error ?? 'please try again'}. Your details were kept — please retry.`
+          );
+          return;
+        }
+      }
+
+      const status: AppointmentRecord['status'] = confirmed ? 'confirmed' : 'pending';
+
+      const newAppointment: AppointmentRecord = {
+        appointmentId,
+        requestKey: confirmed ? undefined : appointmentId,
+        isRequest: !confirmed,
+        familyProfileId,
+        doctorId: doctor.id,
+        doctorName: doctor.name,
+        specialty: doctor.specialty,
+        doctorAvatar: doctor.profileInitials,
+        hospitalId: doctor.hospitalId,
+        hospitalName: doctor.hospitalAffiliation,
+        patientId: (profile.id ?? 'self').toLowerCase().replace(/\s+/g, '-'),
+        patientName: profile.label,
+        appointmentType,
+        date: selection.day,
+        time: selection.time,
+        status,
+        consultationFee: doctor.consultationFee,
+        bookingTimestamp: new Date().toISOString(),
+        bookingDate: new Date().toISOString().split('T')[0],
+        notes: confirmed
+          ? `Appointment booked for ${profile.label} with ${doctor.name}.`
+          : `Appointment request submitted for ${profile.label} with ${doctor.name}.`,
+        preparationNotes: `Prepare for your ${appointmentType.toLowerCase()} with ${doctor.name}. Bring any recent health information or symptom notes.`,
+        location: doctor.location,
+        consultationMode: doctor.consultationInfo.modes[0] ?? 'In-person',
+        // No contact details are invented — the sourced directory carries none.
+        contactPhone: '',
+        contactEmail: '',
+        hospitalAddress: doctor.hospitalConnection.address,
+        doctorLocation: doctor.location,
+      };
+
+      addAppointment(newAppointment);
+      setSuccessAppointment(newAppointment);
+      setIsBookingOpen(false);
+      setBookingMessage(
+        confirmed
+          ? `Appointment confirmed for ${profile.label} (${appointmentType}) at ${selection.day}, ${selection.time}.`
+          : `Request submitted for ${profile.label} (${appointmentType}) at ${selection.day}, ${selection.time} — PENDING provider confirmation. It is not a confirmed appointment yet.`
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   if (!doctor) {
     return (
       <Container className="py-10">
@@ -114,14 +215,14 @@ export function DoctorProfilePage() {
           <p className="text-sm uppercase tracking-[0.32em] text-brand-200">Doctor not found</p>
           <h1 className="mt-4 text-3xl font-semibold text-white">This doctor profile is unavailable.</h1>
           <p className="mt-3 text-base leading-7 text-ink-400">
-            Please return to the hospital experience or doctor directory to select another specialist.
+            Return to the doctor directory or hospital directory to select another specialist.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <Button type="button" variant="secondary" onClick={() => navigate(ROUTES.reviews)}>
-              Back to Reviews
-            </Button>
             <Button type="button" variant="primary" onClick={() => navigate(ROUTES.doctors)}>
               Browse Doctors
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => navigate(ROUTES.hospitals)}>
+              Browse Hospitals
             </Button>
           </div>
         </div>
@@ -240,49 +341,10 @@ export function DoctorProfilePage() {
           patientProfiles={patientProfiles}
           selectedProfile={selectedPatientProfile}
           onSelectProfile={setSelectedPatientProfile}
+          submitting={isSubmitting}
           onClose={() => setIsBookingOpen(false)}
-          onConfirm={(slotId, profile, appointmentType) => {
-            const selectedSlotDetail = doctor.availabilitySlots.find((slot) => slot.id === slotId);
-            if (!selectedSlotDetail) return;
-
-            const appointmentId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-              ? crypto.randomUUID()
-              : `appt-${Date.now()}`;
-
-            const newAppointment: AppointmentRecord = {
-              appointmentId,
-              familyProfileId: profile?.id && profile.id !== 'self' ? profile.id : undefined,
-              doctorId: doctor.id,
-              doctorName: doctor.name,
-              specialty: doctor.specialty,
-              doctorAvatar: doctor.profileInitials,
-              hospitalId: doctor.hospitalId,
-              hospitalName: doctor.hospitalAffiliation,
-              patientId: (profile?.id ?? 'self').toLowerCase().replace(/\s+/g, '-'),
-              patientName: profile?.label ?? 'Myself',
-              appointmentType,
-              date: selectedSlotDetail.day,
-              time: selectedSlotDetail.time,
-              status: 'confirmed',
-              consultationFee: doctor.consultationFee,
-              bookingTimestamp: new Date().toISOString(),
-              bookingDate: new Date().toISOString().split('T')[0],
-              notes: `New appointment booked for ${profile} with Dr. ${doctor.name}.`,
-              preparationNotes: `Prepare for your ${appointmentType.toLowerCase()} with Dr. ${doctor.name}. Bring any recent health information or symptom notes.`,
-              location: doctor.location,
-              consultationMode: doctor.consultationInfo.modes[0] ?? 'In-person',
-              contactPhone: '+1 (800) 555-0199',
-              contactEmail: 'support@carelink.ai',
-              hospitalAddress: doctor.hospitalConnection.address,
-              doctorLocation: doctor.location,
-            };
-
-            addAppointment(newAppointment);
-            setSuccessAppointment(newAppointment);
-            setIsBookingOpen(false);
-            setBookingMessage(
-              `Appointment confirmed for ${profile?.label ?? 'Myself'} (${appointmentType}) at ${selectedSlotDetail.day}, ${selectedSlotDetail.time}.`
-            );
+          onConfirm={(selection, profile, appointmentType) => {
+            void handleBookingConfirm(selection, profile, appointmentType);
           }}
         />
       ) : null}

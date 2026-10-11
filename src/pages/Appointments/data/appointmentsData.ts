@@ -1,4 +1,4 @@
-export type AppointmentStatus = 'confirmed' | 'upcoming' | 'completed' | 'cancelled' | 'rescheduled';
+export type AppointmentStatus = 'pending' | 'confirmed' | 'upcoming' | 'completed' | 'cancelled' | 'rescheduled';
 export type AppointmentType = 'Consultation' | 'Follow-up' | 'Telehealth';
 
 export interface RescheduleInfo {
@@ -10,6 +10,14 @@ export interface RescheduleInfo {
 export interface AppointmentRecord {
   appointmentId: string;
   dbId?: string;
+  /**
+   * Idempotency key for the request that produced this record. Present for a
+   * PENDING request so a retry targets the same server row instead of creating
+   * a duplicate.
+   */
+  requestKey?: string;
+  /** True when this record is a REQUEST awaiting provider confirmation. */
+  isRequest?: boolean;
   /** Optional real family-profile id scoped to the booking owner. */
   familyProfileId?: string;
   doctorId: string;

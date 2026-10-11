@@ -7,12 +7,14 @@ import { AppointmentCard } from './components/AppointmentCard';
 import { CancelModal } from './components/CancelModal';
 import { RescheduleModal } from './components/RescheduleModal';
 import { useAppointments } from './hooks/useAppointments';
+import { isSupabaseConfigured } from '../../services/supabase/client';
 import { ROUTES } from '../../routes/routeConstants';
 import type { AppointmentRecord, AppointmentStatus } from './data/appointmentsData';
 import './appointments.css';
 
 const statusLabels: Record<AppointmentStatus | 'all', string> = {
   all: 'All appointments',
+  pending: 'Pending appointment requests',
   upcoming: 'Upcoming appointments',
   confirmed: 'Confirmed appointments',
   completed: 'Completed appointments',
@@ -68,6 +70,7 @@ export function AppointmentsPage() {
   };
 
   const activeCount = filteredAppointments.length;
+  const backendConfigured = isSupabaseConfigured();
 
   return (
     <Container className="py-8 sm:py-10 lg:py-16">
@@ -79,6 +82,12 @@ export function AppointmentsPage() {
           onSearchChange={setSearchQuery}
         />
       </motion.div>
+
+      {!backendConfigured ? (
+        <div role="status" className="mt-6 rounded-[1.5rem] border border-amber-400/25 bg-amber-500/10 px-5 py-3.5 text-sm text-amber-100">
+          No appointment backend is configured. New bookings are saved locally as clearly-labelled demo data and are NOT sent to any facility. Configure Supabase to persist real appointment requests.
+        </div>
+      ) : null}
 
       <div className="mt-10 space-y-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

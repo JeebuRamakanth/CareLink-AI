@@ -12,6 +12,7 @@ import type { ReactNode } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { sendAgentMessage } from '../services/agent';
 import { buildResponseForQuickAction } from '../services/agent/mockAgentService';
+import { primeAgentDirectory } from '../services/agent/directoryBridge';
 import {
   agentPatientProfiles,
   agentRecoverySeed,
@@ -510,6 +511,9 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       setStatus({ status: 'thinking' });
 
       try {
+        // Ensure the real directory is loaded so hospital/doctor responses use
+        // real records (never the legacy fabricated demo set).
+        await primeAgentDirectory();
         const { response } = await sendAgentMessage({
           text: trimmed || 'uploaded document',
           attachments: pendingAttachments,
@@ -544,6 +548,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
 
   const triggerQuickAction = useCallback(
     async (actionId: string) => {
+      await primeAgentDirectory();
       const response = buildResponseForQuickAction(actionId);
       const conversationId = activeConversationId;
 

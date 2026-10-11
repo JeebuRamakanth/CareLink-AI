@@ -32,8 +32,6 @@ import { adapters as resolvedAdapters, isAnyProviderReal } from './adapters/regi
 import { DISCLOSURES } from '../utils/safety';
 import {
   buildRouteFromHospital,
-  hospitalRecommendations,
-  doctorRecommendations,
   labRecommendations,
   pharmacyRecommendations,
   recoverySeed,
@@ -53,14 +51,19 @@ import {
   type RankInput,
 } from './recommendationRanking';
 import {
-  localizeHospitals,
-  localizeDoctors,
   localizePharmacies,
   localizeLabs,
   type PatientPoint,
 } from './discoveryService';
 import { runAITurn, type AIEngineResult } from './ai/aiEngine';
 import { inputSafetyFloor } from './ai/safetyLayer';
+import {
+  filterDoctorsBySpecialty,
+  filterHospitalsBySpecialty,
+  getDoctorRecommendations,
+  getHospitalRecommendations,
+  type RecommendationOrigin,
+} from './directoryRecommendations';
 import type { AgentActionType, AIProvenance, SafetyLevel } from '../types';
 
 const DISCLAIMER_MEDICAL = DISCLOSURES.medical;
@@ -104,6 +107,37 @@ const patientPoint = (request: AgentOrchestratorRequest): PatientPoint | null =>
 
 /** Whether the active turn produced real-provider data (drives REAL/MOCK badge). */
 const dataSourceFor = (): 'real' | 'mock' => (isAnyProviderReal() ? 'real' : 'mock');
+
+/** Patient origin for real directory distances (null when no coordinates exist). */
+const originOf = (patient?: PatientPoint | null): RecommendationOrigin | null =>
+  patient && typeof patient.lat === 'number' && typeof patient.lng === 'number'
+    ? { lat: patient.lat, lng: patient.lng, label: patient.label }
+    : null;
+
+/**
+ * Directory hospital recommendations with real distance (when the patient
+ * location is known) and an optional specialty filter. Falls back to the whole
+ * directory when a specialty matches nothing, so the card never goes empty for a
+ * term we simply do not have — the UI shows the honest "no verified records"
+ * copy only when the directory itself is empty.
+ */
+const directoryHospitals = async (
+  specialty: string | undefined,
+  patient?: PatientPoint | null
+) => {
+  const all = await getHospitalRecommendations(originOf(patient));
+  if (!specialty) return all;
+  const matched = filterHospitalsBySpecialty(all, specialty);
+  return matched.length > 0 ? matched : all;
+};
+
+/** Directory doctor recommendations, optionally filtered by specialty. */
+const directoryDoctors = async (specialty: string | undefined) => {
+  const all = await getDoctorRecommendations();
+  if (!specialty) return all;
+  const matched = filterDoctorsBySpecialty(all, specialty);
+  return matched.length > 0 ? matched : all;
+};
 
 /** Full pharmacy pool minus the medicine's own discovery pharmacy, for richer medicine results. */
 const pharmacyNeighbors = (): PharmacyRecommendation[] => pharmacyRecommendations;
@@ -241,25 +275,18 @@ const emptyResult = (intent: AgentIntent, overrides: Partial<AgentResult> = {}):
  * Per-intent builders
  * ------------------------------------------------------------------------- */
 
-function buildSymptomResult(entities: string[], context?: ConversationContext, patient?: PatientPoint | null): AgentResult {
+function buildSymptomResult(entities: string[], context?: ConversationContext): AgentResult {
   const specialty = activeSpecialty(entities, context) ?? 'relevant';
   const specialtyLabel = `${specialty} specialist`;
-  const input = rankInput('attention', specialty, context);
-  const ranked = rankDoctors(
-    doctorRecommendations.filter((d) => d.specialty.toLowerCase().includes(specialty.toLowerCase())),
-    input
-  ).slice(0, 2);
-  const { results: doctors } = localizeDoctors(ranked, patient ?? null, !isAnyProviderReal());
   return emptyResult('symptom', {
     summary: 'Understanding your symptoms',
     explanation: 'A calm, navigational summary of what you described and a safe next step. This is not a diagnosis.',
     urgency: 'attention',
     meta: { confidence: 'medium', urgency: 'attention', tier: 'triage', disclaimer: DISCLAIMER_MEDICAL },
     recommendedNextSteps: [`Book a consultation with a ${specialtyLabel}, or visit a hospital if symptoms worsen.`],
-    doctors,
     dataSource: dataSourceFor(),
     isDemoData: !isAnyProviderReal(),
-    sources: ['CareLink mock intelligence'],
+    sources: ['CareLink directory'],
     followUpQuestions: ['When did the symptoms start?', 'How severe are they on a scale of 1–10?', 'Any known triggers?'],
     actions: [
       { type: 'find-doctor', label: `Find a ${specialtyLabel}`, href: `${ROUTES.doctors}?q=${encodeURIComponent(specialty)}`, icon: 'find-doctor' },
@@ -270,7 +297,17 @@ function buildSymptomResult(entities: string[], context?: ConversationContext, p
   });
 }
 
-function buildDiseaseResult(entities: string[], rawInput: string, context?: ConversationContext, patient?: PatientPoint | null): AgentResult {
+/** Async symptom builder that also surfaces real directory doctors for the specialty. */
+async function buildSymptomResultAsync(entities: string[], context?: ConversationContext): Promise<AgentResult> {
+  const specialty = activeSpecialty(entities, context);
+  const base = buildSymptomResult(entities, context);
+  if (!specialty) return base;
+  const doctors = (await directoryDoctors(specialty)).slice(0, 2);
+  if (doctors.length === 0) return base;
+  return { ...base, doctors: rankDoctors(doctors, rankInput('attention', specialty, context)).slice(0, 2) };
+}
+
+async function buildDiseaseResult(entities: string[], rawInput: string, context?: ConversationContext, patient?: PatientPoint | null): Promise<AgentResult> {
   const term = rawInput.toLowerCase();
   let diseaseName = entities.find((e) => /^[A-Z]/.test(e)) ?? 'this condition';
   if (term.includes('diabetes')) diseaseName = 'Type 2 Diabetes';
@@ -280,19 +317,18 @@ function buildDiseaseResult(entities: string[], rawInput: string, context?: Conv
 
   const specialty = activeSpecialty(entities, context) ?? 'Endocrinology';
   const input = rankInput('routine', specialty, context);
-  const ranked = rankHospitals(hospitalRecommendations, input).slice(0, 3);
-  const { results: hospitals } = localizeHospitals(ranked, patient ?? null, !isAnyProviderReal());
+  const ranked = rankHospitals(await directoryHospitals(specialty, patient), input).slice(0, 3);
 
   return emptyResult('disease', {
     summary: `${diseaseName} — care navigation`,
     explanation: 'A brief, trustworthy overview to help you navigate care. Always confirm specifics with your doctor.',
     urgency: 'routine',
-    meta: { confidence: 'medium', urgency: 'routine', tier: 'educational', disclaimer: DISCLAIMER_MEDICAL, sources: ['Mock knowledge base'] },
+    meta: { confidence: 'medium', urgency: 'routine', tier: 'educational', disclaimer: DISCLAIMER_MEDICAL },
     recommendedNextSteps: ['Connect with a specialist to build or review your management plan.'],
-    hospitals,
+    hospitals: ranked,
     dataSource: dataSourceFor(),
     isDemoData: !isAnyProviderReal(),
-    sources: [isAnyProviderReal() ? 'CareLink knowledge base' : 'Mock knowledge base'],
+    sources: ['CareLink directory'],
     followUpQuestions: ['Are you currently on any treatment?', 'When was your last check-up?'],
     actions: [
       { type: 'find-doctor', label: 'Find a specialist', href: `${ROUTES.doctors}?q=${encodeURIComponent(specialty)}`, icon: 'find-doctor' },
@@ -303,50 +339,46 @@ function buildDiseaseResult(entities: string[], rawInput: string, context?: Conv
   });
 }
 
-async function buildHospitalResult(entities: string[], adapters: AgentAdapters, context?: ConversationContext, patient?: PatientPoint | null): Promise<AgentResult> {
+async function buildHospitalResult(entities: string[], _adapters: AgentAdapters, context?: ConversationContext, patient?: PatientPoint | null): Promise<AgentResult> {
   const specialty = activeSpecialty(entities, context);
   const focus = hospitalFocusTopic(context ?? emptyContext());
   const input = rankInput('routine', specialty, context);
-  const raw = specialty ? await adapters.hospitals.bySpecialty(specialty) : hospitalRecommendations.slice(0, 4);
-  const ranked = rankHospitals(raw, input).slice(0, 4);
-  const { results: hospitals } = localizeHospitals(ranked, patient ?? null, !isAnyProviderReal());
+  const hospitals = rankHospitals(await directoryHospitals(specialty, patient), input).slice(0, 4);
   // Pre-filter relevant doctors on the hospital page when a condition/specialty context exists.
   const hospitalHref = (slug: string) => focus ? `${ROUTES.hospitals}/${slug}?focus=${encodeURIComponent(focus)}` : `${ROUTES.hospitals}/${slug}`;
   return emptyResult('hospital', {
-    summary: specialty ? `Hospitals for ${specialty}` : 'Hospitals near you',
-    explanation: 'Hospitals from the CareLink network, ranked by distance, rating, relevance and availability. Tap a card to view the full hospital profile.',
+    summary: specialty ? `Hospitals for ${specialty}` : 'Hospitals in the CareLink directory',
+    explanation: 'Hospitals from the CareLink directory, ranked by relevance, distance (when known) and available data. Tap a card to view the full hospital profile.',
     urgency: 'routine',
-    meta: { confidence: 'high', urgency: 'routine', tier: 'next-action', disclaimer: 'Availability is indicative — confirm directly with the hospital.' },
-    recommendedNextSteps: ['Compare profiles and pick the closest facility that matches your needs.'],
+    meta: { confidence: hospitals.length > 0 ? 'high' : 'low', urgency: 'routine', tier: 'next-action', disclaimer: 'Availability is unlisted unless the provider publishes it — confirm directly with the hospital.' },
+    recommendedNextSteps: ['Compare profiles and pick the facility that matches your needs.'],
     hospitals,
     dataSource: dataSourceFor(),
     isDemoData: !isAnyProviderReal(),
-    sources: [isAnyProviderReal() ? 'CareLink hospital network' : 'CareLink hospital network (mock)'],
+    sources: ['CareLink hospital directory'],
     actions: [
-      { type: 'view-hospital', label: 'View relevant doctors', href: hospitalHref(hospitals[0]?.detailSlug ?? ''), icon: 'view-doctor' },
+      ...(hospitals[0]?.detailSlug ? [{ type: 'view-hospital' as const, label: 'View relevant doctors', href: hospitalHref(hospitals[0].detailSlug), icon: 'view-doctor' as const }] : []),
       { type: 'find-hospital', label: 'Browse all hospitals', href: ROUTES.hospitals, icon: 'find-hospital' },
     ],
     suggestedReplies: ['Find a doctor', 'Get directions', 'Book an appointment'],
   });
 }
 
-async function buildDoctorResult(entities: string[], adapters: AgentAdapters, context?: ConversationContext, patient?: PatientPoint | null): Promise<AgentResult> {
+async function buildDoctorResult(entities: string[], _adapters: AgentAdapters, context?: ConversationContext, _patient?: PatientPoint | null): Promise<AgentResult> {
   const specialty = activeSpecialty(entities, context);
   const input = rankInput('routine', specialty, context);
-  const raw = specialty ? await adapters.doctors.bySpecialty(specialty) : doctorRecommendations.slice(0, 4);
-  const ranked = rankDoctors(raw, input).slice(0, 4);
-  const { results: doctors } = localizeDoctors(ranked, patient ?? null, !isAnyProviderReal());
+  const doctors = rankDoctors(await directoryDoctors(specialty), input).slice(0, 4);
   return emptyResult('doctor', {
-    summary: specialty ? `${specialty} specialists` : 'Doctors for your needs',
-    explanation: 'Verified specialists from the CareLink network, ranked by relevance, availability, rating and distance. Tap a card to view the doctor profile.',
+    summary: specialty ? `${specialty} specialists` : 'Doctors in the CareLink directory',
+    explanation: 'Doctors from the CareLink directory, ranked by relevance and available data. Tap a card to view the doctor profile. Availability is unlisted until a provider publishes real slots.',
     urgency: 'routine',
-    meta: { confidence: 'high', urgency: 'routine', tier: 'next-action', disclaimer: 'Slot availability is indicative — confirm during booking.' },
-    recommendedNextSteps: ['Review profiles and book a consultation.'],
+    meta: { confidence: doctors.length > 0 ? 'high' : 'low', urgency: 'routine', tier: 'next-action', disclaimer: 'Availability is unlisted — confirm during booking.' },
+    recommendedNextSteps: ['Review profiles and request a consultation.'],
     doctors,
     dataSource: dataSourceFor(),
     isDemoData: !isAnyProviderReal(),
-    sources: [isAnyProviderReal() ? 'CareLink doctor network' : 'CareLink doctor network (mock)'],
-    actions: [{ type: 'book-appointment', label: 'Book an appointment', href: ROUTES.appointments, icon: 'book-appointment' }],
+    sources: ['CareLink doctor directory'],
+    actions: [{ type: 'book-appointment', label: 'Request an appointment', href: ROUTES.appointments, icon: 'book-appointment' }],
     suggestedReplies: ['Find a hospital', 'Book an appointment', 'What should I do next?'],
   });
 }
@@ -516,22 +548,31 @@ function buildAppointmentResult(adapters: AgentAdapters, kind: 'view' | 'book' |
   });
 }
 
-function buildRouteResult(context?: ConversationContext, patient?: PatientPoint | null): AgentResult {
+async function buildRouteResult(context?: ConversationContext, patient?: PatientPoint | null): Promise<AgentResult> {
   const input = rankInput('routine', undefined, context);
-  const ranked = rankHospitals(hospitalRecommendations, input);
-  const { results: localized } = localizeHospitals(ranked, patient ?? null, !isAnyProviderReal());
-  const hospital = localized[0];
+  const ranked = rankHospitals(await directoryHospitals(undefined, patient), input);
+  const hospital = ranked[0];
+  if (!hospital) {
+    return emptyResult('route', {
+      summary: 'No facility available to route to',
+      explanation: 'The CareLink directory has no facility records loaded, so a route cannot be built.',
+      urgency: 'routine',
+      meta: { confidence: 'low', urgency: 'routine', tier: 'next-action' },
+      actions: [{ type: 'find-hospital', label: 'Browse hospitals', href: ROUTES.hospitals, icon: 'find-hospital' }],
+      suggestedReplies: ['Find a hospital', 'Find a doctor'],
+    });
+  }
   return emptyResult('route', {
     summary: `Directions to ${hospital.name}`,
     explanation: 'Route summary with distance and estimated travel time. Connect a maps provider later for live navigation.',
     urgency: 'routine',
     meta: { confidence: 'medium', urgency: 'routine', tier: 'next-action', disclaimer: 'Travel time is an estimate and may vary with traffic.' },
-    recommendedNextSteps: [`Head to ${hospital.name} (~${hospital.estimatedTravelTimeMin} min).`],
+    recommendedNextSteps: [`Head to ${hospital.name}${hospital.distanceAvailable ? ` (~${hospital.estimatedTravelTimeMin} min)` : ''}.`],
     routes: [hospital.route ?? buildRouteFromHospital(hospital)],
     hospitals: [hospital],
     dataSource: dataSourceFor(),
     isDemoData: !isAnyProviderReal(),
-    sources: [isAnyProviderReal() ? 'CareLink routing' : 'CareLink routing (mock)'],
+    sources: ['CareLink directory'],
     actions: [{ type: 'view-hospital', label: 'View hospital', href: `${ROUTES.hospitals}/${hospital.detailSlug}`, icon: 'view-hospital' }],
     suggestedReplies: ['View hospital', 'Find a doctor', 'Book an appointment'],
   });
@@ -565,12 +606,10 @@ function buildVaccinationResult(): AgentResult {
   });
 }
 
-function buildChildCareResult(context?: ConversationContext, patient?: PatientPoint | null): AgentResult {
-  const input = rankInput('routine', 'Pediatrics', context);
-  const rankedDocs = rankDoctors(doctorRecommendations.filter((d) => d.specialty === 'Pediatrics'), input).slice(0, 2);
-  const rankedHospitals = rankHospitals(hospitalRecommendations.filter((h) => h.specialties.includes('Pediatrics')), input).slice(0, 2);
-  const { results: doctors } = localizeDoctors(rankedDocs, patient ?? null, !isAnyProviderReal());
-  const { results: hospitals } = localizeHospitals(rankedHospitals, patient ?? null, !isAnyProviderReal());
+async function buildChildCareResult(context?: ConversationContext, patient?: PatientPoint | null): Promise<AgentResult> {
+  const input = rankInput('routine', 'Paediatrics', context);
+  const doctors = rankDoctors(await directoryDoctors('Paediatrics'), input).slice(0, 2);
+  const hospitals = rankHospitals(await directoryHospitals('Paediatrics', patient), input).slice(0, 2);
   return emptyResult('child-care', {
     summary: 'Child-care guidance',
     explanation: 'Navigational guidance for common child-care questions — symptoms, vaccinations, and finding pediatric care.',
@@ -581,17 +620,15 @@ function buildChildCareResult(context?: ConversationContext, patient?: PatientPo
     hospitals,
     dataSource: dataSourceFor(),
     isDemoData: !isAnyProviderReal(),
-    sources: ['CareLink mock intelligence'],
+    sources: ['CareLink directory'],
     suggestedReplies: ['Find a pediatrician', 'Vaccination schedule', 'Find a hospital'],
   });
 }
 
-function buildElderCareResult(context?: ConversationContext, patient?: PatientPoint | null): AgentResult {
+async function buildElderCareResult(context?: ConversationContext, patient?: PatientPoint | null): Promise<AgentResult> {
   const input = rankInput('routine', undefined, context);
-  const rankedDocs = rankDoctors(doctorRecommendations, input).slice(0, 2);
-  const rankedHospitals = rankHospitals(hospitalRecommendations, input).slice(0, 2);
-  const { results: doctors } = localizeDoctors(rankedDocs, patient ?? null, !isAnyProviderReal());
-  const { results: hospitals } = localizeHospitals(rankedHospitals, patient ?? null, !isAnyProviderReal());
+  const doctors = rankDoctors(await directoryDoctors(undefined), input).slice(0, 2);
+  const hospitals = rankHospitals(await directoryHospitals(undefined, patient), input).slice(0, 2);
   return emptyResult('elder-care', {
     summary: 'Elder-care guidance',
     explanation: 'Navigational guidance for elder-care — chronic conditions, medications, and finding geriatric-friendly care.',
@@ -602,15 +639,14 @@ function buildElderCareResult(context?: ConversationContext, patient?: PatientPo
     hospitals,
     dataSource: dataSourceFor(),
     isDemoData: !isAnyProviderReal(),
-    sources: ['CareLink mock intelligence'],
+    sources: ['CareLink directory'],
     suggestedReplies: ['Find a doctor', 'Find a hospital', 'My medicines'],
   });
 }
 
-function buildMentalHealthResult(context?: ConversationContext, patient?: PatientPoint | null): AgentResult {
-  const input = rankInput('attention', 'Mental Health', context);
-  const rankedHospitals = rankHospitals(hospitalRecommendations.filter((h) => h.specialties.includes('Mental Health')), input).slice(0, 1);
-  const { results: hospitals } = localizeHospitals(rankedHospitals, patient ?? null, !isAnyProviderReal());
+async function buildMentalHealthResult(context?: ConversationContext, patient?: PatientPoint | null): Promise<AgentResult> {
+  const input = rankInput('attention', 'Psychiatry', context);
+  const hospitals = rankHospitals(await directoryHospitals('Psychiatry', patient), input).slice(0, 1);
   return emptyResult('mental-health', {
     summary: 'Mental-health navigation',
     explanation: 'Supportive, navigational guidance for mental health. This is not a crisis line — for emergencies, call your local emergency number.',
@@ -621,7 +657,7 @@ function buildMentalHealthResult(context?: ConversationContext, patient?: Patien
     hospitals,
     dataSource: dataSourceFor(),
     isDemoData: !isAnyProviderReal(),
-    sources: ['CareLink mock intelligence'],
+    sources: ['CareLink directory'],
     actions: [{ type: 'call-emergency', label: 'Crisis helpline', href: 'tel:988', icon: 'call-emergency' }],
     suggestedReplies: ['Find a counselor', 'Find a hospital', 'What should I do next?'],
   });
@@ -640,22 +676,21 @@ function buildFamilyResult(): AgentResult {
   });
 }
 
-function buildLocationResult(context?: ConversationContext, patient?: PatientPoint | null): AgentResult {
+async function buildLocationResult(context?: ConversationContext, patient?: PatientPoint | null): Promise<AgentResult> {
   const input = rankInput('routine', undefined, context);
-  const ranked = rankHospitals(hospitalRecommendations, input).slice(0, 3);
-  const { results: hospitals } = localizeHospitals(ranked, patient ?? null, !isAnyProviderReal());
+  const ranked = rankHospitals(await directoryHospitals(undefined, patient), input).slice(0, 3);
   return emptyResult('location', {
     summary: 'Location-aware healthcare search',
     explanation: patient
-      ? 'Results are ranked by proximity to your location, plus rating and availability.'
-      : 'Results are ranked by proximity, rating and availability. Share your location for live distances.',
+      ? 'Results are ranked by proximity to your location, plus available directory data.'
+      : 'Results are ranked by available directory data. Share your location for real distances.',
     urgency: 'routine',
-    meta: { confidence: 'medium', urgency: 'routine', tier: 'next-action', disclaimer: patient ? 'Distance is a straight-line estimate; travel time may vary with traffic.' : 'Distances are mock placeholders until you share your location or a maps provider is connected.' },
+    meta: { confidence: 'medium', urgency: 'routine', tier: 'next-action', disclaimer: patient ? 'Distance is a straight-line estimate; travel time may vary with traffic.' : 'Distances are unavailable until you share your location or a maps provider is connected.' },
     recommendedNextSteps: ['Pick the closest facility and confirm availability before you travel.'],
-    hospitals,
+    hospitals: ranked,
     dataSource: dataSourceFor(),
     isDemoData: !isAnyProviderReal(),
-    sources: [isAnyProviderReal() ? 'CareLink hospital network' : 'CareLink hospital network (mock)'],
+    sources: ['CareLink hospital directory'],
     suggestedReplies: ['Find a hospital', 'Find a doctor', 'Find a pharmacy'],
   });
 }
@@ -678,16 +713,16 @@ function buildGeneralResult(): AgentResult {
 }
 
 async function buildEmergencyResult(adapters: AgentAdapters, input: string, context?: ConversationContext, patient?: PatientPoint | null): Promise<AgentResult> {
-  const assessment = await adapters.emergency.assess(input, { activeProfileId: 'self', profile: { id: 'self', label: 'Self', relation: 'self', contextSummary: '', contextTags: [] } });
+  const assessment = await adapters.emergency.assess(input, { activeProfileId: 'self', profile: { id: 'self', label: 'Self', relation: 'self', contextSummary: '', contextTags: [] }, location: patient ? { label: patient.label ?? '', lat: patient.lat, lng: patient.lng } : undefined });
   const input2 = rankInput('emergency', undefined, context);
   const facilityHospitals = assessment.nearbyFacilities.map((f) => ({
-    id: f.id, detailSlug: f.detailSlug ?? '', name: f.name, rating: 4.6, reviewCount: 0, specialties: [],
-    distanceKm: f.distanceKm, estimatedTravelTimeMin: f.estimatedTravelTimeMin, isOpen: true, hasEmergency: true,
+    id: f.id, detailSlug: f.detailSlug ?? '', name: f.name, rating: 0, reviewCount: 0, specialties: [],
+    distanceKm: f.distanceKm, estimatedTravelTimeMin: f.estimatedTravelTimeMin, isOpen: false, hasEmergency: true,
     address: f.address, city: '', route: f.route,
+    distanceAvailable: Boolean(f.route), availabilityLabel: 'Availability unlisted',
   }));
-  const { results: localized } = localizeHospitals(facilityHospitals, patient ?? null, !isAnyProviderReal());
   // Emergency relevance overrides normal ranking: nearest emergency-capable facility first.
-  const facilities = rankHospitals(localized, input2);
+  const facilities = rankHospitals(facilityHospitals, input2);
   return emptyResult('emergency', {
     summary: 'This may need urgent attention',
     explanation: 'Based on what you described, this could be serious. Please treat this as urgent and consider immediate professional care.',
@@ -749,10 +784,10 @@ export function createAgentOrchestrator(adapters: AgentAdapters = resolvedAdapte
     let result: AgentResult;
     switch (classification.intent) {
       case 'symptom':
-        result = buildSymptomResult(classification.entities, priorContext, patient);
+        result = await buildSymptomResultAsync(classification.entities, priorContext);
         break;
       case 'disease':
-        result = buildDiseaseResult(classification.entities, request.text, priorContext, patient);
+        result = await buildDiseaseResult(classification.entities, request.text, priorContext, patient);
         break;
       case 'hospital':
         result = await buildHospitalResult(classification.entities, adapters, priorContext, patient);
@@ -776,7 +811,7 @@ export function createAgentOrchestrator(adapters: AgentAdapters = resolvedAdapte
         result = buildAppointmentResult(adapters, 'view');
         break;
       case 'route':
-        result = buildRouteResult(priorContext, patient);
+        result = await buildRouteResult(priorContext, patient);
         break;
       case 'recovery':
         result = buildRecoveryResult();
@@ -785,19 +820,19 @@ export function createAgentOrchestrator(adapters: AgentAdapters = resolvedAdapte
         result = buildVaccinationResult();
         break;
       case 'child-care':
-        result = buildChildCareResult(priorContext, patient);
+        result = await buildChildCareResult(priorContext, patient);
         break;
       case 'elder-care':
-        result = buildElderCareResult(priorContext, patient);
+        result = await buildElderCareResult(priorContext, patient);
         break;
       case 'mental-health':
-        result = buildMentalHealthResult(priorContext, patient);
+        result = await buildMentalHealthResult(priorContext, patient);
         break;
       case 'family':
         result = buildFamilyResult();
         break;
       case 'location':
-        result = buildLocationResult(priorContext, patient);
+        result = await buildLocationResult(priorContext, patient);
         break;
       default:
         result = buildGeneralResult();
