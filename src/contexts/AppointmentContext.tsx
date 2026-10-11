@@ -88,6 +88,10 @@ export function AppointmentProvider({ children }: { children: React.ReactNode })
       refreshFromBackend,
       addAppointment: (appointment: AppointmentRecord) => {
         setAppointments((current) => [appointment, ...current]);
+        // A PENDING request is already persisted through the guarded
+        // carelink_request_appointment RPC; it must NOT also be written to the
+        // `appointments` table (that would fabricate a confirmation).
+        if (appointment.isRequest) return;
         // Persist a REAL database appointment when Supabase is configured. Once
         // the DB insert succeeds, the returned row id is stored back into the local
         // record (`dbId`) so later reschedule/cancel/status refresh target the real row.

@@ -12,6 +12,7 @@ export * from './repository';
 export * from './profilesRepository';
 export * from './familyRepository';
 export * from './appointmentsRepository';
+export * from './appointmentRequestsRepository';
 export * from './conversationsRepository';
 export * from './documentsRepository';
 export * from './recoveryVaccinationRepository';

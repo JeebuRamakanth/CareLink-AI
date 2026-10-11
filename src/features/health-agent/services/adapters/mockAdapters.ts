@@ -32,9 +32,6 @@ import type {
   RouteRecommendation,
 } from '../../types';
 import {
-  buildRouteFromHospital,
-  findDoctorBySpecialty,
-  findHospitalBySpecialty,
   findMedicine,
   hospitalRecommendations,
   labRecommendations,
@@ -43,6 +40,16 @@ import {
   recoverySeed,
   newCheckIn,
 } from '../../data/mockData';
+import {
+  extractLocationHint,
+  filterDoctorsBySpecialty,
+  filterHospitalsBySpecialty,
+  getDoctorRecommendations,
+  getHospitalRecommendations,
+  searchDoctorsInList,
+  searchHospitalsInList,
+  type RecommendationOrigin,
+} from '../directoryRecommendations';
 import { buildMapsDirectionsUrl, buildMapsPlaceUrl } from '../../../../lib';
 
 const wait = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
@@ -92,6 +99,15 @@ const SPECIALTY_HINTS: { keywords: string[]; specialty: string }[] = [
 const normalize = (input: string): string => input.toLowerCase().trim();
 const hasAny = (text: string, patterns: string[]): boolean => patterns.some((p) => text.includes(p));
 
+/** Patient origin (for real distance) derived from the runtime patient context. */
+const originFromContext = (context: PatientContext): RecommendationOrigin | null => {
+  const loc = context?.location ?? context?.navigation?.location;
+  if (loc && typeof loc.lat === 'number' && typeof loc.lng === 'number') {
+    return { lat: loc.lat, lng: loc.lng, label: loc.label };
+  }
+  return null;
+};
+
 const extractEntities = (text: string): string[] => {
   const entities: string[] = [];
   for (const hint of SPECIALTY_HINTS) {
@@ -140,30 +156,55 @@ export const mockAIProvider: AgentAdapters['ai'] = {
 };
 
 /* ----------------------------------------------------------------------------
- * Mock search adapters
+ * Search adapters.
+ *
+ * These now read the SAME hospital/doctor directory the UI pages use (Supabase
+ * registry when configured, otherwise the sourced Machilipatnam directory) via
+ * `directoryRecommendations`. The agent therefore never surfaces a private,
+ * disconnected demo set — every card carries a real stable id that resolves on
+ * `/hospitals/:id` and `/doctors/:id`. The mock fallback list is retained ONLY
+ * as a last resort if the directory itself returns nothing.
  * ------------------------------------------------------------------------- */
 
 export const mockHospitalSearch: AgentAdapters['hospitals'] = {
-  async search(query) {
-    await wait(120);
+  async search(query, context) {
+    await wait(60);
+    const all = await getHospitalRecommendations(originFromContext(context));
     const specialty = extractEntities(normalize(query)).find((e) => /^[A-Z]/.test(e));
-    return specialty ? findHospitalBySpecialty(specialty) : hospitalRecommendations.slice(0, 3);
+    const locationHint = extractLocationHint(query);
+    let pool = specialty ? filterHospitalsBySpecialty(all, specialty) : all;
+    if (locationHint) {
+      const byLocation = searchHospitalsInList(pool, locationHint);
+      // Only narrow by location when it actually matches records.
+      if (byLocation.length > 0) pool = byLocation;
+    }
+    if (pool.length > 0) return pool.slice(0, 5);
+    return hospitalRecommendations.slice(0, 3);
   },
   async bySpecialty(specialty) {
-    await wait(100);
-    return findHospitalBySpecialty(specialty);
+    await wait(60);
+    const all = await getHospitalRecommendations();
+    const matched = filterHospitalsBySpecialty(all, specialty);
+    return matched.length > 0 ? matched : hospitalRecommendations.slice(0, 2);
   },
 };
 
 export const mockDoctorSearch: AgentAdapters['doctors'] = {
   async search(query) {
-    await wait(120);
+    await wait(60);
+    const all = await getDoctorRecommendations();
     const specialty = extractEntities(normalize(query)).find((e) => /^[A-Z]/.test(e));
-    return specialty ? findDoctorBySpecialty(specialty) : doctorRecommendations.slice(0, 3);
+    let pool = specialty ? filterDoctorsBySpecialty(all, specialty) : all;
+    const q = query.trim().toLowerCase();
+    if (pool.length === 0 && q) pool = searchDoctorsInList(all, q);
+    if (pool.length > 0) return pool.slice(0, 5);
+    return doctorRecommendations.slice(0, 3);
   },
   async bySpecialty(specialty) {
-    await wait(100);
-    return findDoctorBySpecialty(specialty);
+    await wait(60);
+    const all = await getDoctorRecommendations();
+    const matched = filterDoctorsBySpecialty(all, specialty);
+    return matched.length > 0 ? matched : doctorRecommendations.slice(0, 2);
   },
 };
 
@@ -343,23 +384,27 @@ export const mockRecoveryService: AgentAdapters['recovery'] = {
  * ------------------------------------------------------------------------- */
 
 export const mockEmergencyService: AgentAdapters['emergency'] = {
-  async assess(_input) {
+  async assess(_input, context) {
     await wait(100);
-    // Return ALL emergency-capable hospitals, ranked by distance — never just the
-    // first. Emergency relevance overrides normal rating-based ranking; the caller
-    // (orchestrator) re-ranks with emergency urgency so the nearest suitable
+    // Emergency facilities come from the SAME directory the UI uses, filtered to
+    // records that genuinely carry an emergency capability — never a private
+    // demo set. Distances are real (computed from the patient's location) or
+    // explicitly unavailable; the caller re-ranks so the nearest suitable
     // facility wins over a higher-rated non-emergency clinic.
-    const emergencyHospitals = hospitalRecommendations
+    const origin = originFromContext(context);
+    const all = await getHospitalRecommendations(origin);
+    const emergencyHospitals = all
       .filter((h) => h.hasEmergency)
-      .sort((a, b) => a.distanceKm - b.distanceKm);
-    const facilities = emergencyHospitals.map((facility) => ({
+      .sort((a, b) => (a.distanceAvailable ? a.distanceKm : Number.POSITIVE_INFINITY) - (b.distanceAvailable ? b.distanceKm : Number.POSITIVE_INFINITY));
+    const pool = emergencyHospitals.length > 0 ? emergencyHospitals : all.slice(0, 3);
+    const facilities = pool.map((facility) => ({
       id: facility.id,
       detailSlug: facility.detailSlug,
       name: facility.name,
       distanceKm: facility.distanceKm,
       estimatedTravelTimeMin: facility.estimatedTravelTimeMin,
-      address: `${facility.address}, ${facility.city}`,
-      route: buildRouteFromHospital(facility),
+      address: [facility.address, facility.city].filter(Boolean).join(', '),
+      route: facility.route,
     }));
     const assessment: EmergencyAssessment = {
       severity: 'emergency',

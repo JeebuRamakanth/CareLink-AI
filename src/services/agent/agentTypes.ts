@@ -79,6 +79,10 @@ export interface HospitalRecommendation {
   is24x7: boolean;
   address: string;
   city: string;
+  /** False when no real coordinates exist — the UI must not print a distance. */
+  distanceAvailable?: boolean;
+  /** Verbatim availability label when operating hours are unknown. */
+  availabilityLabel?: string;
   route?: RouteResult;
 }
 
@@ -99,6 +103,8 @@ export interface DoctorRecommendation {
   nextAvailableSlot: string;
   consultationFee?: string;
   acceptsNewPatients: boolean;
+  /** Verbatim availability label when no real slot data exists. */
+  availabilityLabel?: string;
   route?: RouteResult;
 }
 

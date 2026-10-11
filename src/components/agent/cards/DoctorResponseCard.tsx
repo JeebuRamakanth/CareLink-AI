@@ -85,13 +85,13 @@ export function DoctorResponseCard({ data, title, explanation, suggestedReplies,
             <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm text-ink-300 sm:grid-cols-3">
               <span className="inline-flex items-center gap-1">
                 <IconStar width={14} height={14} className="text-amber-300" aria-hidden />
-                <span className="font-semibold text-white">{doctor.rating.toFixed(1)}</span>
-                <span className="text-ink-400">({doctor.reviewCount})</span>
+                <span className="font-semibold text-white">{doctor.rating > 0 ? doctor.rating.toFixed(1) : '—'}</span>
+                <span className="text-ink-400">{doctor.reviewCount > 0 ? `(${doctor.reviewCount})` : ''}</span>
               </span>
-              <span>{doctor.yearsOfExperience} yrs exp</span>
+              <span>{doctor.yearsOfExperience > 0 ? `${doctor.yearsOfExperience} yrs exp` : 'Experience unlisted'}</span>
               <span className="inline-flex items-center gap-1">
                 <IconClock width={14} height={14} aria-hidden />
-                <span className="truncate">{doctor.nextAvailableSlot}</span>
+                <span className="truncate">{doctor.availabilityLabel ?? doctor.nextAvailableSlot ?? 'Availability unlisted'}</span>
               </span>
             </div>
 

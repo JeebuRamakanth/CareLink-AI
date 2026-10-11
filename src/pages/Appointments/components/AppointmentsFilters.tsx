@@ -4,6 +4,7 @@ import { Button } from '../../../components/ui/Button';
 
 const tabs: Array<{ key: AppointmentStatus | 'all'; label: string }> = [
   { key: 'all', label: 'All' },
+  { key: 'pending', label: 'Pending requests' },
   { key: 'upcoming', label: 'Upcoming' },
   { key: 'confirmed', label: 'Confirmed' },
   { key: 'completed', label: 'Completed' },

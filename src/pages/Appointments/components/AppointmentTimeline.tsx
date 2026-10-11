@@ -9,6 +9,7 @@ type AppointmentTimelineProps = {
 
 const stages: AppointmentTimelineStage[] = ['Booked', 'Confirmed', 'Upcoming', 'Completed', 'Rescheduled', 'Cancelled'];
 const statusToStage: Record<AppointmentStatus, AppointmentTimelineStage> = {
+  pending: 'Booked',
   confirmed: 'Confirmed',
   upcoming: 'Upcoming',
   completed: 'Completed',

@@ -61,20 +61,24 @@ export function HospitalResponseCard({ data, title, explanation, suggestedReplie
                 </p>
               </div>
               <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[0.66rem] font-semibold uppercase tracking-[0.22em] ${hospital.isOpen ? 'border-emerald-400/25 bg-emerald-500/12 text-emerald-200' : 'border-white/10 bg-white/5 text-ink-300'}`}>
-                {hospital.isOpen ? 'Open now' : 'Closed'}
+                {hospital.availabilityLabel ?? (hospital.isOpen ? 'Open now' : 'Closed')}
               </span>
             </div>
 
             <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-ink-300">
               <span className="inline-flex items-center gap-1">
                 <IconStar width={14} height={14} className="text-amber-300" aria-hidden />
-                <span className="font-semibold text-white">{hospital.rating.toFixed(1)}</span>
-                <span className="text-ink-400">({hospital.reviewCount})</span>
+                <span className="font-semibold text-white">{hospital.rating > 0 ? hospital.rating.toFixed(1) : '—'}</span>
+                <span className="text-ink-400">{hospital.reviewCount > 0 ? `(${hospital.reviewCount})` : 'No verified ratings yet'}</span>
               </span>
-              <span className="inline-flex items-center gap-1">
-                <IconRoute width={14} height={14} aria-hidden />
-                <span>{hospital.distanceKm.toFixed(1)} km · ~{hospital.estimatedTravelTimeMin} min</span>
-              </span>
+              {hospital.distanceAvailable !== false ? (
+                <span className="inline-flex items-center gap-1">
+                  <IconRoute width={14} height={14} aria-hidden />
+                  <span>{hospital.distanceKm.toFixed(1)} km · ~{hospital.estimatedTravelTimeMin} min</span>
+                </span>
+              ) : (
+                <span className="text-ink-500">Distance unavailable</span>
+              )}
             </div>
 
             <div className="mt-3 flex flex-wrap gap-1.5">

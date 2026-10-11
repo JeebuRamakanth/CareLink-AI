@@ -283,6 +283,19 @@ export interface HospitalRecommendation extends Explainable<{
   hasEmergency: boolean;
   address: string;
   city: string;
+  /**
+   * Whether `distanceKm` is a real computed distance. Absent (legacy mock data)
+   * is treated as available. `false` means no coordinates exist, so the UI must
+   * say "Distance unavailable" rather than print a fabricated number.
+   */
+  distanceAvailable?: boolean;
+  /**
+   * Verbatim availability label when operating hours are unknown (e.g.
+   * "Availability unlisted"). Absent = derive from `isOpen`.
+   */
+  availabilityLabel?: string;
+  /** Origin of this record — drives honest "directory" vs "demo" badges. */
+  provenanceStatus?: string;
   route?: RouteRecommendation;
   rank?: RankedRecommendation;
 }> {}
@@ -303,6 +316,12 @@ export interface DoctorRecommendation extends Explainable<{
   nextAvailableSlot: string;
   consultationFee?: string;
   acceptsNewPatients: boolean;
+  /** Verbatim availability label when no real slot data exists. */
+  availabilityLabel?: string;
+  /** Origin of this record — drives honest "directory" vs "demo" badges. */
+  provenanceStatus?: string;
+  /** Hospitals this doctor is EXPLICITLY affiliated with (stable ids). */
+  hospitalIds?: string[];
   route?: RouteRecommendation;
   rank?: RankedRecommendation;
 }> {}

@@ -210,10 +210,10 @@ export function HospitalDetailsPage() {
           <p className="text-sm uppercase tracking-[0.32em] text-brand-200">Hospital not found</p>
           <h1 className="mt-4 text-3xl font-semibold text-white">This hospital detail page is unavailable.</h1>
           <p className="mt-3 text-base leading-7 text-ink-400">
-            Please return to the reviews experience and select another hospital preview.
+            Return to the hospital directory and select another facility.
           </p>
-          <Button className="mt-8" onClick={() => navigate(ROUTES.reviews)}>
-            Back to Reviews
+          <Button className="mt-8" onClick={() => navigate(ROUTES.hospitals)}>
+            Browse hospitals
           </Button>
         </div>
       </Container>
@@ -223,7 +223,7 @@ export function HospitalDetailsPage() {
   return (
     <Container className="py-8 sm:py-10 lg:py-16">
       <div className="space-y-10">
-        <HospitalHero hospital={effectiveHospital} onBack={() => navigate(ROUTES.reviews)} />
+        <HospitalHero hospital={effectiveHospital} onBack={() => navigate(ROUTES.hospitals)} />
         <HospitalQuickActions
           onViewLocation={handleViewLocation}
           onGetDirections={handleGetDirections}

@@ -218,12 +218,12 @@ function ResultPreview({ result, onReply, onReset }: { result: AgentResult; onRe
                     <p className="truncate text-xs text-ink-400">{h.address}, {h.city}</p>
                   </div>
                   <span className={cn('shrink-0 rounded-full border px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.18em]', h.isOpen ? 'border-emerald-400/25 bg-emerald-500/12 text-emerald-200' : 'border-white/10 bg-white/5 text-ink-300')}>
-                    {h.isOpen ? 'Open' : 'Closed'}
+                    {h.availabilityLabel ?? (h.isOpen ? 'Open' : 'Closed')}
                   </span>
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-300">
-                  <span className="inline-flex items-center gap-1"><IconStar width={12} height={12} className="text-amber-300" aria-hidden /> <span className="font-semibold text-white">{h.rating.toFixed(1)}</span></span>
-                  {h.route ? <span className="inline-flex items-center gap-1"><IconRoute width={12} height={12} aria-hidden /> {h.distanceKm.toFixed(1)} km · ~{h.estimatedTravelTimeMin} min</span> : null}
+                  <span className="inline-flex items-center gap-1"><IconStar width={12} height={12} className="text-amber-300" aria-hidden /> <span className="font-semibold text-white">{h.rating > 0 ? h.rating.toFixed(1) : '—'}</span></span>
+                  {h.route && h.distanceAvailable !== false ? <span className="inline-flex items-center gap-1"><IconRoute width={12} height={12} aria-hidden /> {h.distanceKm.toFixed(1)} km · ~{h.estimatedTravelTimeMin} min</span> : <span className="text-ink-500">Distance unavailable</span>}
                 </div>
                 {h.rank && h.rank.reasons.length > 0 ? (
                   <p className="mt-1.5 text-[0.68rem] leading-4 text-ink-400" title="Why this result?">
@@ -252,8 +252,8 @@ function ResultPreview({ result, onReply, onReset }: { result: AgentResult; onRe
                   {d.consultationFee ? <span className="shrink-0 text-xs font-semibold text-brand-200">{d.consultationFee}</span> : null}
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-300">
-                  <span className="inline-flex items-center gap-1"><IconStar width={12} height={12} className="text-amber-300" aria-hidden /> <span className="font-semibold text-white">{d.rating.toFixed(1)}</span> · {d.yearsOfExperience} yrs</span>
-                  <span className="text-emerald-200">{d.nextAvailableSlot}</span>
+                  <span className="inline-flex items-center gap-1"><IconStar width={12} height={12} className="text-amber-300" aria-hidden /> <span className="font-semibold text-white">{d.rating > 0 ? d.rating.toFixed(1) : '—'}</span> · {d.yearsOfExperience > 0 ? `${d.yearsOfExperience} yrs` : 'Experience unlisted'}</span>
+                  <span className="text-ink-400">{d.availabilityLabel ?? d.nextAvailableSlot ?? 'Availability unlisted'}</span>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Link to={`${ROUTES.doctors}/${d.detailSlug}`} className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">View Profile</Link>

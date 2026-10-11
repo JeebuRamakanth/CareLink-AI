@@ -18,16 +18,18 @@ import type {
   MedicalReportValue,
 } from './agentTypes';
 import {
-  agentDoctorRecommendations,
-  agentHospitalRecommendations,
   agentLabRecommendations,
   agentMedicineResults,
   agentPharmacyRecommendations,
   agentRecoverySeed,
-  buildRouteFromHospital,
-  findDoctorBySpecialty,
-  findHospitalBySpecialty,
 } from './mockData';
+import {
+  buildDirectoryRoute,
+  findDirectoryDoctorsBySpecialty,
+  findDirectoryHospitalsBySpecialty,
+  getDirectoryDoctors,
+  getDirectoryHospitals,
+} from './directoryBridge';
 
 const DISCLAIMER_MEDICAL =
   'CareLink.AI provides navigational guidance, not a medical diagnosis. For diagnosis or treatment, consult a licensed healthcare professional.';
@@ -94,25 +96,35 @@ function buildDiseaseResponse(classification: IntentClassification): AgentRespon
 
 function buildHospitalResponse(classification: IntentClassification): AgentResponse {
   const specialty = pickFirstSpecialty(classification.entities);
-  const hospitals = specialty ? findHospitalBySpecialty(specialty) : agentHospitalRecommendations.slice(0, 3);
+  const matched = specialty ? findDirectoryHospitalsBySpecialty(specialty) : [];
+  // Never substitute unrelated records: an unmatched specialty shows the
+  // honest "no records" state rather than a fabricated fallback.
+  const hospitals = matched.length > 0 ? matched : specialty ? [] : getDirectoryHospitals().slice(0, 4);
   return {
     kind: 'hospital',
-    title: specialty ? `Hospitals for ${specialty}` : 'Hospitals near you',
-    explanation: 'Hospitals from the CareLink network. Tap a card to view the full hospital profile.',
-    meta: { confidence: 'high', urgency: 'routine', disclaimer: 'Availability is indicative — confirm directly with the hospital.' },
+    title: specialty ? `Hospitals for ${specialty}` : 'Hospitals in the CareLink directory',
+    explanation:
+      hospitals.length > 0
+        ? 'Hospitals from the CareLink directory. Tap a card to view the full hospital profile.'
+        : 'No directory hospitals match that search yet.',
+    meta: { confidence: hospitals.length > 0 ? 'high' : 'low', urgency: 'routine', disclaimer: 'Availability is unlisted unless the provider publishes it — confirm directly with the hospital.' },
     suggestedReplies: ['Find a doctor', 'Get directions', 'Book an appointment'],
-    data: hospitals.map((h) => ({ ...h, route: buildRouteFromHospital(h) })),
+    data: hospitals.map((h) => ({ ...h, route: h.route ?? buildDirectoryRoute(h) })),
   };
 }
 
 function buildDoctorResponse(classification: IntentClassification): AgentResponse {
   const specialty = pickFirstSpecialty(classification.entities);
-  const doctors = specialty ? findDoctorBySpecialty(specialty) : agentDoctorRecommendations.slice(0, 3);
+  const matched = specialty ? findDirectoryDoctorsBySpecialty(specialty) : [];
+  const doctors = matched.length > 0 ? matched : specialty ? [] : getDirectoryDoctors().slice(0, 4);
   return {
     kind: 'doctor',
-    title: specialty ? `${specialty} specialists` : 'Doctors for your needs',
-    explanation: 'Verified specialists from the CareLink network. Tap a card to view the doctor profile.',
-    meta: { confidence: 'high', urgency: 'routine', disclaimer: 'Slot availability is indicative — confirm during booking.' },
+    title: specialty ? `${specialty} specialists` : 'Doctors in the CareLink directory',
+    explanation:
+      doctors.length > 0
+        ? 'Doctors from the CareLink directory. Tap a card to view the doctor profile.'
+        : 'No directory doctors match that search yet.',
+    meta: { confidence: doctors.length > 0 ? 'high' : 'low', urgency: 'routine', disclaimer: 'Availability is unlisted — confirm during booking.' },
     suggestedReplies: ['Find a hospital', 'Book an appointment', 'What should I do next?'],
     data: doctors,
   };
@@ -184,14 +196,23 @@ function buildAppointmentResponse(): AgentResponse {
 }
 
 function buildRouteResponse(): AgentResponse {
-  const hospital = agentHospitalRecommendations[0];
+  const hospital = getDirectoryHospitals()[0];
+  if (!hospital) {
+    return {
+      kind: 'text',
+      title: 'No facility available to route to',
+      explanation: 'The CareLink directory has no facility records loaded, so a route cannot be built.',
+      meta: { confidence: 'low', urgency: 'routine' },
+      suggestedReplies: ['Find a hospital', 'Find a doctor'],
+    };
+  }
   return {
     kind: 'route',
     title: `Directions to ${hospital.name}`,
-    explanation: 'Route summary with distance and estimated travel time. Connect a maps provider later for live navigation.',
+    explanation: 'Route summary. Connect a maps provider for live distance and travel time.',
     meta: { confidence: 'medium', urgency: 'routine', disclaimer: 'Travel time is an estimate and may vary with traffic.' },
     suggestedReplies: ['View hospital', 'Find a doctor', 'Book an appointment'],
-    data: buildRouteFromHospital(hospital),
+    data: hospital.route ?? buildDirectoryRoute(hospital)!,
   };
 }
 
@@ -265,7 +286,10 @@ function buildReportResponse(attachments: AgentAttachment[]): AgentResponse {
 }
 
 function buildEmergencyResponse(): AgentResponse {
-  const facility = agentHospitalRecommendations[0];
+  // Prefer the real directory's emergency-capable facilities; never a fabricated
+  // demo hospital. When none exist, the emergency payload still escalates with
+  // contacts and no invented facility.
+  const emergencyFacilities = getDirectoryHospitals().filter((h) => h.hasEmergency).slice(0, 3);
   return {
     kind: 'emergency',
     title: 'This may need urgent attention',
@@ -282,17 +306,15 @@ function buildEmergencyResponse(): AgentResponse {
         'Stay calm, sit or lie down in a safe position, and keep your phone nearby.',
       ],
       recommendedNextAction: 'Head to the nearest emergency facility or call emergency services immediately.',
-      nearbyFacilities: [
-        {
-          id: facility.id,
-          detailSlug: facility.detailSlug,
-          name: facility.name,
-          distanceKm: facility.distanceKm,
-          estimatedTravelTimeMin: facility.estimatedTravelTimeMin,
-          address: `${facility.address}, ${facility.city}`,
-          route: buildRouteFromHospital(facility),
-        },
-      ],
+      nearbyFacilities: emergencyFacilities.map((facility) => ({
+        id: facility.id,
+        detailSlug: facility.detailSlug,
+        name: facility.name,
+        distanceKm: facility.distanceKm,
+        estimatedTravelTimeMin: facility.estimatedTravelTimeMin,
+        address: `${facility.address}, ${facility.city}`,
+        route: facility.route ?? buildDirectoryRoute(facility),
+      })),
       contacts: [
         { label: 'Emergency services', phone: '911', href: 'tel:911' },
         { label: 'Local emergency helpline', phone: '112', href: 'tel:112' },

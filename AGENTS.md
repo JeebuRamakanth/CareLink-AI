@@ -668,4 +668,133 @@ not just the homepage/chatbot.
   hand-authored detail pages in `hospitalDetailsData.ts`. Reconciling the agent
   mock dataset with the sourced directory is a data task, out of scope for this
   interaction audit.
+  **UPDATE (Step 22):** the Health Agent AND the legacy `/agent` command center
+  now read the REAL directory via `directoryRecommendations.ts` /
+  `services/agent/directoryBridge.ts`; the fabricated set is retained only as a
+  last-resort fallback in `mockAdapters.ts` and is no longer the primary path.
+
+## Step 22 — Connected healthcare workflow + honest appointment requests (VERIFIED)
+
+Requirement: connect Homepage → Hospital Search → Hospital Details → Hospital's
+Doctors → Doctor Profile → Appointment Booking → Persisted Appointment → My
+Appointments, with the chatbot reading the SAME verified hospital/doctor data.
+
+### Chatbot ↔ directory integration (Phase 9.4/9.5)
+- NEW `src/features/health-agent/services/directoryRecommendations.ts` — adapts
+  the real `Hospital`/`Doctor` models into the agent's recommendation cards,
+  carrying real stable ids (slug/id) so `/hospitals/:id` + `/doctors/:id`
+  resolve. Honest-data flags: `distanceAvailable` (real distance only when
+  coords exist), `availabilityLabel` ("Availability unlisted"), `hospitalIds`
+  (explicit affiliation). Ratings/review counts copied verbatim (0 stays 0).
+- `agentOrchestrator.ts` hospital/doctor/symptom/disease/child/elder/mental/
+  route/location builders now use `directoryHospitals()`/`directoryDoctors()`
+  instead of the private mock set. `mockAdapters.ts` search + emergency adapters
+  read the directory too.
+- NEW `src/features/health-agent/data/specialtyTaxonomy.ts` — canonical
+  specialties + synonyms (Orthopaedics≡Orthopedics, Paediatrics≡Pediatrics,
+  lay terms like "heart"/"children's doctor"); clinically different specialties
+  are never equated.
+- UI cards (`AIChatPage`, `HealthCommandCenter`, legacy `HospitalResponseCard`,
+  `DoctorResponseCard`) render "—"/"No verified ratings yet"/"Distance
+  unavailable"/"Availability unlisted" instead of fabricated values.
+
+### Legacy `/agent` command center
+- NEW `src/services/agent/directoryBridge.ts` — single-flight cached bridge;
+  `AgentContext` primes it before every message/quick action. The legacy
+  `mockAgentService` builders read it (empty state when unloaded — never the
+  fabricated US demo hospitals).
+
+### Honest appointment REQUEST workflow (Phase 6/7/8)
+- NEW `supabase/migrations/0033_step22_appointment_request_workflow.sql`:
+  - `appointment_requests` table (status `pending|confirmed|rejected|cancelled|
+    completed`, `unique(owner_id, request_key)` for idempotency, owner-scoped
+    RLS + provider/staff scoped READ policy).
+  - `carelink_request_appointment(...)` — the ONLY client write path; validates
+    auth/suspension/doctor/hospital/affiliation/slot/future-date/reason-length
+    server-side, idempotent on `request_key`, ALWAYS inserts `pending` (never
+    auto-confirms). SECURITY DEFINER, pinned search_path.
+  - `carelink_decide_appointment_request(...)` — permission-gated
+    (`appointments.manage`) confirm/reject; confirmation creates the real
+    `appointments` row and links it; catches `unique_violation` →
+    "slot just taken" (no overbooking); idempotent.
+  - `carelink_list_my_appointment_requests()` / `carelink_cancel_appointment_request()`.
+  - EXECUTE revoked from anon/public; new notification templates.
+- NEW `src/services/health-data/appointmentRequestsRepository.ts` — typed client
+  over the RPCs; never inserts into `appointments` directly.
+- `DoctorBookingModal` now has two honest modes: real published slots (if any) →
+  confirm; otherwise a date/time REQUEST with explicit "not a confirmed
+  appointment yet" copy + duplicate-submit guard.
+- `DoctorProfilePage.handleBookingConfirm` submits the request when Supabase is
+  configured (else honest local demo), marks `isRequest`, and never writes a
+  pending request into `appointments` (`AppointmentContext.addAppointment` skips
+  `isRequest` rows). No fabricated contact details.
+- `AppointmentsPage`: new "Pending requests" tab + demo-mode disclosure banner.
+  `AppointmentStatus` gained `pending` across UI + DB types.
+
+### Tests / verification (all green)
+- SQL: NEW `supabase/tests/250_step22_appointment_request.sql` (33 assertions:
+  pending creation, idempotency, past-date/unknown-doctor/non-affiliation/
+  over-long-reason validation, IDOR, authorized confirm/reject + idempotency,
+  owner cancel, provider-scoped read, suspension, anon denial, no-overbooking).
+  Clean replay: **573 PASS / 0 FAIL**.
+- NEW `npm run verify:workflow` (`scripts/verify-workflow.mjs`, 37 checks).
+- `npm run build` green; `npm run lint` 0 errors; `verify:wiring`/`directory`/
+  `navigation` all PASS; browser E2E 13/13; sweep 15 routes × 5 widths = 0
+  console errors / 0 horizontal overflows.
+
+### BLOCKED (live credentials)
+No Supabase URL/anon key, AI base URL, Cloudinary, Maps, or scheduling
+integration exist here, so a REAL persisted request/confirmation is exercised at
+the SQL-suite + repository + adapter level; runtime stays honest demo (the
+request path degrades to clearly-labelled local demo data). Live real slots are
+only used when a provider publishes them AND Supabase is configured.
+
+## Step 22b — LIVE Supabase wiring (credentials provided, schema deploy PENDING)
+
+The owner supplied the live project + browser-safe anon key:
+- `VITE_SUPABASE_URL=https://drpbukyjdkzhczabisxx.supabase.co` (in git-ignored `.env`)
+- `VITE_SUPABASE_ANON_KEY=eyJ…` (anon only; NEVER service_role in VITE_*)
+
+### Verified working against the LIVE project
+- Supabase client initialises; `isSupabaseConfigured()` is true.
+- Supabase Auth reachable: signup returns a real user (email confirmation ON,
+  `mailer_autoconfirm=false`).
+- App boots + degrades gracefully with the partial live schema: `verify:sweep`
+  15 routes × 5 widths = 0 console errors / 0 overflow; `verify:e2e` 13/13;
+  `/hospitals` falls back to the sourced static directory (13 records).
+- Build with live env bakes the project URL into the bundle.
+
+### BLOCKER — live DB schema is PARTIAL / DIVERGENT (needs DDL access)
+Only the anon key was provided; the anon role cannot run DDL, so migrations
+cannot be applied from here. `npm run verify:live-schema` reports:
+- PRESENT: profiles, family_profiles, appointments, appointment_events,
+  conversations, conversation_messages, medical_documents, medical_reports,
+  medicines, health_context, saved_*, roles, user_roles, audit_events,
+  thread_summaries, messages.
+- MISSING (provider registry + everything after ~migration 0001): hospitals,
+  doctors, pharmacies, labs, specialties + all *_specialties/_services/_hours/
+  _locations/_verification/_profiles, qualifications, consultation_fees,
+  doctor_availability, provider_*, appointment_slots, appointment_types,
+  appointment_requests, reminders, cancellation_records, reschedule_events,
+  appointment_status_history, reviews, review_verification, notifications,
+  notification_templates, permissions, role_permissions,
+  security_activity_events — and EVERY `carelink_*` RPC.
+- Live DB also has tables NOT in this repo (`thread_summaries`, `messages`) →
+  it was created from a different prototype schema, not from these migrations.
+
+### Deploy step (owner action — one shot)
+```
+bash scripts/build-migration-bundle.sh        # -> supabase/DEPLOY_ALL.sql (34 migrations)
+# Supabase dashboard -> SQL Editor -> paste supabase/DEPLOY_ALL.sql -> Run
+#   OR: psql "$SUPABASE_DB_URL" -f supabase/DEPLOY_ALL.sql
+```
+Then `npm run verify:live-schema` must print `RESULT: COMPLETE`. The chain is
+idempotent (`create table if not exists`, `create or replace`,
+`on conflict do nothing`) so it is safe against the existing partial schema.
+
+### New tooling
+- `npm run db:bundle` → `scripts/build-migration-bundle.sh` (ordered bundle).
+- `npm run verify:live-schema` → `scripts/verify-live-schema.mjs` (anon-only
+  readiness probe; exits non-zero when incomplete).
+
 
