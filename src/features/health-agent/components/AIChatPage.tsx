@@ -101,7 +101,7 @@ function ActionIcon({ type }: { type: AgentAction['type'] }) {
 }
 
 function ResultAction({ action }: { action: AgentAction }) {
-  const classes =
+  const toneClasses =
     action.type === 'call-emergency'
       ? 'agent-emergency-ring bg-gradient-to-r from-rose-500 to-amber-500 text-white hover:opacity-90'
       : action.type === 'open-command-center' || action.type === 'book-appointment'
@@ -109,17 +109,20 @@ function ResultAction({ action }: { action: AgentAction }) {
         : 'border border-white/12 bg-white/8 text-ink-100 hover:bg-white/15';
   if (!action.href) return null;
   const external = action.href.startsWith('http') || action.href.startsWith('tel:') || action.href.startsWith('mailto:');
+  const classes = cn('inline-flex items-center justify-center gap-1.5 rounded-full px-3.5 py-2 text-[0.82rem] font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/50', toneClasses);
+  if (external) {
+    return (
+      <a href={action.href} target="_blank" rel="noopener noreferrer" className={classes} aria-label={action.label}>
+        <ActionIcon type={action.icon ?? action.type} />
+        <span>{action.label}</span>
+      </a>
+    );
+  }
   return (
-    <a
-      href={action.href}
-      target={external ? '_blank' : undefined}
-      rel={external ? 'noopener noreferrer' : undefined}
-      className={cn('inline-flex items-center justify-center gap-1.5 rounded-full px-3.5 py-2 text-[0.82rem] font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/50', classes)}
-      aria-label={action.label}
-    >
+    <Link to={action.href} className={classes} aria-label={action.label}>
       <ActionIcon type={action.icon ?? action.type} />
       <span>{action.label}</span>
-    </a>
+    </Link>
   );
 }
 
@@ -299,10 +302,10 @@ function ResultCard({ result, onReply, focusTopic, patientOrigin }: ResultCardPr
                 ) : null}
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap gap-2">
-                    <a href={`${ROUTES.hospitals}/${h.detailSlug}`} className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">View Hospital</a>
-                    <a href={`${ROUTES.hospitals}/${h.detailSlug}?focus=${encodeURIComponent(focusTopic ?? 'All')}`} className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">{focusTopic && focusTopic !== 'All' ? 'View Relevant Doctors' : 'View Doctors'}</a>
+                    <Link to={`${ROUTES.hospitals}/${h.detailSlug}`} className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">View Hospital</Link>
+                    <Link to={`${ROUTES.hospitals}/${h.detailSlug}?focus=${encodeURIComponent(focusTopic ?? 'All')}`} className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">{focusTopic && focusTopic !== 'All' ? 'View Relevant Doctors' : 'View Doctors'}</Link>
                     <a href={hospitalDirectionsHref(h)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">Directions</a>
-                    <a href={`${ROUTES.appointments}?hosp=${h.detailSlug}`} className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-3 py-1.5 text-[0.78rem] font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">Book</a>
+                    <Link to={`${ROUTES.appointments}?hosp=${h.detailSlug}`} className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-3 py-1.5 text-[0.78rem] font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">Book</Link>
                   </div>
                   {h.recommendationScore != null ? <ScoreBadge score={h.recommendationScore} /> : null}
                 </div>
@@ -333,8 +336,8 @@ function ResultCard({ result, onReply, focusTopic, patientOrigin }: ResultCardPr
                 ) : null}
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap gap-2">
-                    <a href={`${ROUTES.doctors}/${d.detailSlug}`} className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">View Profile</a>
-                    <a href={`${ROUTES.appointments}?doc=${d.detailSlug}`} className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-3 py-1.5 text-[0.78rem] font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">Book Appointment</a>
+                    <Link to={`${ROUTES.doctors}/${d.detailSlug}`} className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">View Profile</Link>
+                    <Link to={`${ROUTES.appointments}?doc=${d.detailSlug}`} className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-3 py-1.5 text-[0.78rem] font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">Book Appointment</Link>
                   </div>
                   {d.recommendationScore != null ? <ScoreBadge score={d.recommendationScore} /> : null}
                 </div>
@@ -391,7 +394,7 @@ function ResultCard({ result, onReply, focusTopic, patientOrigin }: ResultCardPr
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <a href={directionsUrl({ destination: `${l.name}, ${l.address}`, origin: patientOrigin && typeof patientOrigin.lat === 'number' ? { label: patientOrigin.label, lat: patientOrigin.lat, lng: patientOrigin.lng } : undefined, mode: 'driving' })} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">Directions</a>
-                  <a href={`${ROUTES.appointments}?lab=${l.id}`} className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-3 py-1.5 text-[0.78rem] font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">Book Test</a>
+                  <Link to={`${ROUTES.appointments}?lab=${l.id}`} className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-3 py-1.5 text-[0.78rem] font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">Book Test</Link>
                 </div>
               </article>
             ))}
@@ -634,7 +637,7 @@ function ChatComposer({
           <button type="button" onClick={() => recoveryCheckIn('better')} aria-label="Mark feeling better" title="Recovery: better" className="flex size-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 text-ink-200 transition hover:border-emerald-400/40 hover:bg-emerald-500/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">
             <IconHeart width={16} height={16} aria-hidden />
           </button>
-          <button type="button" disabled aria-label="Voice input (coming soon)" title="Voice input (coming soon)" className="flex size-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 text-ink-200 disabled:opacity-40">
+          <button type="button" disabled aria-label="Voice input (not yet available)" title="Voice input is not yet available" className="flex size-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 text-ink-200 disabled:cursor-not-allowed disabled:opacity-40">
             <IconMic width={16} height={16} aria-hidden />
           </button>
           <button type="submit" disabled={disabled} aria-label="Send" className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-brand-500 to-accent-500 text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/50 disabled:cursor-not-allowed disabled:opacity-40">

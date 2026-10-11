@@ -33,7 +33,13 @@ export async function getHospitals(): Promise<Hospital[]> {
 export async function getHospitalById(id: string): Promise<Hospital | null> {
   const real = await fetchRealHospitalDetail(id);
   if (real) return real;
-  return hospitalsData.find((hospital) => hospital.id === id) ?? null;
+  // Accept either the record id or its public slug so directory deep-links
+  // (which use the human-readable slug) resolve to the same record.
+  return (
+    hospitalsData.find((hospital) => hospital.id === id) ??
+    hospitalsData.find((hospital) => hospital.slug === id) ??
+    null
+  );
 }
 
 export async function searchHospitals(query: string): Promise<Hospital[]> {

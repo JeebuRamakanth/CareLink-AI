@@ -1,10 +1,14 @@
 /**
  * Step 7 — Diagnostic / lab recommendation card.
  * Mock-only: test availability is indicative, confirm directly with the lab.
+ * "View lab" and "Get Directions" deep-link to real app routes / maps.
  */
 
+import { useNavigate } from 'react-router-dom';
 import { ResponseCardShell, CardActionButton, NextStepRow, SuggestedReplies } from '../ResponseCardShell';
 import { IconLab, IconLocation, IconRoute } from '../AgentIcons';
+import { ROUTES } from '../../../routes/routeConstants';
+import { directionsUrl } from '../../../services/maps/mapsService';
 import type { LabRecommendation } from '../../../services/agent/agentTypes';
 
 interface Props {
@@ -17,12 +21,15 @@ interface Props {
 }
 
 export function LabResponseCard({ data, title, explanation, suggestedReplies, onPickReply, onGetDirections }: Props) {
+  const navigate = useNavigate();
+
   const handleDirections = (lab: LabRecommendation) => {
     if (onGetDirections) {
       onGetDirections(lab);
-    } else if (lab.route) {
-      window.alert(`Directions to ${lab.name} (mock): ${lab.route.distanceKm} km · ~${lab.route.estimatedTravelTimeMin} min`);
+      return;
     }
+    // Real maps deep-link — never a mock alert.
+    window.open(directionsUrl({ destination: `${lab.name}, ${lab.address}`, mode: 'driving' }), '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -77,7 +84,7 @@ export function LabResponseCard({ data, title, explanation, suggestedReplies, on
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
-              <CardActionButton variant="secondary" onClick={() => window.alert(`View lab profile for ${lab.name} (mock)`)} ariaLabel={`View lab ${lab.name}`}>
+              <CardActionButton variant="secondary" onClick={() => navigate(ROUTES.labs)} ariaLabel={`View lab ${lab.name}`}>
                 View lab
               </CardActionButton>
               <CardActionButton variant="primary" icon={<IconRoute width={15} height={15} />} onClick={() => handleDirections(lab)} ariaLabel={`Get directions to ${lab.name}`}>

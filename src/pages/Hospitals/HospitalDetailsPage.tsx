@@ -122,6 +122,7 @@ export function HospitalDetailsPage() {
     return (match as HospitalDoctorTopic) ?? 'All';
   });
   const [selectedReviewFilter, setSelectedReviewFilter] = useState<ReviewFilterOption>('All');
+  const [contactNotice, setContactNotice] = useState<string | null>(null);
 
   // Doctors explicitly linked to this hospital in the offline directory data.
   const staticLinkedDoctors = useMemo(
@@ -190,8 +191,11 @@ export function HospitalDetailsPage() {
   const handleContact = () => {
     if (!effectiveHospital) return;
     const href = effectiveHospital.phone ? buildTelHref(effectiveHospital.phone) : '';
-    if (href && typeof window !== 'undefined') window.location.href = href;
-    else if (typeof window !== 'undefined') window.alert('No contact number is listed for this hospital yet.');
+    if (href && typeof window !== 'undefined') {
+      window.location.href = href;
+    } else {
+      setContactNotice('No contact number is listed for this hospital yet.');
+    }
   };
 
   const handleWriteReview = () => {
@@ -227,6 +231,12 @@ export function HospitalDetailsPage() {
           onWriteReview={handleWriteReview}
           onViewDoctors={handleViewDoctors}
         />
+
+        {contactNotice ? (
+          <div role="status" className="rounded-[1.5rem] border border-amber-400/25 bg-amber-500/10 px-5 py-3.5 text-sm text-amber-100">
+            {contactNotice}
+          </div>
+        ) : null}
 
         <div className="grid gap-8 xl:grid-cols-[0.95fr_0.85fr] xl:items-start">
           <div className="space-y-8">

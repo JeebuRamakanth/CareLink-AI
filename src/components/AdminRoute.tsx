@@ -7,7 +7,7 @@
  * account never grants admin access.
  */
 
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, useLocation, Link } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { ROUTES } from '../routes/routeConstants';
@@ -63,9 +63,9 @@ export function AdminRoute({ children, superAdminOnly = false }: AdminRouteProps
           <p className="text-sm text-ink-300">
             Your current account is not authorized{superAdminOnly ? ' as Super Admin' : ' for the admin area'} on this server.
           </p>
-          <a href={ROUTES.home} className="inline-block text-sm text-brand-300 hover:text-brand-200">
+          <Link to={ROUTES.home} className="inline-block text-sm text-brand-300 hover:text-brand-200">
             Return to CareLink
-          </a>
+          </Link>
         </Card>
       </div>
     );

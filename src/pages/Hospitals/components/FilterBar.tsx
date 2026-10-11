@@ -87,6 +87,7 @@ export function FilterBar({ searchValue, filters, onSearchChange, onFilterChange
           <div className="grid gap-3 xl:grid-cols-[1.1fr_0.9fr_0.8fr_0.8fr]">
             <FilterField label="Search hospital" hint="Name">
               <input
+                id="hospital-search-input"
                 value={searchValue}
                 onChange={(event) => onSearchChange(event.target.value)}
                 placeholder="Search by hospital name"

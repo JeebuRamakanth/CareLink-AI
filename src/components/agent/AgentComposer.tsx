@@ -149,12 +149,13 @@ export function AgentComposer({ disabled }: Props) {
                 ) : null}
               </div>
 
-              {/* Voice placeholder */}
+              {/* Voice input — visibly disabled until speech capture is implemented. */}
               <button
                 type="button"
-                onClick={() => window.alert('Voice input is coming soon — architecture placeholder.')}
-                aria-label="Voice input (coming soon)"
-                className="inline-flex size-9 items-center justify-center rounded-full border border-white/12 bg-white/5 text-ink-300 transition hover:border-brand-400/30 hover:bg-brand-400/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40"
+                disabled
+                aria-label="Voice input (not yet available)"
+                title="Voice input is not yet available"
+                className="inline-flex size-9 items-center justify-center rounded-full border border-white/12 bg-white/5 text-ink-300 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <IconMic width={16} height={16} />
               </button>

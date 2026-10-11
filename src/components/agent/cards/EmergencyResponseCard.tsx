@@ -11,6 +11,7 @@ import { ResponseCardShell, CardActionButton, SuggestedReplies } from '../Respon
 import { IconEmergency, IconPhone, IconRoute, IconHospital, IconLocation } from '../AgentIcons';
 import type { EmergencyResponse as EmergencyResponseData } from '../../../services/agent/agentTypes';
 import { ROUTES } from '../../../routes/routeConstants';
+import { directionsUrl } from '../../../services/maps/mapsService';
 
 interface Props {
   data: EmergencyResponseData;
@@ -105,7 +106,7 @@ export function EmergencyResponseCard({ data, title, explanation, suggestedRepli
                   <CardActionButton
                     variant="danger"
                     icon={<IconRoute width={15} height={15} />}
-                    onClick={() => facility.route && window.alert(`Directions to ${facility.name} (mock): ${facility.route.distanceKm} km · ~${facility.route.estimatedTravelTimeMin} min`)}
+                    onClick={() => window.open(directionsUrl({ destination: `${facility.name}, ${facility.address}`, mode: 'driving' }), '_blank', 'noopener,noreferrer')}
                     ariaLabel={`Get directions to ${facility.name}`}
                   >
                     Get Directions

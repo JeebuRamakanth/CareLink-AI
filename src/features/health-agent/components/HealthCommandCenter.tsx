@@ -15,7 +15,7 @@
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { cn } from '../../../components/common/cn';
 import { Badge } from '../../../components/ui/Badge';
@@ -93,19 +93,21 @@ function ResultAction({ action }: { action: AgentAction }) {
       <span>{action.label}</span>
     </>
   );
-  if (action.href) {
-    const external = action.href.startsWith('http') || action.href.startsWith('tel:') || action.href.startsWith('mailto:');
-    return external ? (
-      <a href={action.href} className={cn('inline-flex items-center justify-center gap-1.5 rounded-full px-3.5 py-2 text-[0.82rem] font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/50', classes)} aria-label={action.label}>
-        {inner}
-      </a>
-    ) : (
-      <a href={action.href} className={cn('inline-flex items-center justify-center gap-1.5 rounded-full px-3.5 py-2 text-[0.82rem] font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/50', classes)} aria-label={action.label}>
+  if (!action.href) return null;
+  const external = action.href.startsWith('http') || action.href.startsWith('tel:') || action.href.startsWith('mailto:');
+  const cls = cn('inline-flex items-center justify-center gap-1.5 rounded-full px-3.5 py-2 text-[0.82rem] font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/50', classes);
+  if (external) {
+    return (
+      <a href={action.href} target="_blank" rel="noopener noreferrer" className={cls} aria-label={action.label}>
         {inner}
       </a>
     );
   }
-  return null;
+  return (
+    <Link to={action.href} className={cls} aria-label={action.label}>
+      {inner}
+    </Link>
+  );
 }
 
 function ActionIcon({ type }: { type: AgentAction['type'] }) {
@@ -229,8 +231,8 @@ function ResultPreview({ result, onReply, onReset }: { result: AgentResult; onRe
                   </p>
                 ) : null}
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <a href={`${ROUTES.hospitals}/${h.detailSlug}`} className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">View Hospital</a>
-                  <a href={ROUTES.appointments} className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-3 py-1.5 text-[0.78rem] font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">Book</a>
+                  <Link to={`${ROUTES.hospitals}/${h.detailSlug}`} className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">View Hospital</Link>
+                  <Link to={ROUTES.appointments} className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-3 py-1.5 text-[0.78rem] font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">Book</Link>
                 </div>
               </article>
             ))}
@@ -254,8 +256,8 @@ function ResultPreview({ result, onReply, onReset }: { result: AgentResult; onRe
                   <span className="text-emerald-200">{d.nextAvailableSlot}</span>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <a href={`${ROUTES.doctors}/${d.detailSlug}`} className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">View Profile</a>
-                  <a href={ROUTES.appointments} className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-3 py-1.5 text-[0.78rem] font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">Book Appointment</a>
+                  <Link to={`${ROUTES.doctors}/${d.detailSlug}`} className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">View Profile</Link>
+                  <Link to={ROUTES.appointments} className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-3 py-1.5 text-[0.78rem] font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">Book Appointment</Link>
                 </div>
               </article>
             ))}
@@ -612,9 +614,9 @@ export const HealthCommandCenter = forwardRef<HealthCommandCenterHandle>(functio
               <p className="text-[0.78rem] leading-6 text-ink-300">
                 Describe a symptom, upload a report, or ask for nearby care. CareLink returns structured, trustworthy guidance — never a diagnosis, always a clear next action.
               </p>
-              <a href={ROUTES.agent} className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3.5 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">
+              <Link to={ROUTES.agent} className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3.5 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">
                 Open full command center <IconArrowRight width={13} height={13} aria-hidden />
-              </a>
+              </Link>
             </motion.div>
           )}
         </AnimatePresence>

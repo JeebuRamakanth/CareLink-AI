@@ -586,3 +586,86 @@ suite. Owner-side steps to go live:
 5. Admin Login and Super Admin Login both work for the same account/password;
    both land on `/admin` (admin floor; super_admin inherits).
 
+
+## Step 22 — Application-wide interaction & navigation audit (VERIFIED)
+
+Requirement: every visible interactive element must perform its intended
+function or navigate to the correct related destination — across the WHOLE app,
+not just the homepage/chatbot.
+
+### Root causes fixed (all real, all browser-verified)
+- **Dead card buttons**: `DoctorCard` "View profile"/"Book visit" and
+  `HospitalCard` "View details"/"Book appointment" were styled `<button>`s with
+  NO handler (rendered live, did nothing). Now router `Link`s →
+  `/doctors/:id`, `/hospitals/:slug`, `/appointments?hosp=<id>`.
+- **Dead hero buttons**: Doctors/Hospitals `Hero` "Find a doctor / Explore
+  specialists / Find a hospital / Explore network" had no handler. Now focus the
+  page search input (id `doctor-search-input` / `hospital-search-input`).
+- **Mock-alert actions** (never navigated): Lab/Pharmacy card "View lab" /
+  "View pharmacy" and the Lab/Pharmacy/Doctor/Route/Emergency "Get Directions"
+  actions now open a real maps deep-link (`directionsUrl`) or route to
+  `/labs` / `/pharmacies`. The doctor-profile HospitalConnection directions
+  alert is also gone.
+- **Unavailable features now honest**: FollowUp "set reminder" (no calendar
+  integration) shows an explicit inline "not connected" status instead of a
+  `window.alert('Reminder set (mock)')`; voice input buttons are visibly
+  `disabled` (they previously fired "coming soon" alerts).
+- **Dropped chatbot context**: hospital/doctor/lab "Book" links carried
+  `?hosp=/?doc=/?lab=` that the appointments page IGNORED. `AppointmentsPage`
+  now redirects a provider deep-link to the owning page (doctor profile /
+  hospital detail / labs) so the selection is never lost.
+- **SPA navigation**: internal `to`/href targets in `ResponseCardShell`
+  `CardActionButton`, `AIChatPage` result actions + cards, `HealthCommandCenter`
+  and the Home hero quick-access now use react-router `Link` (preserve history,
+  no full reload). External (`http`/`tel`/`mailto`) stay `<a>` with
+  `rel="noopener noreferrer"`.
+- **Search param preservation**: `/doctors?q=` and `/hospitals?q=` now pre-fill
+  and filter the list (agent "Find a <specialty>" / "Show hospitals treating X").
+- **Slug resolution**: `getHospitalById` accepts the record id OR its public
+  slug, so directory deep-links (`/hospitals/district-hospital-machilipatnam`)
+  resolve instead of showing "not found".
+- **320px overflow**: Home "Hospitals near you" cards overflowed by 10px
+  (long facility names). Fixed with `min-w-0`/`break-words` + `shrink-0` icons.
+
+### Safety/architecture notes
+- Chatbot `AgentAction.href` values are authored ONLY by the deterministic
+  orchestrator builders — the AI owns language (summary/explanation), never the
+  action list — so an unvalidated model path can never reach `navigate()`.
+- Route/action mapping stays centralized in `src/routes/routeConstants.ts`;
+  no second router, no hardcoded ad-hoc paths.
+
+### Automated tests added
+- `scripts/verify-navigation.mjs` (`npm run verify:navigation`, 7 checks):
+  every `ROUTES.<key>` reference resolves; literal nav targets are registered;
+  no enabled `<button>` without a handler; no `window.alert` mocks remain;
+  chatbot hrefs are internal routes or validated schemes; provider deep-links
+  are handled; `CardActionButton` supports `to`/`onClick`.
+- `scripts/verify-e2e.mjs` (`npm run verify:e2e`, 13 checks, headless Chromium
+  over CDP, zero extra deps): Home→Hospitals/Doctors, Home agent→/ai, doctor
+  card→profile, chatbot View Hospital→/hospitals/:slug, chatbot Book deep-link,
+  header/footer links, browser Back, anonymous `/profile` guard, unknown-route
+  fallback.
+- `scripts/verify-sweep.mjs` (`npm run verify:sweep`): console/exception sweep
+  over 15 routes + horizontal-overflow sweep at 320/375/768/1024/1440.
+
+### Results (this environment)
+- `npm run build`: green (746 modules). `npm run lint`: 0 errors (pre-existing
+  warnings only). `verify:navigation` 7/7, `verify:wiring` all PASS,
+  `verify:directory` 12/12, browser E2E 13/13, sweep: 0 console errors /
+  0 horizontal overflows.
+- `npm audit --omit=dev`: 1 advisory (`source-map-js` GHSA-68fv-2mgg-jv7q) —
+  transitive build-tool dependency of Vite/PostCSS/Tailwind, not shipped to the
+  client bundle and not runtime-reachable by app input; not force-bumped to
+  avoid breaking the build toolchain.
+
+### Gotchas
+- `vite.config.ts` `server.allowedHosts` must list this workspace's work host
+  (`work-1-ejsanxkqderhqwow…`) or the dev server returns "Blocked request".
+- The mock `hospitalRecommendations`/`doctorRecommendations` dataset
+  (`src/features/health-agent/data/mockData.ts`) still names the legacy demo
+  hospitals (Aurora/Beacon/Luma/Northside) which are NOT in the sourced
+  Machilipatnam directory; their agent card links resolve to the legacy
+  hand-authored detail pages in `hospitalDetailsData.ts`. Reconciling the agent
+  mock dataset with the sourced directory is a data task, out of scope for this
+  interaction audit.
+

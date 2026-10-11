@@ -52,12 +52,12 @@ const getAvailabilityValue = (value: string): Doctor['availability_status'] | un
   return value.toLowerCase() as Doctor['availability_status'];
 };
 
-export function useDoctors() {
+export function useDoctors(initialSearchTerm = '') {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [filteredDoctors, setFilteredDoctors] = useState<Doctor[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
   const [filters, setFilters] = useState<DoctorFilterState>(initialFilters);
 
   const loadDoctors = useCallback(async () => {

@@ -4,8 +4,11 @@ import { FilterBar } from './components/FilterBar';
 import { ResultsToolbar } from './components/ResultsToolbar';
 import { DoctorResultsSection } from './components/DoctorResultsSection';
 import { useDoctors } from './hooks/useDoctors';
+import { useSearchParams } from 'react-router-dom';
 
 export function DoctorsPage() {
+  const [searchParams] = useSearchParams();
+  const initialQuery = searchParams.get('q') ?? searchParams.get('specialty') ?? '';
   const {
     filteredDoctors,
     loading,
@@ -17,7 +20,7 @@ export function DoctorsPage() {
     resetFilters,
     refresh,
     activeFilterLabels,
-  } = useDoctors();
+  } = useDoctors(initialQuery);
 
   const resultsState = error ? 'error' : loading ? 'loading' : filteredDoctors.length === 0 ? 'empty' : 'success';
 
