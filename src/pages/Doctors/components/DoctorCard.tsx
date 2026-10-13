@@ -87,7 +87,7 @@ export function DoctorCard({ doctor, className = '' }: DoctorCardProps) {
           View profile
         </Link>
         <Link
-          to={`${ROUTES.doctors}/${doctor.id}`}
+          to={ROUTES.appointments}
           className="rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-3 py-2 text-sm font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40"
         >
           Book visit

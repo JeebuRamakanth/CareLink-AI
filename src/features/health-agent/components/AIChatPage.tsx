@@ -843,6 +843,11 @@ export function AIChatPage() {
   }, [conv.messages, conv.status]);
 
   const showWelcome = conv.messages.length <= 1 && conv.status !== 'thinking';
+  const latestMessage = conv.messages[conv.messages.length - 1];
+  const latestUserMessage = [...conv.messages].reverse().find((message) => message.role === 'user');
+  const canRetryLastMessage = latestMessage?.role === 'assistant'
+    && latestMessage.result?.provenance?.mode === 'unavailable'
+    && latestUserMessage?.documents.length === 0;
 
   const handleSubmit = () => {
     const value = text.trim();
@@ -926,6 +931,16 @@ export function AIChatPage() {
               {conv.messages.map((m) => (
                 <MessageBubble key={m.id} message={m} onReply={handlePickPrompt} focusTopic={focusTopic} patientOrigin={patientOrigin} />
               ))}
+              {canRetryLastMessage && latestUserMessage ? (
+                <button
+                  type="button"
+                  onClick={() => void conv.sendMessage(latestUserMessage.content)}
+                  disabled={conv.isThinking}
+                  className="rounded-full border border-amber-300/25 bg-amber-400/10 px-3 py-1.5 text-xs font-semibold text-amber-100 transition hover:bg-amber-400/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40 disabled:opacity-50"
+                >
+                  Retry last message
+                </button>
+              ) : null}
               {conv.isThinking ? (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
                   <div className="flex items-center gap-2.5 rounded-[1.1rem] rounded-tl-md border border-white/10 bg-white/5 px-4 py-2.5">

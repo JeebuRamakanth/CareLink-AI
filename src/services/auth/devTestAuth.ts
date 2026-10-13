@@ -17,7 +17,6 @@
  * Real logins continue to ride the Supabase Auth flow untouched.
  */
 
-import { env } from '../../config';
 import type { CareLinkUser } from './authService';
 
 interface DevTestAccount {
@@ -49,7 +48,20 @@ const DEV_TEST_ACCOUNTS: DevTestAccount[] = [
 
 /** True only when a DEV build plus the explicit opt-in are both present. */
 export function isDevTestAuthEnabled(): boolean {
-  return env.devTestAuth.enabled;
+  return import.meta.env.DEV === true && import.meta.env.VITE_ENABLE_DEV_TEST_AUTH === 'true';
+}
+
+export function isDevTestLogin(
+  username: string,
+  password: string,
+  isDevelopment: boolean,
+  flag: unknown,
+): boolean {
+  return isDevelopment
+    && flag === 'true'
+    && DEV_TEST_ACCOUNTS.some((account) =>
+      account.aliases.includes(username.trim().toLowerCase()) && account.password === password,
+    );
 }
 
 /**

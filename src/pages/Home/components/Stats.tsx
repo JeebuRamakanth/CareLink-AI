@@ -9,11 +9,11 @@ import { SectionBox } from './homePrimitives';
 export function Stats() {
   const { stats, source } = useHomeStats();
   return (
-    <Section title="Trusted by patients and partners" description="A snapshot of the CareLink.AI care network today." eyebrow="Overview">
+    <Section title="Care network overview" description="Registry-based statistics are shown only when the connected data source is available." eyebrow="Overview">
       <SectionBox className="min-h-[180px]">
-        {source === 'demo' ? (
+        {source === 'unavailable' ? (
           <p className="mb-4 inline-flex items-center gap-1.5 rounded-full border border-amber-400/25 bg-amber-500/10 px-3 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-amber-200">
-            Demo figures — connect a backend for live registry counts
+            Registry unavailable — no demo figures are shown
           </p>
         ) : null}
         <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">

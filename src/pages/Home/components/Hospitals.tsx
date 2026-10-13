@@ -1,64 +1,19 @@
 import { Link } from 'react-router-dom';
 import { Section } from '../../../components/ui/Section';
 import { ROUTES } from '../../../routes/routeConstants';
-import { IconArrowRight, IconLocation } from '../../../components/agent/AgentIcons';
-import { nearestHospitals, pharmacyCount, labCount } from './homeData';
-import { DemoBadge, SectionBox, SectionFootnote, StarRow } from './homePrimitives';
+import { IconArrowRight } from '../../../components/agent/AgentIcons';
+import { SectionBox } from './homePrimitives';
 
 export function Hospitals() {
   return (
-    <Section title="Hospitals near you" description="Top-rated facilities from the CareLink.AI network, ranked by distance." eyebrow="Hospitals">
-      <SectionBox className="min-h-[220px]">
-        <ul className="grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {nearestHospitals.map((h) => (
-            <li key={h.id} className="flex min-w-0 flex-col gap-3 rounded-[1.25rem] border border-white/10 bg-slate-950/40 p-5 transition hover:border-brand-400/30">
-              <div className="flex min-w-0 items-start justify-between gap-2">
-                <Link to={`/hospitals/${h.detailSlug}`} className="min-w-0 break-words text-base font-semibold text-white transition hover:text-brand-200">
-                  {h.name}
-                </Link>
-                <StarRow rating={h.rating} />
-              </div>
-              <p className="flex min-w-0 items-start gap-1.5 text-[0.8rem] text-ink-300">
-                <IconLocation width={14} height={14} aria-hidden className="mt-0.5 shrink-0 text-ink-400" />
-                <span className="min-w-0 break-words">{h.address}, {h.city}</span>
-              </p>
-              <div className="flex flex-wrap items-center gap-1.5">
-                {h.specialties.slice(0, 3).map((s) => (
-                  <span key={s} className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[0.68rem] font-medium text-ink-200">
-                    {s}
-                  </span>
-                ))}
-              </div>
-              <div className="mt-auto flex items-center justify-between">
-                <span className="inline-flex items-center gap-1.5">
-                  <span className={`rounded-full border px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.16em] ${h.isOpen ? 'border-emerald-400/25 bg-emerald-500/12 text-emerald-200' : 'border-white/10 bg-white/5 text-ink-300'}`}>
-                    {h.isOpen ? 'Open' : 'Hours unlisted'}
-                  </span>
-                  <DemoBadge>Sourced</DemoBadge>
-                </span>
-                <span className="text-[0.76rem] text-ink-400">
-                  {h.distanceKm > 0 ? `${h.distanceKm} km` : 'Distance unavailable'}
-                </span>
-              </div>
-              <Link to={`/hospitals/${h.detailSlug}`} className="inline-flex items-center gap-1.5 text-[0.82rem] font-semibold text-brand-200 transition hover:text-white">
-                View hospital <IconArrowRight width={14} height={14} aria-hidden />
-              </Link>
-            </li>
-          ))}
-        </ul>
-        <div className="mt-5 flex flex-wrap items-center gap-3">
-          <Link to={ROUTES.hospitals}>
-            <span className="inline-flex items-center gap-1.5 rounded-[var(--radius-xl)] border border-white/10 bg-white/10 px-4 py-2.5 text-sm font-semibold text-ink-50 transition hover:border-brand-400/40 hover:bg-white/15">
-              Explore all hospitals <IconArrowRight width={14} height={14} aria-hidden />
-            </span>
-          </Link>
-          <span className="text-[0.76rem] text-ink-400">
-            Plus {pharmacyCount} pharmacies and {labCount} labs in the discovery network.
-          </span>
-        </div>
-        <SectionFootnote>
-          Facilities are shown from the sourced CareLink directory for Machilipatnam. Distance is shown only when a verified location is available.
-        </SectionFootnote>
+    <Section title="Machilipatnam healthcare directory" description="Search hospitals and other healthcare facilities in a clearly defined local area." eyebrow="Hospitals">
+      <SectionBox className="min-h-[180px]">
+        <p className="text-sm leading-6 text-ink-300">
+          Directory results come from the configured provider registry and live discovery sources. Listings are not represented as exhaustive or independently verified by default.
+        </p>
+        <Link to={ROUTES.hospitals} className="mt-5 inline-flex items-center gap-1.5 rounded-[var(--radius-xl)] border border-white/10 bg-white/10 px-4 py-2.5 text-sm font-semibold text-ink-50 transition hover:border-brand-400/40 hover:bg-white/15">
+          Open local directory <IconArrowRight width={14} height={14} aria-hidden />
+        </Link>
       </SectionBox>
     </Section>
   );

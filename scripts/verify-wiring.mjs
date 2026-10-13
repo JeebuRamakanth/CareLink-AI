@@ -103,7 +103,7 @@ check(
 );
 check(
   'reviews: composer mounted on hospital detail page',
-  hospPage.includes("<ReviewComposer target={{ kind: 'hospital', id: effectiveHospital.id }}"),
+  hospPage.includes("<ReviewComposer target={{ kind: 'hospital', id: hospital.id }}"),
   'HospitalDetailsPage must render ReviewComposer'
 );
 
@@ -277,11 +277,12 @@ check(
 
 // --- Step 21: Machilipatnam directory + review eligibility + dev test auth ---
 check(
-  'directory: Machilipatnam hospital data present with provenance',
-  has('src/data/hospitals.ts', 'Machilipatnam') &&
-    has('src/data/hospitals.ts', 'provenance') &&
-    has('src/data/hospitals.ts', 'krishna.ap.gov.in'),
-  'src/data/hospitals.ts must carry sourced Machilipatnam facilities + provenance'
+  'directory: unverified hospital records are not bundled',
+  has('src/data/hospitals.ts', 'No independently verified local records') &&
+    has('src/data/hospitals.ts', 'hospitalsData: Hospital[] = []') &&
+    has('src/services/hospitalService.ts', 'discoverMachilipatnamHospitals') &&
+    has('src/services/hospitalService.ts', 'fetchRealHospitals'),
+  'hospital listings must use live sources until locally bundled records can be verified'
 );
 check(
   'directory: Machilipatnam doctor data present with provenance',

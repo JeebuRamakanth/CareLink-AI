@@ -5,10 +5,9 @@ type ResultsToolbarProps = {
   summary?: string;
   activeFilters?: string[];
   onClearFilters?: () => void;
+  onRefresh?: () => void;
   sortValue?: string;
   onSortChange?: (value: string) => void;
-  viewMode?: 'grid' | 'list';
-  onViewModeChange?: (mode: 'grid' | 'list') => void;
   lastUpdated?: string;
   className?: string;
 };
@@ -42,10 +41,9 @@ export function ResultsToolbar({
   summary = 'No active search applied',
   activeFilters = [],
   onClearFilters,
+  onRefresh,
   sortValue = 'Recommended',
   onSortChange,
-  viewMode = 'grid',
-  onViewModeChange,
   lastUpdated = 'Just now',
   className = '',
 }: ResultsToolbarProps) {
@@ -66,9 +64,7 @@ export function ResultsToolbar({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <ToolbarActionButton label="Refresh" icon="↻" />
-          <ToolbarActionButton label="Grid" icon="▦" active={viewMode === 'grid'} onClick={() => onViewModeChange?.('grid')} />
-          <ToolbarActionButton label="List" icon="☰" active={viewMode === 'list'} onClick={() => onViewModeChange?.('list')} />
+          <ToolbarActionButton label="Refresh" icon="↻" onClick={onRefresh} />
           <label className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm text-ink-200">
             <span className="text-ink-400">Sort</span>
             <select
@@ -76,7 +72,7 @@ export function ResultsToolbar({
               onChange={(event) => onSortChange?.(event.target.value)}
               className="bg-transparent text-sm font-medium text-white outline-none"
             >
-              <option value="Recommended" className="bg-slate-900">Recommended</option>
+              <option value="Recommended" className="bg-slate-900">Name (A–Z)</option>
               <option value="Highest Rated" className="bg-slate-900">Highest Rated</option>
               <option value="Nearest" className="bg-slate-900">Nearest</option>
               <option value="24x7 Access" className="bg-slate-900">24x7 Access</option>

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getHospitals } from '../../../services';
+import { getHospitalDirectoryNotice } from '../../../services/hospitalService';
+import { matchesHospitalDirectoryFilters, matchesHospitalSearch } from '../../../services/hospitalDirectorySearch';
 import { useOptionalLocationContext } from '../../../contexts/LocationContext';
 import { haversineKm } from '../../../lib';
 import type { Hospital } from '../../../types';
@@ -9,6 +11,7 @@ export type HospitalFilterState = {
   city: string;
   department: string;
   specialty: string;
+  facilityType: string;
   emergency: boolean;
   hours24: boolean;
   icu: boolean;
@@ -26,6 +29,7 @@ const initialFilters: HospitalFilterState = {
   city: '',
   department: '',
   specialty: '',
+  facilityType: '',
   emergency: false,
   hours24: false,
   icu: false,
@@ -37,6 +41,7 @@ const initialFilters: HospitalFilterState = {
   distance: 'Any',
   sortBy: 'Recommended',
 };
+const PAGE_SIZE = 12;
 
 const normalizeText = (value: string): string => value.trim().toLowerCase();
 
@@ -71,8 +76,10 @@ export function useHospitals(initialSearchTerm = '') {
   const [hospitals, setHospitals] = useState<Hospital[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
   const [filters, setFilters] = useState<HospitalFilterState>(() => ({ ...initialFilters, hospital: initialSearchTerm }));
+  const [page, setPage] = useState(1);
 
   // Recomputed distance from the LIVE patient location when coordinates exist.
   // Never fabricates a distance: null when the user has no coordinates.
@@ -96,6 +103,7 @@ export function useHospitals(initialSearchTerm = '') {
     try {
       const data = await getHospitals();
       setHospitals(data);
+      setNotice(getHospitalDirectoryNotice());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load hospital data.');
     } finally {
@@ -109,16 +117,19 @@ export function useHospitals(initialSearchTerm = '') {
 
   const updateFilters = useCallback((changes: Partial<HospitalFilterState>) => {
     setFilters((current) => ({ ...current, ...changes }));
+    setPage(1);
   }, []);
 
   const updateSearchTerm = useCallback((value: string) => {
     setSearchTerm(value);
     setFilters((current) => ({ ...current, hospital: value }));
+    setPage(1);
   }, []);
 
   const resetFilters = useCallback(() => {
     setSearchTerm('');
     setFilters(initialFilters);
+    setPage(1);
   }, []);
 
   const refresh = useCallback(() => {
@@ -142,6 +153,10 @@ export function useHospitals(initialSearchTerm = '') {
 
     if (filters.specialty) {
       labels.push('Specialty');
+    }
+
+    if (filters.facilityType) {
+      labels.push('Facility type');
     }
 
     if (filters.emergency) {
@@ -193,19 +208,13 @@ export function useHospitals(initialSearchTerm = '') {
     const maximumDistance = getDistanceThreshold(filters.distance);
 
     const result = hospitalsWithLiveDistance.filter((hospital) => {
-      const searchText = [
-        hospital.name,
-        hospital.city,
-        hospital.address,
-        hospital.description,
-        hospital.specialties.join(' '),
-        hospital.departments.join(' '),
-      ].join(' ');
-
-      const matchesSearch = !normalizedSearch || normalizeText(searchText).includes(normalizedSearch);
-      const matchesCity = !filters.city || normalizeText(hospital.city).includes(normalizeText(filters.city));
+      const matchesSearch = !normalizedSearch || matchesHospitalSearch(hospital, searchTerm);
+      const matchesDirectory = matchesHospitalDirectoryFilters(hospital, {
+        locality: filters.city,
+        facilityType: filters.facilityType,
+        specialty: filters.specialty,
+      });
       const matchesDepartment = !filters.department || hospital.departments.some((department) => normalizeText(department).includes(normalizeText(filters.department)));
-      const matchesSpecialty = !filters.specialty || hospital.specialties.some((specialty) => normalizeText(specialty).includes(normalizeText(filters.specialty)));
       const matchesEmergency = !filters.emergency || hospital.facilities.emergency;
       const matchesHours24 = !filters.hours24 || hospital.facilities.twenty_four_hours;
       const matchesIcu = !filters.icu || hospital.facilities.icu;
@@ -216,29 +225,47 @@ export function useHospitals(initialSearchTerm = '') {
       const matchesRating = minimumRating === null || hospital.rating >= minimumRating;
       const matchesDistance = maximumDistance === null || (hospital.distance_km ?? Number.POSITIVE_INFINITY) <= maximumDistance;
 
-      return matchesSearch && matchesCity && matchesDepartment && matchesSpecialty && matchesEmergency && matchesHours24 && matchesIcu && matchesAmbulance && matchesBloodBank && matchesParking && matchesInsurance && matchesRating && matchesDistance;
+      return matchesSearch && matchesDirectory && matchesDepartment && matchesEmergency && matchesHours24 && matchesIcu && matchesAmbulance && matchesBloodBank && matchesParking && matchesInsurance && matchesRating && matchesDistance;
     });
 
     switch (filters.sortBy) {
       case 'Highest Rated':
-        return [...result].sort((left, right) => right.rating - left.rating || right.review_count - left.review_count);
+        return [...result].sort((left, right) =>
+          Number(right.rating > 0) - Number(left.rating > 0)
+          || right.rating - left.rating
+          || right.review_count - left.review_count,
+        );
       case 'Nearest':
         return [...result].sort((left, right) => (left.distance_km ?? Number.POSITIVE_INFINITY) - (right.distance_km ?? Number.POSITIVE_INFINITY));
       case '24x7 Access':
         return [...result].sort((left, right) => Number(right.facilities.twenty_four_hours) - Number(left.facilities.twenty_four_hours));
       case 'Recommended':
       default:
-        return [...result].sort((left, right) => right.rating - left.rating);
+        return [...result].sort((left, right) => left.name.localeCompare(right.name));
     }
   }, [filters, hospitalsWithLiveDistance, searchTerm]);
 
   const liveDistance = hasPatientCoords;
+  const pageCount = Math.max(1, Math.ceil(filteredHospitals.length / PAGE_SIZE));
+  const visibleHospitals = useMemo(
+    () => filteredHospitals.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [filteredHospitals, page],
+  );
+
+  useEffect(() => {
+    if (page > pageCount) setPage(pageCount);
+  }, [page, pageCount]);
 
   return {
     hospitals,
     filteredHospitals,
+    visibleHospitals,
+    page,
+    pageCount,
+    setPage,
     loading,
     error,
+    notice,
     searchTerm,
     filters,
     setSearchTerm: updateSearchTerm,

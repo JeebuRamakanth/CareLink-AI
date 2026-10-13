@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
+    "test:focused": "node --experimental-strip-types --test src/services/maps/hospitalPlaceMapping.test.mjs src/services/maps/hospitalDirectorySearch.test.mjs src/services/maps/googlePlacesErrors.test.mjs src/pages/Hospitals/hospitalPresentation.test.mjs src/services/auth/devTestAuth.test.mjs supabase/functions/ai-gateway/logic.test.mjs",
     "preview": "vite preview",
     "android:sync": "npm run build && npx cap sync android",
     "android:open": "npx cap open android",

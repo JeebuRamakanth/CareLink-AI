@@ -6,7 +6,6 @@ import { ScrollToTop } from './ScrollToTop';
 import type { ReactNode } from 'react';
 import { ROUTES } from '../../routes/routeConstants';
 import { useOptionalAuth } from '../../contexts/AuthContext';
-import { Button } from '../ui/Button';
 import { NotificationBell } from '../notifications/NotificationBell';
 
 const navItems = [
@@ -210,12 +209,20 @@ export function GlobalLayout({ children, activePage = 'Home' }: GlobalLayoutProp
                   </>
                 ) : (
                   <div className="mt-2 flex gap-2">
-                    <Button variant="secondary" fullWidth onClick={() => setMobileMenuOpen(false)}>
-                      <Link to={ROUTES.login} className="w-full">Login</Link>
-                    </Button>
-                    <Button variant="primary" fullWidth onClick={() => setMobileMenuOpen(false)}>
-                      <Link to={ROUTES.register} className="w-full">Register</Link>
-                    </Button>
+                    <Link
+                      to={ROUTES.login}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="flex-1 rounded-2xl border border-white/10 bg-white/5 py-3 text-center text-sm font-medium text-ink-200 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/50"
+                    >
+                      Login
+                    </Link>
+                    <Link
+                      to={ROUTES.register}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="flex-1 rounded-2xl bg-gradient-to-r from-brand-500 to-accent-500 py-3 text-center text-sm font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/50"
+                    >
+                      Register
+                    </Link>
                   </div>
                 )}
               </nav>

@@ -136,7 +136,6 @@ export async function waitForAuthSession(
  */
 export async function signIn(email: string, password: string): Promise<{ result?: AuthResult; error?: AuthError }> {
   const cleanEmail = email.trim().toLowerCase();
-
   // DEV-ONLY test identities (isolated; no real privileges). Checked first so a
   // simple identifier like "abcd" need not be a valid email. In a production
   // build `isDevTestAuthEnabled()` is always false, so this branch is dead.
