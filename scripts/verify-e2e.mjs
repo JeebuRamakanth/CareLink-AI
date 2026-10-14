@@ -10,62 +10,24 @@
  *   2.  Home → "View Doctors" quick-access → /doctors
  *   3.  Home → agent "Find a hospital" → /ai
  *   4.  Doctors list card → "View profile" → /doctors/:id (renders profile)
- *   5.  Chatbot hospital card → "View Hospital" → /hospitals/:slug
- *   6.  Chatbot hospital card → "Book" → /appointments?hosp=… → redirects to
- *       the hospital detail (deep-link honoured)
+ *   5.  Chatbot hospital card actions work when sourced records exist; otherwise
+ *       hospital guidance remains attributed and does not invent provider links
  *   7.  Header nav + footer links resolve to registered routes
  *   8.  Browser Back returns to the previous route
  *   9.  Protected route /profile redirects an anonymous user to /login
  *  10.  Unknown route falls back to home
  *
  * Usage: BASE_URL=http://localhost:12000 node scripts/verify-e2e.mjs
+ * Set CHROME_BIN when Chrome/Chromium is not installed in a standard location.
  * Exits non-zero on any failure.
  */
 
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { delimiter, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
+import { resolveChrome } from './chromium.mjs';
 
 const BASE = process.env.BASE_URL || 'http://localhost:12000';
 const PORT = Number(process.env.CDP_PORT || 9333);
-
-function resolveChrome() {
-  if (process.env.CHROME_BIN) return process.env.CHROME_BIN;
-
-  const names = process.platform === 'win32'
-    ? ['chrome.exe', 'msedge.exe', 'chromium.exe']
-    : process.platform === 'darwin'
-      ? ['google-chrome', 'chromium', 'chromium-browser']
-      : ['chromium', 'chromium-browser', 'google-chrome', 'google-chrome-stable'];
-  const candidates = [];
-
-  if (process.platform === 'win32') {
-    const roots = [
-      process.env.PROGRAMFILES,
-      process.env['PROGRAMFILES(X86)'],
-      process.env.LOCALAPPDATA,
-    ].filter(Boolean);
-    for (const root of roots) {
-      candidates.push(
-        join(root, 'Google', 'Chrome', 'Application', 'chrome.exe'),
-        join(root, 'Microsoft', 'Edge', 'Application', 'msedge.exe')
-      );
-    }
-  } else if (process.platform === 'darwin') {
-    candidates.push('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome');
-  }
-
-  for (const directory of (process.env.PATH || '').split(delimiter)) {
-    if (directory) candidates.push(...names.map((name) => join(directory, name)));
-  }
-
-  const executable = candidates.find((candidate) => existsSync(candidate));
-  if (!executable) {
-    throw new Error('Could not find Chrome/Chromium; set CHROME_BIN to its executable path');
-  }
-  return executable;
-}
 
 const results = [];
 const check = (name, ok, detail = '') => {

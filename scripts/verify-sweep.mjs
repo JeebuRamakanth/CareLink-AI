@@ -6,13 +6,14 @@
  * failed requests, and checks for horizontal overflow at common widths.
  *
  * Usage: BASE_URL=http://localhost:12000 node scripts/verify-sweep.mjs
+ * Set CHROME_BIN when Chrome/Chromium is not installed in a standard location.
  */
 
 import { spawn } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
+import { resolveChrome } from './chromium.mjs';
 
 const BASE = process.env.BASE_URL || 'http://localhost:12000';
-const CHROME = process.env.CHROME_BIN || 'chromium';
 const PORT = Number(process.env.CDP_PORT || 9334);
 
 const ROUTES = ['/', '/hospitals', '/doctors', '/reviews', '/appointments', '/documents', '/pharmacies', '/labs', '/ai', '/agent', '/about', '/help', '/contact', '/login', '/register'];
@@ -36,10 +37,13 @@ async function waitForDevtools(timeoutMs = 15000) {
 }
 
 async function main() {
-  const chrome = spawn(CHROME, ['--headless=new', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', `--remote-debugging-port=${PORT}`, 'about:blank'], { stdio: 'ignore' });
+  const chrome = spawn(resolveChrome(), ['--headless=new', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', `--remote-debugging-port=${PORT}`, 'about:blank'], { stdio: 'ignore' });
+  const launchError = new Promise((_, reject) => {
+    chrome.once('error', reject);
+  });
 
   try {
-    await waitForDevtools();
+    await Promise.race([waitForDevtools(), launchError]);
     const targets = await getJson(`http://127.0.0.1:${PORT}/json`);
     const page = targets.find((t) => t.type === 'page');
     const ws = new WebSocket(page.webSocketDebuggerUrl);
