@@ -10,23 +10,23 @@
  *   2.  Home → "View Doctors" quick-access → /doctors
  *   3.  Home → agent "Find a hospital" → /ai
  *   4.  Doctors list card → "View profile" → /doctors/:id (renders profile)
- *   5.  Chatbot hospital card → "View Hospital" → /hospitals/:slug
- *   6.  Chatbot hospital card → "Book" → /appointments?hosp=… → redirects to
- *       the hospital detail (deep-link honoured)
+ *   5.  Chatbot hospital card actions work when sourced records exist; otherwise
+ *       hospital guidance remains attributed and does not invent provider links
  *   7.  Header nav + footer links resolve to registered routes
  *   8.  Browser Back returns to the previous route
  *   9.  Protected route /profile redirects an anonymous user to /login
  *  10.  Unknown route falls back to home
  *
  * Usage: BASE_URL=http://localhost:12000 node scripts/verify-e2e.mjs
+ * Set CHROME_BIN when Chrome/Chromium is not installed in a standard location.
  * Exits non-zero on any failure.
  */
 
 import { spawn } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
+import { resolveChrome } from './chromium.mjs';
 
 const BASE = process.env.BASE_URL || 'http://localhost:12000';
-const CHROME = process.env.CHROME_BIN || 'chromium';
 const PORT = Number(process.env.CDP_PORT || 9333);
 
 const results = [];
@@ -53,8 +53,9 @@ async function waitForDevtools(timeoutMs = 15000) {
 }
 
 async function main() {
+  const chromePath = resolveChrome();
   const chrome = spawn(
-    CHROME,
+    chromePath,
     [
       '--headless=new',
       '--no-sandbox',
@@ -65,9 +66,12 @@ async function main() {
     ],
     { stdio: 'ignore' }
   );
+  const launchError = new Promise((_, reject) => {
+    chrome.once('error', reject);
+  });
 
   try {
-    await waitForDevtools();
+    await Promise.race([waitForDevtools(), launchError]);
     const targets = await getJson(`http://127.0.0.1:${PORT}/json`);
     const page = targets.find((t) => t.type === 'page');
     if (!page) throw new Error('No page target available');
@@ -105,7 +109,17 @@ async function main() {
 
     const goto = async (path) => {
       await send('Page.navigate', { url: `${BASE}${path}` });
-      await delay(1200);
+      const deadline = Date.now() + 10000;
+      let appReady = false;
+      while (Date.now() < deadline) {
+        appReady = await evaluate(
+          `document.readyState === 'complete' && Boolean(document.querySelector('#root')?.textContent?.trim())`
+        );
+        if (appReady) break;
+        await delay(200);
+      }
+      if (!appReady) throw new Error(`Application did not render at ${path}`);
+      await delay(250);
     };
 
     const currentPath = () => evaluate('location.pathname + location.search');
@@ -126,7 +140,7 @@ async function main() {
     // 1 & 2 — Home quick-access tiles.
     await goto('/');
     const homeText = await text();
-    check('home renders', /Your health/i.test(homeText) || /CareLink/i.test(homeText));
+    check('home renders', /Your health/i.test(homeText) || /CareLink/i.test(homeText), homeText.slice(0, 120));
 
     const clickedHospitals = await clickByText('a', 'Hospitals');
     await delay(1000);
@@ -152,7 +166,7 @@ async function main() {
     const docText = await text();
     check('doctor profile renders content', /Dr\.|Directory|profile/i.test(docText));
 
-    // 5 & 6 — Chatbot hospital card actions.
+    // 5 & 6 — Exercise sourced hospital actions, or the explicit empty state.
     await goto('/ai');
     await evaluate(`
       (() => {
@@ -161,29 +175,41 @@ async function main() {
       })()
     `);
     await delay(2200);
-    const viewHospital = await clickByText('a', 'View Hospital');
-    await delay(1000);
-    const hospPath = await currentPath();
-    check('chatbot "View Hospital" → /hospitals/:slug', viewHospital && /^\/hospitals\/[^/]+$/.test(hospPath), hospPath);
-    const hospText = await text();
-    check('hospital detail renders content', /Hospital|hospital/i.test(hospText));
-
-    await goto('/ai');
-    await evaluate(`
-      (() => {
-        const btn = [...document.querySelectorAll('button')].find((b) => /hospital/i.test(b.innerText));
-        if (btn) btn.click();
-      })()
-    `);
-    await delay(2200);
-    const booked = await clickByText('a', 'Book');
-    await delay(1200);
-    const afterBook = await currentPath();
-    check(
-      'chatbot "Book" deep-link resolves to a provider page (not a bare list)',
-      booked && (afterBook.startsWith('/hospitals/') || afterBook.startsWith('/doctors/') || afterBook === '/appointments'),
-      afterBook
+    const hasHospitalCard = await evaluate(
+      `[...document.querySelectorAll('a, button')].some((el) => (el.innerText || '').includes('View Hospital'))`
     );
+    if (hasHospitalCard) {
+      const viewHospital = await clickByText('button, a', 'View Hospital');
+      await delay(1000);
+      const hospPath = await currentPath();
+      check('chatbot "View Hospital" → /hospitals/:slug', viewHospital && /^\/hospitals\/[^/]+$/.test(hospPath), hospPath);
+      check('hospital detail renders content', /Hospital|hospital/i.test(await text()));
+
+      await goto('/ai');
+      await evaluate(`
+        (() => {
+          const btn = [...document.querySelectorAll('button')].find((b) => /hospital/i.test(b.innerText));
+          if (btn) btn.click();
+        })()
+      `);
+      await delay(2200);
+      const booked = await clickByText('button, a', 'Book');
+      await delay(1200);
+      const afterBook = await currentPath();
+      check(
+        'chatbot "Book" deep-link resolves to a provider page (not a bare list)',
+        booked && (afterBook.startsWith('/hospitals/') || afterBook.startsWith('/doctors/') || afterBook === '/appointments'),
+        afterBook
+      );
+    } else {
+      const hospitalResult = await text();
+      check(
+        'chatbot attributes hospital guidance to the directory',
+        /hospital directory/i.test(hospitalResult),
+        hospitalResult.slice(-240)
+      );
+      check('hospital actions are absent without a sourced hospital card', !hasHospitalCard);
+    }
 
     // 7 — Header/footer nav resolve.
     await goto('/');

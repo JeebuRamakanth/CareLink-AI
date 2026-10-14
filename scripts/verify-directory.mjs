@@ -64,8 +64,18 @@ const check = (name, ok, detail = '') => {
 
 const hospitals = loadArray('src/data/hospitals.ts', 'hospitalsData');
 const doctors = loadArray('src/data/doctors.ts', 'doctorsData');
+const hospitalsSource = readFileSync(join(root, 'src/data/hospitals.ts'), 'utf8');
+const hospitalServiceSource = readFileSync(join(root, 'src/services/hospitalService.ts'), 'utf8');
+const directoryMigration = readFileSync(join(root, 'supabase/migrations/0031_step21_machilipatnam_directory.sql'), 'utf8');
 
-check('directory: hospitals array is non-empty', hospitals.length > 0);
+check(
+  'directory: hospitals are sourced or no unverified local records are bundled',
+  hospitals.length > 0 || (
+    hospitalsSource.includes('No independently verified local records')
+    && hospitalServiceSource.includes('discoverMachilipatnamHospitals')
+    && hospitalServiceSource.includes('fetchRealHospitals')
+  )
+);
 check('directory: doctors array is non-empty', doctors.length > 0);
 
 check(
@@ -103,9 +113,12 @@ check(
   hospitals.every((h) => h.is_verified === false) && doctors.every((d) => d.is_verified === false)
 );
 
-const hospitalIds = new Set(hospitals.map((h) => h.id));
+const hospitalIds = new Set([
+  ...hospitals.map((h) => h.id),
+  ...[...directoryMigration.matchAll(/^\s*\('(7f100[0-9a-f-]{31})'/gm)].map((match) => match[1]),
+]);
 check(
-  'directory: doctor→hospital links reference only real directory hospitals',
+  'directory: doctor→hospital links reference canonical seeded hospital IDs',
   doctors.every((d) => (d.hospital_ids ?? []).every((id) => hospitalIds.has(id)))
 );
 

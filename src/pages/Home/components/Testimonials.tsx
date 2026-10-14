@@ -7,10 +7,12 @@ import { SectionBox } from './homePrimitives';
 
 export function Testimonials() {
   return (
-    <Section title="What patients say" description="How patient voices appear on CareLink. The examples below are clearly labelled samples." eyebrow="Voices">
+    <Section title="Patient reviews" description="Only published reviews from connected records are shown here." eyebrow="Reviews">
       <SectionBox className="min-h-[220px]">
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {featuredReviews.map((r) => (
+          {featuredReviews.length === 0 ? (
+            <li className="text-sm text-ink-300">No published patient reviews are available to display.</li>
+          ) : featuredReviews.map((r) => (
             <li key={r.id} className="flex flex-col gap-3 rounded-[1.25rem] border border-white/10 bg-slate-950/40 p-5">
               <div className="flex items-center justify-between">
                 <span className="flex size-10 items-center justify-center rounded-full border border-brand-400/25 bg-brand-500/12 text-sm font-semibold text-brand-100">

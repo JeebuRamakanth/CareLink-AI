@@ -13,9 +13,15 @@ type FilterBarProps = {
 
 const departmentOptions = ['Cardiology', 'Neurology', 'Orthopedics', 'Oncology', 'Pediatrics', 'Emergency'];
 const specialtyOptions = ['Heart Care', 'Stroke', 'Sports Medicine', 'Cancer Care', 'Neonatal', 'Trauma'];
+const facilityTypeOptions = ['Hospital', 'Clinic', 'Medical Clinic', 'Nursing Home', 'Doctor', 'Dentist'];
 const ratingOptions = ['Any', '4.5+', '4.0+', '3.5+'];
 const distanceOptions = ['Any', 'Within 5 km', 'Within 10 km', 'Within 20 km'];
-const sortOptions = ['Recommended', 'Highest Rated', 'Nearest', '24x7 Access'];
+const sortOptions = [
+  { label: 'Name (A–Z)', value: 'Recommended' },
+  { label: 'Highest Rated', value: 'Highest Rated' },
+  { label: 'Nearest', value: 'Nearest' },
+  { label: '24×7 listed', value: '24x7 Access' },
+];
 
 export function FilterBar({ searchValue, filters, onSearchChange, onFilterChange, onReset }: FilterBarProps) {
   const activeFilters = useMemo(() => {
@@ -84,24 +90,40 @@ export function FilterBar({ searchValue, filters, onSearchChange, onFilterChange
             <FilterChip label="Insurance" active={filters.insurance} onClick={() => toggleFeature('insurance')} icon="🛡️" />
           </div>
 
-          <div className="grid gap-3 xl:grid-cols-[1.1fr_0.9fr_0.8fr_0.8fr]">
-            <FilterField label="Search hospital" hint="Name">
+          <div className="grid gap-3 xl:grid-cols-[1.2fr_0.9fr_0.8fr_0.8fr_0.8fr]">
+            <FilterField label="Search directory" hint="Name, locality, specialty, type">
               <input
-                id="hospital-search-input"
+                id="hospital-directory-search"
                 value={searchValue}
                 onChange={(event) => onSearchChange(event.target.value)}
-                placeholder="Search by hospital name"
+                placeholder="Name, locality, specialty, or facility type"
+                aria-label="Search by facility name, locality, specialty, or facility type"
                 className="rounded-[0.8rem] border border-white/10 bg-slate-950/70 px-3 py-2.5 text-sm text-white outline-none transition focus:border-brand-400/40 focus:ring-2 focus:ring-brand-400/20"
               />
             </FilterField>
 
-            <FilterField label="Search city" hint="Location">
+            <FilterField label="Locality" hint="Within search area">
               <input
                 value={filters.city}
                 onChange={(event) => updateFilter('city', event.target.value)}
-                placeholder="Search by city"
+                placeholder="Search address/locality"
+                aria-label="Filter hospitals by locality"
                 className="rounded-[0.8rem] border border-white/10 bg-slate-950/70 px-3 py-2.5 text-sm text-white outline-none transition focus:border-brand-400/40 focus:ring-2 focus:ring-brand-400/20"
               />
+            </FilterField>
+
+            <FilterField label="Facility type" hint="Type">
+              <select
+                value={filters.facilityType}
+                onChange={(event) => updateFilter('facilityType', event.target.value)}
+                aria-label="Filter by facility type"
+                className="rounded-[0.8rem] border border-white/10 bg-slate-950/70 px-3 py-2.5 text-sm text-white outline-none transition focus:border-brand-400/40 focus:ring-2 focus:ring-brand-400/20"
+              >
+                <option value="">All facility types</option>
+                {facilityTypeOptions.map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
             </FilterField>
 
             <FilterField label="Department" hint="Care area">
@@ -163,16 +185,9 @@ export function FilterBar({ searchValue, filters, onSearchChange, onFilterChange
                 className="rounded-[0.8rem] border border-white/10 bg-slate-950/70 px-3 py-2.5 text-sm text-white outline-none transition focus:border-brand-400/40 focus:ring-2 focus:ring-brand-400/20"
               >
                 {sortOptions.map((option) => (
-                  <option key={option} value={option}>{option}</option>
+                  <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
               </select>
-            </FilterField>
-
-            <FilterField label="Availability" hint="Quick picks">
-              <div className="flex flex-wrap gap-2">
-                <FilterChip label="Open now" active={filters.emergency} onClick={() => toggleFeature('emergency')} />
-                <FilterChip label="24×7" active={filters.hours24} onClick={() => toggleFeature('hours24')} />
-              </div>
             </FilterField>
           </div>
 

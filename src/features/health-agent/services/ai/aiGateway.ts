@@ -8,20 +8,19 @@
  * Abuse/cost controls enforced client-side (the gateway enforces them again
  * server-side):
  * - token-bucket rate limit (per browser session)
- * - request-size cap (postJson) and per-field truncation
+ * - request-size cap and per-field truncation
  * - timeout + caller cancellation
- * - at most ONE bounded retry on retryable errors — never an infinite loop
+ * - no automatic retry, to avoid duplicate billable provider requests
  * - schema validation of every response before use
  */
 
-import { postJson, IntegrationError } from '../../../../lib';
 import { env } from '../../../../config';
+import { getSupabaseClient } from '../../../../services/supabase/client';
 import type { AIChatRequest, AIChatResponse, AIEngineOutcome } from './aiTypes';
 import { validateAIChatResponse } from './aiSchemas';
 
-const GATEWAY_TIMEOUT_MS = 15000;
-const MAX_RETRIES = 1;
-const RETRY_DELAY_MS = 600;
+const GATEWAY_TIMEOUT_MS = 25000;
+const MAX_REQUEST_BYTES = 48 * 1024;
 
 /* ----------------------------------------------------------------------------
  * Token-bucket rate limiter (per browser session)
@@ -68,41 +67,40 @@ export function resetRateLimiter(): void {
 
 export type AIGatewayMode = 'real' | 'unavailable';
 
-/** The gateway URL, or null when no secure AI endpoint is configured. */
-export function aiGatewayUrl(): string | null {
-  if (env.ai.configured) return `${env.ai.providerBaseUrl}/v1/agent/chat`;
-  return null;
+export function aiGatewayMode(): AIGatewayMode {
+  return env.supabase.configured ? 'real' : 'unavailable';
 }
 
-export function aiGatewayMode(): AIGatewayMode {
-  return aiGatewayUrl() ? 'real' : 'unavailable';
+async function safeGatewayError(error: unknown): Promise<string> {
+  if (typeof error !== 'object' || error === null || !('context' in error)) return 'gateway-error';
+  const context = error.context;
+  if (!(context instanceof Response)) return 'gateway-error';
+
+  let body: unknown;
+  try {
+    body = await context.clone().json();
+  } catch {
+    return 'gateway-error';
+  }
+  if (typeof body !== 'object' || body === null || !('error' in body) || typeof body.error !== 'string') {
+    return 'gateway-error';
+  }
+
+  const safeReasons = new Set([
+    'ai-not-configured',
+    'authorization-unavailable',
+    'malformed-request',
+    'provider-rate-limit',
+    'provider-unavailable',
+    'rate-limit',
+    'unauthorized',
+  ]);
+  return safeReasons.has(body.error) ? body.error : 'gateway-error';
 }
 
 /* ----------------------------------------------------------------------------
  * Gateway call
  * ------------------------------------------------------------------------- */
-
-const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-
-async function callGateway(url: string, request: AIChatRequest, signal?: AbortSignal): Promise<unknown> {
-  let attempt = 0;
-  // Bounded retry: at most MAX_RETRIES additional attempts, only for
-  // retryable errors (timeout/network/rate-limit/unavailable).
-  for (;;) {
-    try {
-      return await postJson<unknown>(url, request, {
-        timeoutMs: GATEWAY_TIMEOUT_MS,
-        signal,
-        maxBodyBytes: 48 * 1024,
-      });
-    } catch (err) {
-      const retryable = err instanceof IntegrationError && err.retryable;
-      if (!retryable || attempt >= MAX_RETRIES) throw err;
-      attempt += 1;
-      await wait(RETRY_DELAY_MS);
-    }
-  }
-}
 
 /**
  * Send a turn to the secure AI gateway and validate the structured response.
@@ -113,16 +111,26 @@ export async function sendToAIGateway(
   request: AIChatRequest,
   signal?: AbortSignal
 ): Promise<AIEngineOutcome> {
-  const url = aiGatewayUrl();
-  if (!url) return { kind: 'unavailable', reason: 'no-gateway-configured' };
+  if (!env.supabase.configured) return { kind: 'unavailable', reason: 'no-gateway-configured' };
   if (!tryConsumeRateToken()) return { kind: 'unavailable', reason: 'rate-limited' };
+
+  const client = await getSupabaseClient();
+  if (!client) return { kind: 'unavailable', reason: 'backend-unavailable' };
+  if (new TextEncoder().encode(JSON.stringify(request)).byteLength > MAX_REQUEST_BYTES) {
+    return { kind: 'unavailable', reason: 'payload-too-large' };
+  }
 
   let raw: unknown;
   try {
-    raw = await callGateway(url, request, signal);
-  } catch (err) {
-    const reason = err instanceof IntegrationError ? err.code : 'unknown';
-    return { kind: 'unavailable', reason };
+    const { data, error } = await client.functions.invoke<unknown>('ai-gateway', {
+      body: request,
+      signal,
+      timeout: GATEWAY_TIMEOUT_MS,
+    });
+    if (error) return { kind: 'unavailable', reason: await safeGatewayError(error) };
+    raw = data;
+  } catch {
+    return { kind: 'unavailable', reason: 'gateway-unreachable' };
   }
 
   const validated: AIChatResponse | null = validateAIChatResponse(raw);

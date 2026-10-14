@@ -5,8 +5,8 @@
  */
 
 import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import { cn } from '../common/cn';
 import { Badge } from '../ui/Badge';
 import { IconArrowRight, IconShield } from './AgentIcons';

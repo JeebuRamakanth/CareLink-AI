@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ROUTES } from '../../../routes/routeConstants';
 import type { Hospital } from '../../../types';
+import { hospitalDetailsPath, hospitalDirectionsUrl } from '../../../services/maps/hospitalPlaceMapping';
+import { hospitalImageSource } from '../hospitalPresentation';
 
 type HospitalCardProps = {
   hospital: Hospital;
@@ -10,94 +12,80 @@ type HospitalCardProps = {
 
 export function HospitalCard({ hospital, className = '' }: HospitalCardProps) {
   const [isFavorite, setIsFavorite] = useState(false);
-  const detailHref = `${ROUTES.hospitals}/${hospital.slug ?? hospital.id}`;
-
+  const detailHref = hospitalDetailsPath(hospital.id);
+  const imageUrl = hospitalImageSource(hospital.image_url);
+  const directionsUrl = hospitalDirectionsUrl(hospital);
   const {
-    name,
-    address,
-    city,
-    state,
-    rating,
-    review_count,
-    distance_km,
     facilities,
     departments,
     insurance_partners,
-    availability_status,
-    is_verified,
     doctor_count,
   } = hospital;
 
-  const displayAddress = `${address}, ${city}, ${state}`;
-  const displayDistance = distance_km ? `${distance_km.toFixed(1)} km away` : 'Distance available on request';
-  const accreditation = is_verified ? ['Verified'] : ['Preview'];
-  const isOpen = availability_status === 'open' || availability_status === 'busy';
-  const availabilityLabel = availability_status === null ? 'Availability unlisted' : isOpen ? 'Open now' : 'Closed';
   const emergencyAvailable = facilities.emergency;
   const is24x7 = facilities.twenty_four_hours;
   const insuranceAccepted = (insurance_partners?.length ?? 0) > 0;
   const bloodBankAvailable = facilities.blood_bank;
   const ambulanceAvailable = facilities.ambulance;
+  const doctorsCount = doctor_count && doctor_count > 0 ? `${doctor_count} available` : 'Unlisted';
   // Never fabricate a doctor count: show the real linked-doctor count when the
   // backend provides it, otherwise state that it is unlisted.
-  const doctorsCount = doctor_count && doctor_count > 0 ? `${doctor_count} available` : 'Unlisted';
 
   return (
-    <article
-      className={`group relative overflow-hidden rounded-[1.6rem] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] p-3 shadow-[0_16px_70px_rgba(0,0,0,0.2)] transition duration-300 hover:-translate-y-1 hover:border-brand-400/30 hover:shadow-[0_22px_90px_rgba(77,132,255,0.18)] focus-within:border-brand-400/40 ${className}`}
-    >
-      <div className="overflow-hidden rounded-[1.2rem] border border-white/10 bg-slate-950/70">
-        <div className="relative aspect-[16/10] overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(77,132,255,0.3),transparent_38%),linear-gradient(140deg,rgba(255,255,255,0.12),rgba(255,255,255,0.03))]">
-          <div className="absolute inset-0 transition duration-500 group-hover:scale-105" />
-          <div className="absolute inset-0 flex items-end justify-between p-4">
-            <div className="rounded-full border border-white/10 bg-slate-950/70 px-3 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.26em] text-brand-100">
-              Care network
-            </div>
-            <div className="rounded-full border border-emerald-400/25 bg-emerald-500/12 px-3 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.24em] text-emerald-200">
-              {availabilityLabel}
-            </div>
-          </div>
-        </div>
+    <article className={`group overflow-hidden rounded-[1.6rem] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] p-3 shadow-[0_16px_70px_rgba(0,0,0,0.2)] transition hover:-translate-y-1 hover:border-brand-400/30 ${className}`}>
+      <div className="relative aspect-[16/8] overflow-hidden rounded-[1.2rem] border border-white/10 bg-slate-950/70">
+        <img
+          src={imageUrl}
+          alt={hospital.image_url ? `${hospital.name} facility` : 'Illustration; facility photo unavailable'}
+          onError={(event) => {
+            event.currentTarget.onerror = null;
+            event.currentTarget.src = hospitalImageSource();
+          }}
+          className="h-full w-full object-cover"
+          loading="lazy"
+        />
+        <span className="absolute left-3 top-3 rounded-full border border-white/10 bg-slate-950/85 px-3 py-1 text-xs font-semibold text-white">
+          {hospital.facility_type || 'Healthcare facility'}
+        </span>
+        <button
+          type="button"
+          aria-label={isFavorite ? `Remove ${hospital.name} from favorites` : `Add ${hospital.name} to favorites`}
+          aria-pressed={isFavorite}
+          onClick={() => setIsFavorite((current) => !current)}
+          className="absolute right-3 top-3 rounded-full border border-white/15 bg-slate-950/85 p-2 text-xl text-white hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/60"
+        >
+          {isFavorite ? '♥' : '♡'}
+        </button>
       </div>
 
       <div className="space-y-4 p-2 pt-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              {accreditation.map((badge) => (
-                <span
-                  key={badge}
-                  className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-ink-300"
-                >
-                  {badge}
-                </span>
-              ))}
-            </div>
-            <div>
-              <h3 className="text-xl font-semibold text-white">{name}</h3>
-              <p className="mt-1 text-sm leading-6 text-ink-300">{displayAddress}</p>
-            </div>
+        <div>
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-ink-300">
+              {hospital.verification_status === 'GOOGLE_PLACES' ? 'Google Places · unverified' : hospital.verification_status ?? 'Unverified'}
+            </span>
+            {hospital.business_status && hospital.business_status !== 'OPERATIONAL' ? (
+              <span className="rounded-full border border-rose-300/20 bg-rose-400/10 px-2.5 py-1 text-xs text-rose-100">
+                {hospital.business_status === 'CLOSED_PERMANENTLY' ? 'Listed permanently closed' : 'Listed temporarily closed'}
+              </span>
+            ) : null}
+            {hospital.rating > 0 ? (
+              <span className="text-sm text-ink-300">
+                <span aria-hidden="true" className="text-amber-300">★</span> {hospital.rating.toFixed(1)}
+                {hospital.review_count > 0 ? ` · ${hospital.review_count.toLocaleString()} ratings` : ''}
+              </span>
+            ) : null}
           </div>
-
-          <button
-            type="button"
-            aria-label="Add to favorites"
-            onClick={() => setIsFavorite((current) => !current)}
-            className="rounded-full border border-white/10 bg-white/5 p-2.5 text-xl text-ink-200 transition hover:border-brand-400/30 hover:bg-brand-400/12 hover:text-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40"
-          >
-            {isFavorite ? '♥' : '♡'}
-          </button>
+          <h2 className="text-xl font-semibold text-white">{hospital.name}</h2>
+          <p className="mt-1 text-sm leading-6 text-ink-300">{hospital.address || 'Address not available'}</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 text-sm text-ink-300">
-          <div className="flex items-center gap-1.5">
-            <span className="text-amber-300">★</span>
-            <span className="font-semibold text-white">{rating.toFixed(1)}</span>
-            <span>({review_count} reviews)</span>
+        {hospital.specialties.length > 0 ? (
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-ink-400">Specialties / services</p>
+            <p className="mt-1 text-sm text-ink-200">{hospital.specialties.slice(0, 4).join(' · ')}</p>
           </div>
-          <span className="h-1 w-1 rounded-full bg-white/20" />
-          <span>{displayDistance}</span>
-        </div>
+        ) : null}
 
         <div className="flex flex-wrap gap-2">
           {emergencyAvailable ? (
@@ -156,6 +144,14 @@ export function HospitalCard({ hospital, className = '' }: HospitalCardProps) {
           >
             Book appointment
           </Link>
+          <a
+            href={directionsUrl}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="flex-1 rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-center text-sm font-semibold text-ink-200 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/50"
+          >
+            Directions
+          </a>
         </div>
       </div>
     </article>

@@ -75,6 +75,14 @@ export interface Hospital extends BaseEntity {
   is_verified?: boolean;
   doctor_count?: number;
   provenance?: DataProvenance;
+  facility_type?: string;
+  source_label?: string;
+  verification_status?: 'VERIFIED' | 'OFFICIAL_SOURCE' | 'GOOGLE_PLACES' | 'THIRD_PARTY_DIRECTORY' | 'UNVERIFIED';
+  last_checked_at?: string;
+  google_maps_url?: string;
+  opening_hours?: string[];
+  business_status?: 'OPERATIONAL' | 'CLOSED_TEMPORARILY' | 'CLOSED_PERMANENTLY';
+  google_attributions?: Array<{ provider: string; provider_uri?: string }>;
 }
 
 export interface HospitalFilters {

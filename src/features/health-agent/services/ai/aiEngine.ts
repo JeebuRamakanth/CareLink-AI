@@ -60,18 +60,32 @@ export function aiEngineMode(): AIEngineMode {
 }
 
 /** A safe, honest "temporarily unavailable" response for real-mode failures. */
-function unavailableResponse(): AIChatResponse {
+function unavailableResponse(reason: string): AIChatResponse {
+  const needsSetup = reason === 'ai-not-configured';
+  const needsSignIn = reason === 'unauthorized';
+  const rateLimited = reason === 'rate-limit' || reason === 'provider-rate-limit';
   return {
-    summary: 'CareLink AI is temporarily unavailable.',
+    summary: needsSetup
+      ? 'CareLink AI setup is incomplete.'
+      : needsSignIn
+        ? 'Please sign in to use CareLink AI.'
+        : rateLimited
+          ? 'Please wait before trying again.'
+          : 'CareLink AI is temporarily unavailable.',
     intent: 'general',
     confidence: 'low',
     urgency: 'routine',
     safetyLevel: 'educational',
-    explanation:
-      'The AI service could not be reached right now. You can still use the search, appointments, and emergency guidance below — no response was fabricated.',
+    explanation: needsSetup
+      ? 'An administrator must configure the xAI API key and a supported model in the Supabase Edge Function settings. Do not share the key in chat.'
+      : needsSignIn
+        ? 'Sign in with your Supabase account, then retry. Demo sign-in does not authorize the AI service.'
+        : rateLimited
+          ? 'The AI service is rate-limiting requests. Wait briefly and retry; no response was fabricated.'
+          : 'The AI service could not be reached right now. You can still use the search, appointments, and emergency guidance below — no response was fabricated.',
     nextActions: ['Search for a hospital or doctor.', 'View your appointments.', 'Call your local emergency number if you need urgent help.'],
     followUpQuestions: [],
-    warnings: ['CareLink AI is temporarily unavailable.'],
+    warnings: [needsSetup ? 'Server-side xAI configuration is required.' : 'CareLink AI is temporarily unavailable.'],
     entities: [],
     language: 'en',
     source: { provider: 'CareLink AI', mode: 'unavailable', fetchedAt: new Date().toISOString() },
@@ -146,7 +160,7 @@ export async function runAITurn(input: AIEngineInput): Promise<AIEngineResult> {
     mode = 'real';
   } else if (gatewayReal) {
     // A real gateway exists but is unavailable right now — never fake it.
-    raw = unavailableResponse();
+    raw = unavailableResponse(outcome.kind === 'unavailable' ? outcome.reason : 'gateway-error');
     mode = 'unavailable';
   } else {
     raw = mockAIRespond(input, outcome.kind === 'unavailable' ? outcome.reason : undefined);

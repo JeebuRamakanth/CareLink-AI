@@ -21,10 +21,10 @@
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join, relative } from 'node:path';
+import { dirname, isAbsolute, join, relative } from 'node:path';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const read = (p) => readFileSync(p.startsWith('/') ? p : join(root, p), 'utf8');
+const read = (p) => readFileSync(isAbsolute(p) ? p : join(root, p), 'utf8');
 
 const failures = [];
 const checks = [];

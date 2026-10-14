@@ -219,9 +219,9 @@ list. Cross-profile leakage prevented at the repository query level.
 Single engine, never a second agent system. All AI goes through one gateway.
 - `src/features/health-agent/services/ai/` — the engine:
   - `aiGateway.ts` — ONLY network path for AI. Token-bucket rate limit
-    (8/60s), 9s timeout (AbortController), one retry on 429/5xx with
-    backoff+jitter, abort != retry. `sendToAIGateway()` returns
-    ok/rate-limit/timeout/unavailable — never throws.
+    (8/60s), authenticated Supabase function invocation, 25s timeout,
+    cancellation, no automatic retries (to avoid duplicate billing).
+    `sendToAIGateway()` returns validated/unavailable — never throws.
   - `aiSchemas.ts` — payload validators (chat/document/medicine). Every
     external response validated BEFORE render; malformed -> mock fallback.
   - `safetyLayer.ts` — deterministic floor/ceiling: `inputSafetyFloor()`
@@ -234,12 +234,13 @@ Single engine, never a second agent system. All AI goes through one gateway.
   - `aiEngine.ts` — real -> mock -> unavailable chain. `mockAIResponder.ts`
     reuses mockAdapters intent classification; output ALWAYS tagged
     "CareLink demo response (mock)".
-- Server adapter: `supabase/functions/ai-gateway/index.ts` (Deno edge fn).
-  The ONLY holder of `AI_PROVIDER_API_KEY` (secret, never VITE_*). Requires
-  Supabase JWT, per-user rate limit, system prompt assembled server-side,
-  channel separation (developer channel holds context + wrapped
-  `<untrusted_document>` data), JSON-schema-constrained output, provenance
-  attached server-side. Client hits it via `VITE_AI_PROVIDER_BASE_URL`.
+- Server adapter: `supabase/functions/ai-gateway/index.ts` (Deno Edge
+  Function). The ONLY holder of `XAI_API_KEY` and `XAI_MODEL` (server secrets,
+  never VITE_*). Requires a Supabase JWT, per-user rate limit, bounded request
+  validation, server-controlled healthcare instructions, schema-validated
+  xAI Chat Completions output, and server-attached provenance. The browser
+  invokes it with `supabase.functions.invoke('ai-gateway')`, which forwards
+  the authenticated session.
 - Orchestrator merges AI output: explanation/follow-ups/warnings/safetyLevel/
   provenance; emergency short-circuit BEFORE AI call; severity never
   decreases (escalateUrgency). Medicine: never silently substitutes —
@@ -249,9 +250,12 @@ Single engine, never a second agent system. All AI goes through one gateway.
 - UI: AIChatPage result header shows "Live AI" vs "CareLink demo response"
   provenance badge (title attr = provider + timestamp); hospital cards show
   "View Relevant Doctors" when a focus topic exists.
-- Env for real mode: `VITE_AI_PROVIDER_BASE_URL` (edge fn URL) +
-  `VITE_AI_PROVIDER_API_KEY` (optional; Supabase JWT preferred). Without
-  them: full mock experience, clearly labelled.
+- Env for real mode: browser-safe `VITE_SUPABASE_URL` +
+  `VITE_SUPABASE_ANON_KEY`, plus server-only `XAI_API_KEY` and an explicitly
+  selected `XAI_MODEL` in the Supabase Edge Function environment. Without
+  configured Supabase browser credentials the app remains in clearly labelled
+  demo mode; a configured backend that is unavailable is not replaced with a
+  fake live answer.
 - Smoketest: rolldown bundle (NOT tsc docbuild) — `/tmp/build-smoke.mjs`
   uses `transform.define: { 'import.meta.env': '({})' }` + stubs
   `globalThis.window = globalThis` (mockAdapters uses window.setTimeout).
@@ -585,8 +589,6 @@ suite. Owner-side steps to go live:
    session picks up the fresh role row.
 5. Admin Login and Super Admin Login both work for the same account/password;
    both land on `/admin` (admin floor; super_admin inherits).
-
-
 ## Step 22 — Application-wide interaction & navigation audit (VERIFIED)
 
 Requirement: every visible interactive element must perform its intended
@@ -796,5 +798,3 @@ idempotent (`create table if not exists`, `create or replace`,
 - `npm run db:bundle` → `scripts/build-migration-bundle.sh` (ordered bundle).
 - `npm run verify:live-schema` → `scripts/verify-live-schema.mjs` (anon-only
   readiness probe; exits non-zero when incomplete).
-
-

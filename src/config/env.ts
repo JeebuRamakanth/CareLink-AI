@@ -33,6 +33,9 @@ const CLOUDINARY_UNSIGNED_UPLOAD_PRESET = str('VITE_CLOUDINARY_UNSIGNED_UPLOAD_P
 
 const GOOGLE_MAPS_API_KEY = str('VITE_GOOGLE_MAPS_API_KEY');
 const GEOAPIFY_API_KEY = str('VITE_GEOAPIFY_API_KEY');
+const GOOGLE_PLACES_CONFIGURED = GOOGLE_MAPS_API_KEY.length > 0 && !/YOUR_/i.test(GOOGLE_MAPS_API_KEY);
+const GEOAPIFY_CONFIGURED = GEOAPIFY_API_KEY.length > 0 && !/YOUR_/i.test(GEOAPIFY_API_KEY);
+const DEV_TEST_AUTH_ENABLED = str('VITE_ENABLE_DEV_TEST_AUTH');
 
 const HOSPITAL_SEARCH_BASE_URL = str('VITE_HOSPITAL_SEARCH_BASE_URL');
 const PHARMACY_SEARCH_BASE_URL = str('VITE_PHARMACY_SEARCH_BASE_URL');
@@ -65,7 +68,8 @@ export const env = {
   supabase: {
     url: SUPABASE_URL,
     anonKey: SUPABASE_ANON_KEY,
-    configured: SUPABASE_URL.length > 0 && SUPABASE_ANON_KEY.length > 0,
+    configured: SUPABASE_URL.length > 0 && SUPABASE_ANON_KEY.length > 0
+      && !/YOUR_/i.test(SUPABASE_URL) && !/YOUR_/i.test(SUPABASE_ANON_KEY),
   },
 
   cloudinary: {
@@ -75,10 +79,15 @@ export const env = {
   },
 
   maps: {
-  apiKey: GOOGLE_MAPS_API_KEY,
-  geoapifyApiKey: GEOAPIFY_API_KEY,
-  configured: GEOAPIFY_API_KEY.length > 0,
-},
+    apiKey: GOOGLE_MAPS_API_KEY,
+    geoapifyApiKey: GEOAPIFY_API_KEY,
+    configured: GEOAPIFY_CONFIGURED,
+    googlePlacesConfigured: GOOGLE_PLACES_CONFIGURED,
+  },
+
+  devAuth: {
+    enableTestLogin: raw.DEV === true && DEV_TEST_AUTH_ENABLED.toLowerCase() === 'true',
+  },
 
   search: {
     hospital: { baseUrl: HOSPITAL_SEARCH_BASE_URL, configured: HOSPITAL_SEARCH_BASE_URL.length > 0 },

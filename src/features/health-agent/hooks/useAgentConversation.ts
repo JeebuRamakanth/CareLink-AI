@@ -319,6 +319,7 @@ export function useAgentConversation(): UseAgentConversation {
     async (text: string) => {
       const trimmed = text.trim();
       const pendingDocs = documents;
+      if (abortRef.current) return;
       if (!trimmed && pendingDocs.length === 0) return;
 
       const userMessage: AgentMessage = {

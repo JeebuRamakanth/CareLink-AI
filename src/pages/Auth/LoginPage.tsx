@@ -396,11 +396,12 @@ export function LoginPage() {
 
         <div className="text-center">
           <p className="mb-3 text-sm text-ink-300">New to CareLink.AI?</p>
-          <Button variant="secondary" fullWidth>
-            <Link to={ROUTES.register} className="flex w-full items-center justify-center">
-              Create your account
-            </Link>
-          </Button>
+          <Link
+            to={ROUTES.register}
+            className="inline-flex w-full items-center justify-center rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-medium text-ink-200 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/50"
+          >
+            Create your account
+          </Link>
         </div>
       </Card>
 

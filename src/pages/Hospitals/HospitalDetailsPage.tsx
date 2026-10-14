@@ -1,277 +1,168 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { useOptionalNavigationContext } from '../../contexts/NavigationContext';
-import { useOptionalLocationContext } from '../../contexts/LocationContext';
-import { directionsUrl } from '../../services/maps/mapsService';
-import { Container } from '../../components/ui/Container';
-import { Button } from '../../components/ui/Button';
-import { HospitalHero } from './components/HospitalHero';
-import { HospitalQuickActions } from './components/HospitalQuickActions';
-import { HospitalOverview } from './components/HospitalOverview';
-import { HospitalRatingSummary } from './components/HospitalRatingSummary';
-import { HospitalReviewSection } from './components/HospitalReviewSection';
-import { HospitalSpecialties } from './components/HospitalSpecialties';
-import { HospitalDoctorPreview } from './components/HospitalDoctorPreview';
-import { HospitalLocation } from './components/HospitalLocation';
-import { fetchRealDoctorsByHospital } from '../../services/health-data';
-import { getDoctors } from '../../services/doctorService';
-import { doctorsData } from '../../data/doctors';
+import { useCallback, useEffect, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
 import { ReviewComposer } from '../../components/reviews/ReviewComposer';
-import { buildTelHref } from '../../lib/location';
-import { getHospitalDetailById, buildHospitalDetailFromDirectory } from './data/hospitalDetailsData';
-import type { HospitalDoctorItem, HospitalDoctorTopic, ReviewFilterOption } from './data/hospitalDetailsData';
-import { getHospitalById } from '../../services/hospitalService';
+import { Button } from '../../components/ui/Button';
+import { Container } from '../../components/ui/Container';
 import { ROUTES } from '../../routes/routeConstants';
+import { hospitalDirectionsUrl } from '../../services/maps/hospitalPlaceMapping';
+import { getHospitalById } from '../../services/hospitalService';
+import type { Hospital } from '../../types';
+import { hospitalImageSource } from './hospitalPresentation';
 
-const doctorTopics: HospitalDoctorTopic[] = ['All', 'Cardiology', 'Diabetes', 'Neurology', 'Migraine', 'Orthopedics'];
-const reviewFilters: ReviewFilterOption[] = ['All', '5 Star', '4 Star', '3 Star', '2 Star', '1 Star', 'Most Recent', 'Most Helpful'];
-
-const toHospitalDoctorItem = (doctor: import('../../types').Doctor): HospitalDoctorItem => {
-  const initials = (doctor.full_name ?? '').split(/\s+/).map((part) => part.charAt(0)).join('').slice(0,2).toUpperCase();
-  const topic = (doctor.specialty ?? '').toLowerCase();
-  const topicMatch: HospitalDoctorTopic | undefined = (['Cardiology','Diabetes','Neurology','Migraine','Orthopedics'] as HospitalDoctorTopic[]).find((t) => topic.includes(t.toLowerCase()));
-  return {
-    id: doctor.id,
-    name: doctor.full_name ?? '',
-    specialty: doctor.specialty ?? '',
-    experienceYears: doctor.years_of_experience ?? 0,
-    rating: doctor.rating ?? 0,
-    reviewCount: doctor.review_count ?? 0,
-    successRate: '',
-    fee: '',
-    availability: doctor.availability_status === 'busy' ? 'Available soon' : doctor.availability_status === null ? 'Availability unlisted' : 'Available now',
-    availabilityStatus: doctor.availability_status === 'busy' ? 'Limited' : doctor.availability_status === 'offline' ? 'On leave' : doctor.availability_status === null ? 'Unlisted' : 'Available now',
-    nextAvailable: doctor.next_available_at ?? '',
-    patientsTreated: '',
-    languages: doctor.languages ?? [],
-    topics: topicMatch ? [topicMatch] : [],
-    profileInitials: initials,
-    location: doctor.city ?? '',
-  };
-};
-
+function formatDate(value?: string): string {
+  if (!value) return 'Not available';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 'Not available' : date.toLocaleDateString();
+}
 
 export function HospitalDetailsPage() {
   const { hospitalId } = useParams<{ hospitalId: string }>();
-  const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
-  const hospital = useMemo(() => (hospitalId ? getHospitalDetailById(hospitalId) : undefined), [hospitalId]);
-  const [directoryHospital, setDirectoryHospital] = useState<ReturnType<typeof buildHospitalDetailFromDirectory> | null>(null);
+  const [hospital, setHospital] = useState<Hospital | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Fallback: when the id is not one of the hand-authored preview details, look
-  // it up in the real directory (Supabase registry or sourced Machilipatnam
-  // fallback) and adapt it to the SAME detail shape so the existing UI renders.
-  useEffect(() => {
-    let cancelled = false;
-    if (!hospitalId || hospital) {
-      setDirectoryHospital(null);
+  const loadHospital = useCallback(async () => {
+    if (!hospitalId) {
+      setHospital(null);
+      setError('A hospital ID was not provided.');
+      setLoading(false);
       return;
     }
-    (async () => {
-      try {
-        const real = await getHospitalById(hospitalId);
-        if (cancelled) return;
-        setDirectoryHospital(real ? buildHospitalDetailFromDirectory(real) : null);
-      } catch {
-        if (!cancelled) setDirectoryHospital(null);
+    setLoading(true);
+    setError(null);
+    try {
+      const record = await getHospitalById(hospitalId);
+      setHospital(record);
+      if (!record) {
+        setError('This facility could not be found in the current directory. It may be outside the search area or no longer listed.');
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [hospitalId, hospital]);
-
-  const effectiveHospital = hospital ?? directoryHospital ?? undefined;
-  const doctorsSectionRef = useRef<HTMLDivElement | null>(null);
-  const locationSectionRef = useRef<HTMLDivElement | null>(null);
-  const [liveDoctors, setLiveDoctors] = useState<HospitalDoctorItem[]>([]);
+    } catch {
+      setHospital(null);
+      setError('Unable to retrieve this facility’s current details. Check the connection and try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, [hospitalId]);
 
   useEffect(() => {
-    let cancelled = false;
-    if (!hospitalId) return;
-    (async () => {
-      try {
-        const real = await fetchRealDoctorsByHospital(hospitalId);
-        if (cancelled) return;
-        if (real.length > 0) {
-          setLiveDoctors(real.map(toHospitalDoctorItem));
-        } else {
-          // Local/no-backend fallback: show only doctors EXPLICITLY linked to
-          // this hospital in the directory data (never by name/city matching).
-          const all = await getDoctors();
-          if (cancelled) return;
-          setLiveDoctors(all.filter((d) => (d.hospital_ids ?? []).includes(hospitalId)).map(toHospitalDoctorItem));
-        }
-      } catch {
-        // keep the synchronous staticLinkedDoctors fallback
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [hospitalId]);
-  const navContext = useOptionalNavigationContext();
-  const locationCtx = useOptionalLocationContext();
-  const [selectedDoctorTopic, setSelectedDoctorTopic] = useState<HospitalDoctorTopic>(() => {
-    // Context propagation (Step 9 §7, Step 12 §12): if the agent seeded a
-    // specialty/topic (or one was passed via ?focus= or ?q=), pre-select it so
-    // the hospital page shows doctors related to the user's original query
-    // instead of every doctor.
-    const fromQuery = searchParams.get('focus') ?? searchParams.get('q') ?? navContext.requestedSpecialty ?? navContext.diseaseTopic;
-    const match = doctorTopics.find((t) => t !== 'All' && fromQuery?.toLowerCase().includes(t.toLowerCase()));
-    return (match as HospitalDoctorTopic) ?? 'All';
-  });
-  const [selectedReviewFilter, setSelectedReviewFilter] = useState<ReviewFilterOption>('All');
-  const [contactNotice, setContactNotice] = useState<string | null>(null);
+    void loadHospital();
+  }, [loadHospital]);
 
-  // Doctors explicitly linked to this hospital in the offline directory data.
-  const staticLinkedDoctors = useMemo(
-    () => (hospitalId ? doctorsData.filter((d) => (d.hospital_ids ?? []).includes(hospitalId)).map(toHospitalDoctorItem) : []),
-    [hospitalId]
-  );
-
-  const effectiveDoctors = liveDoctors.length > 0
-    ? liveDoctors
-    : (effectiveHospital?.doctors?.length ? effectiveHospital.doctors : staticLinkedDoctors);
-
-  const filteredDoctors = useMemo(() => {
-    if (!effectiveDoctors.length) return [];
-    if (selectedDoctorTopic === 'All') return effectiveDoctors;
-    return effectiveDoctors.filter((doctor) => {
-      const topicNormalized = selectedDoctorTopic.toLowerCase();
-      const specialtyNormalized = doctor.specialty.toLowerCase();
-      return (
-        doctor.topics.includes(selectedDoctorTopic) ||
-        specialtyNormalized.includes(topicNormalized) ||
-        topicNormalized.includes(specialtyNormalized)
-      );
-    });
-  }, [effectiveDoctors, selectedDoctorTopic]);
-
-  const filteredReviews = useMemo(() => {
-    if (!effectiveHospital) return [];
-    let reviews = [...effectiveHospital.reviews];
-    if (selectedReviewFilter === 'Most Recent') {
-      return reviews.sort((a, b) => (new Date(b.date).getTime() > new Date(a.date).getTime() ? 1 : -1));
-    }
-    if (selectedReviewFilter === 'Most Helpful') {
-      return reviews.sort((a, b) => b.helpfulCount - a.helpfulCount);
-    }
-    if (selectedReviewFilter !== 'All') {
-      const stars = Number(selectedReviewFilter[0]);
-      reviews = reviews.filter((review) => review.rating === stars);
-    }
-    return reviews.sort((a, b) => (new Date(b.date).getTime() > new Date(a.date).getTime() ? 1 : -1));
-  }, [effectiveHospital, selectedReviewFilter]);
-
-  const handleViewDoctors = () => {
-    doctorsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
-  const handleViewLocation = () => {
-    locationSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
-  const handleGetDirections = () => {
-    if (!effectiveHospital) return;
-    // Open the maps provider's directions deep-link in a new tab. The patient
-    // origin is included only when a real location is available — never
-    // fabricated. Destination is the hospital address (no patient health data).
-    const origin = locationCtx?.location && typeof locationCtx.location.lat === 'number'
-      ? { label: locationCtx.location.label, lat: locationCtx.location.lat, lng: locationCtx.location.lng }
-      : undefined;
-    const url = directionsUrl({
-      destination: `${effectiveHospital.name}, ${effectiveHospital.address}`,
-      origin,
-      mode: 'driving',
-    });
-    if (typeof window !== 'undefined') window.open(url, '_blank', 'noopener,noreferrer');
-  };
-
-  const handleContact = () => {
-    if (!effectiveHospital) return;
-    const href = effectiveHospital.phone ? buildTelHref(effectiveHospital.phone) : '';
-    if (href && typeof window !== 'undefined') {
-      window.location.href = href;
-    } else {
-      setContactNotice('No contact number is listed for this hospital yet.');
-    }
-  };
-
-  const handleWriteReview = () => {
-    if (typeof window === 'undefined') return;
-    window.document.getElementById('carelink-hospital-review-composer')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  };
-
-  if (!effectiveHospital) {
+  if (loading) {
     return (
-      <Container className="py-10">
-        <div className="rounded-[2rem] border border-white/10 bg-slate-950/80 p-10 text-center text-ink-300">
-          <p className="text-sm uppercase tracking-[0.32em] text-brand-200">Hospital not found</p>
-          <h1 className="mt-4 text-3xl font-semibold text-white">This hospital detail page is unavailable.</h1>
-          <p className="mt-3 text-base leading-7 text-ink-400">
-            Return to the hospital directory and select another facility.
-          </p>
-          <Button className="mt-8" onClick={() => navigate(ROUTES.hospitals)}>
-            Browse hospitals
-          </Button>
+      <Container className="py-12">
+        <div role="status" aria-live="polite" className="rounded-3xl border border-white/10 bg-slate-950/70 p-8 text-ink-300">
+          Loading hospital details…
         </div>
       </Container>
     );
   }
 
-  return (
-    <Container className="py-8 sm:py-10 lg:py-16">
-      <div className="space-y-10">
-        <HospitalHero hospital={effectiveHospital} onBack={() => navigate(ROUTES.hospitals)} />
-        <HospitalQuickActions
-          onViewLocation={handleViewLocation}
-          onGetDirections={handleGetDirections}
-          onContact={handleContact}
-          onWriteReview={handleWriteReview}
-          onViewDoctors={handleViewDoctors}
-        />
-
-        {contactNotice ? (
-          <div role="status" className="rounded-[1.5rem] border border-amber-400/25 bg-amber-500/10 px-5 py-3.5 text-sm text-amber-100">
-            {contactNotice}
-          </div>
-        ) : null}
-
-        <div className="grid gap-8 xl:grid-cols-[0.95fr_0.85fr] xl:items-start">
-          <div className="space-y-8">
-            <HospitalOverview hospital={effectiveHospital} />
-            <div id="carelink-hospital-review-composer" className="scroll-mt-28">
-              <ReviewComposer target={{ kind: 'hospital', id: effectiveHospital.id }} />
-            </div>
-            <HospitalReviewSection
-              reviews={filteredReviews}
-              activeFilter={selectedReviewFilter}
-              filters={reviewFilters}
-              onFilterChange={setSelectedReviewFilter}
-            />
-            <HospitalSpecialties specialties={effectiveHospital.specialtyDiscovery} />
-          </div>
-          <div className="space-y-8">
-            <HospitalRatingSummary
-              rating={effectiveHospital.rating}
-              reviewCount={effectiveHospital.reviewCount}
-              starBreakdown={effectiveHospital.starBreakdown}
-              categoryRatings={effectiveHospital.categoryRatings}
-            />
-            <div ref={doctorsSectionRef}>
-              <HospitalDoctorPreview
-                doctors={filteredDoctors}
-                topics={doctorTopics}
-                selectedTopic={selectedDoctorTopic}
-                onTopicChange={setSelectedDoctorTopic}
-              />
-            </div>
-            <div ref={locationSectionRef}>
-              <HospitalLocation hospital={effectiveHospital} onGetDirections={handleGetDirections} />
-            </div>
+  if (error || !hospital) {
+    return (
+      <Container className="py-12">
+        <div className="rounded-3xl border border-rose-300/20 bg-slate-950/80 p-8">
+          <h1 className="text-2xl font-semibold text-white">Hospital details unavailable</h1>
+          <p role="alert" className="mt-3 text-ink-300">{error ?? 'This facility is not available.'}</p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Button onClick={() => void loadHospital()}>Retry</Button>
+            <Link to={ROUTES.hospitals} className="rounded-full border border-white/15 px-5 py-2.5 text-sm font-semibold text-white hover:bg-white/10">
+              Back to hospitals
+            </Link>
           </div>
         </div>
+      </Container>
+    );
+  }
+
+  const destination = hospitalDirectionsUrl(hospital);
+
+  return (
+    <Container className="py-8 sm:py-10 lg:py-14">
+      <div className="mx-auto max-w-5xl space-y-6">
+        <Link to={ROUTES.hospitals} className="inline-flex rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-ink-200 hover:bg-white/10">
+          ← Back to Machilipatnam directory
+        </Link>
+
+        <article className="overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/80 shadow-[0_24px_80px_rgba(0,0,0,0.25)]">
+          <div className="grid md:grid-cols-[0.8fr_1.2fr]">
+            <img
+              src={hospitalImageSource(hospital.image_url)}
+              alt={hospital.image_url ? `${hospital.name} facility` : 'Illustration; facility photo unavailable'}
+              onError={(event) => {
+                event.currentTarget.onerror = null;
+                event.currentTarget.src = hospitalImageSource();
+              }}
+              className="h-64 w-full bg-slate-900 object-cover md:h-full md:min-h-80"
+            />
+            <div className="space-y-5 p-6 sm:p-8">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full border border-brand-300/20 bg-brand-300/10 px-3 py-1 text-xs font-semibold text-brand-100">
+                  {hospital.facility_type || 'Healthcare facility'}
+                </span>
+                <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-ink-300">
+                  {hospital.verification_status === 'GOOGLE_PLACES' ? 'Google Places listing · not independently verified' : hospital.verification_status ?? 'Unverified'}
+                </span>
+                {hospital.business_status && hospital.business_status !== 'OPERATIONAL' ? (
+                  <span className="rounded-full border border-rose-300/20 bg-rose-400/10 px-3 py-1 text-xs text-rose-100">
+                    {hospital.business_status === 'CLOSED_PERMANENTLY' ? 'Listed permanently closed' : 'Listed temporarily closed'}
+                  </span>
+                ) : null}
+              </div>
+              <div>
+                <h1 className="text-3xl font-semibold text-white sm:text-4xl">{hospital.name}</h1>
+                <p className="mt-3 text-sm leading-6 text-ink-300">{hospital.address || 'Address not available'}</p>
+              </div>
+              {hospital.rating > 0 ? (
+                <p className="text-sm text-ink-300">
+                  <span className="text-amber-300">★</span> {hospital.rating.toFixed(1)}
+                  {hospital.review_count > 0 ? ` · ${hospital.review_count.toLocaleString()} ratings` : ''}
+                </p>
+              ) : null}
+              <div className="flex flex-wrap gap-3">
+                {hospital.phone ? <a href={`tel:${hospital.phone}`} className="rounded-full bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white">Call {hospital.phone}</a> : null}
+                <a href={destination} target="_blank" rel="noreferrer noopener" className="rounded-full border border-white/15 px-5 py-2.5 text-sm font-semibold text-white hover:bg-white/10">
+                  Directions
+                </a>
+                {hospital.website ? <a href={hospital.website} target="_blank" rel="noreferrer noopener" className="rounded-full border border-white/15 px-5 py-2.5 text-sm font-semibold text-white">Website listed</a> : null}
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <section aria-labelledby="facility-information" className="rounded-[2rem] border border-white/10 bg-slate-950/70 p-6 sm:p-8">
+          <h2 id="facility-information" className="text-xl font-semibold text-white">Available information</h2>
+          <dl className="mt-5 grid gap-5 sm:grid-cols-2">
+            <div><dt className="text-xs uppercase tracking-wider text-ink-400">Phone</dt><dd className="mt-1 text-ink-200">{hospital.phone || 'Not available'}</dd></div>
+            <div><dt className="text-xs uppercase tracking-wider text-ink-400">Website</dt><dd className="mt-1 break-all text-ink-200">{hospital.website || 'Not available'}</dd></div>
+            <div><dt className="text-xs uppercase tracking-wider text-ink-400">Specialties / services</dt><dd className="mt-1 text-ink-200">{hospital.specialties.length ? hospital.specialties.join(', ') : 'Not available'}</dd></div>
+            <div><dt className="text-xs uppercase tracking-wider text-ink-400">Opening hours</dt><dd className="mt-1 text-ink-200">{hospital.opening_hours?.length ? hospital.opening_hours.join('; ') : 'Not available'}</dd></div>
+            <div><dt className="text-xs uppercase tracking-wider text-ink-400">Coordinates</dt><dd className="mt-1 text-ink-200">{typeof hospital.latitude === 'number' && typeof hospital.longitude === 'number' ? `${hospital.latitude}, ${hospital.longitude}` : 'Not available'}</dd></div>
+            <div><dt className="text-xs uppercase tracking-wider text-ink-400">Emergency services</dt><dd className="mt-1 text-ink-200">{hospital.facilities.emergency ? 'Listed' : 'Not available'}</dd></div>
+            <div><dt className="text-xs uppercase tracking-wider text-ink-400">Listing status</dt><dd className="mt-1 text-ink-200">{hospital.business_status?.replaceAll('_', ' ').toLowerCase() ?? 'Not available'}</dd></div>
+            <div><dt className="text-xs uppercase tracking-wider text-ink-400">Data source</dt><dd className="mt-1 text-ink-200">{hospital.source_label || 'Provider registry'}</dd></div>
+            <div><dt className="text-xs uppercase tracking-wider text-ink-400">Last checked</dt><dd className="mt-1 text-ink-200">{formatDate(hospital.last_checked_at)}</dd></div>
+          </dl>
+          <p className="mt-6 border-t border-white/10 pt-4 text-sm leading-6 text-ink-400">
+            Listings may be incomplete or outdated. A Google Places listing is a discovery source and is not independent confirmation that a facility is operational or that every listed field is correct.
+            {hospital.google_maps_url ? <> {' '}Source: <a href={hospital.google_maps_url} target="_blank" rel="noreferrer noopener" className="text-brand-200 underline">Google Maps / Places</a>.</> : null}
+          </p>
+          {hospital.google_attributions?.length ? (
+            <ul className="mt-3 space-y-1 text-xs text-ink-400">
+              {hospital.google_attributions.map((attribution) => (
+                <li key={`${attribution.provider}-${attribution.provider_uri ?? ''}`}>
+                  {attribution.provider_uri ? <a href={attribution.provider_uri} target="_blank" rel="noreferrer noopener" className="underline">{attribution.provider}</a> : attribution.provider}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </section>
+        {!hospital.id.startsWith('google-') ? (
+          <section aria-labelledby="hospital-review-heading" className="rounded-[2rem] border border-white/10 bg-slate-950/70 p-6 sm:p-8">
+            <h2 id="hospital-review-heading" className="mb-5 text-xl font-semibold text-white">Share your experience</h2>
+            <ReviewComposer target={{ kind: 'hospital', id: hospital.id }} />
+          </section>
+        ) : null}
       </div>
     </Container>
   );

@@ -26,9 +26,11 @@ npm run dev -- --host 0.0.0.0 --port 12000   # dev (work hosts in vite.config.ts
 
 Supabase: apply `supabase/migrations/*.sql` in order to a fresh
 project, then deploy `supabase/functions/ai-gateway`, configure bucket+
-storage policies, and set the env vars in `.env.example` (browser-safe
-`VITE_*` only; `AI_PROVIDER_API_KEY` server-side only)。Without
-credentials the app runs the full mock experience, clearly labelled。
+storage policies, and set the browser-safe `VITE_*` vars from `.env.example`.
+Set `XAI_API_KEY` and an account-supported `XAI_MODEL` as Supabase Edge
+Function secrets, never as Vercel `VITE_*` vars. Without browser-safe
+Supabase configuration the app uses clearly labelled demo mode; a configured
+gateway with missing/invalid xAI settings reports an unavailable service。
 
 
 
@@ -62,8 +64,9 @@ Overflow fix reference: `ReviewDiscoverySection` grid children got
 ## Deploy checklist
 
 - [ ] Supabase migrations applied (0001→0021) onto clean DB; RLS harness green。
-- [ ] Edge fn `ai-gateway` deployed; `AI_PROVIDER_API_KEY` server-side only。
-- [ ] `.env.example` → project env (VITE anon key, base URLs、
+- [ ] Edge fn `ai-gateway` deployed; `XAI_API_KEY` and `XAI_MODEL` configured
+      only in Supabase Edge Function secrets。
+- [ ] `.env.example` → project env (VITE anon key, app-owned base URLs、
       Cloudinary unsigned preset if used; optional map key)。
 - [ ] `medical_documents` bucket private + policies present。
 - [ ] Web build+lint green；console sweep clean on all routes。
@@ -75,8 +78,9 @@ Overflow fix reference: `ReviewDiscoverySection` grid children got
 
 ## Operational notes
 
-- Rate limiting for AI gateway: 8 req/60s per user; timeouts 9s; retry
-  on 429/5xx only (not on abort)。Emergency short-circuit happens before
+- Rate limiting for AI gateway: 8 req/60s client-side and 20/min server-side;
+  provider timeout is 20s; no automatic retries (avoids duplicate billing).
+  Emergency short-circuit happens before
   any AI call。
 
 - Audit trail: privileged role changes, document/health access probes,

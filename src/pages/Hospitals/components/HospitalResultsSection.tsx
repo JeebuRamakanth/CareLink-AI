@@ -4,7 +4,6 @@ import { Section } from '../../../components/ui/Section';
 import { EmptyState } from './EmptyState';
 import { HospitalCard } from './HospitalCard';
 import { LoadingSkeleton } from './LoadingSkeleton';
-import { Pagination } from './Pagination';
 
 type ResultsViewState = 'loading' | 'empty' | 'error' | 'success';
 
@@ -19,8 +18,6 @@ type HospitalResultsSectionProps = {
   resultCount?: number;
   emptyTitle?: string;
   emptyDescription?: string;
-  paginationEnabled?: boolean;
-  infiniteScrollEnabled?: boolean;
   className?: string;
   children?: ReactNode;
   hospitals?: Hospital[];
@@ -41,7 +38,7 @@ function ErrorState({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="font-semibold text-white">Unable to load results</p>
-            <p className="mt-1 text-rose-100/90">Please try again or adjust your filters.</p>
+            <p className="mt-1 text-rose-100/90">{message}</p>
           </div>
           {onRetry ? (
             <button
@@ -61,7 +58,7 @@ function ErrorState({
 export function HospitalResultsSection({
   state = 'success',
   title = 'Results',
-  description = 'Hospital search results will appear here once the experience is connected to live data.',
+  description = 'Facilities discovered in the selected search area.',
   eyebrow = 'Results',
   errorTitle = 'Error',
   errorMessage = 'Something went wrong while loading the results.',
@@ -69,8 +66,6 @@ export function HospitalResultsSection({
   resultCount = 0,
   emptyTitle = 'No hospitals found',
   emptyDescription = 'Try broadening your filters or adjusting your search phrase to discover more options.',
-  paginationEnabled = true,
-  infiniteScrollEnabled = true,
   className = '',
   children,
   hospitals = [],
@@ -100,11 +95,11 @@ export function HospitalResultsSection({
       <div className="space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.25rem] border border-white/10 bg-white/5 px-4 py-3 text-sm text-ink-300">
           <div>
-            <p className="font-semibold text-white">{resultCount} results available</p>
-            <p className="mt-1 text-ink-400">Hospitals are rendered from the new data foundation and ready for future expansion.</p>
+            <p className="font-semibold text-white">{resultCount} facilities found</p>
+            <p className="mt-1 text-ink-400">Listings may be incomplete and are not all independently verified.</p>
           </div>
           <div className="rounded-full border border-brand-400/25 bg-brand-400/10 px-3 py-1.5 text-[0.7rem] font-semibold uppercase tracking-[0.24em] text-brand-100">
-            Data driven
+            Discovered listings
           </div>
         </div>
 
@@ -113,7 +108,7 @@ export function HospitalResultsSection({
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-[0.72rem] font-semibold uppercase tracking-[0.26em] text-ink-400">Results grid</p>
-                <p className="mt-1 text-sm text-ink-300">The current experience now renders hospital cards from structured product data.</p>
+                <p className="mt-1 text-sm text-ink-300">Each card links to the same facility record used by its detail page.</p>
               </div>
             </div>
 
@@ -132,18 +127,6 @@ export function HospitalResultsSection({
           </div>
         </div>
 
-        {paginationEnabled ? (
-          <div className="rounded-[1.25rem] border border-white/10 bg-white/5 p-4">
-            <Pagination />
-          </div>
-        ) : null}
-
-        {infiniteScrollEnabled ? (
-          <div className="rounded-[1.25rem] border border-dashed border-white/10 bg-white/5 p-5 text-sm text-ink-400">
-            <p className="font-semibold text-white">Infinite scroll area</p>
-            <p className="mt-1">This reserved section will support progressive loading when real results are connected.</p>
-          </div>
-        ) : null}
       </div>
     </Section>
   );

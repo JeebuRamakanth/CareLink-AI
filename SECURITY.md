@@ -77,15 +77,17 @@ plain RPC because policies require ownership coherence at row level.
 
 ## AI safety
 
-- Single gateway: `supabase/functions/ai-gateway` (edge fn) is the only
-  holder of the provider API key (`AI_PROVIDER_API_KEY`, never `VITE_*`)。
-- Client hits the gateway via `VITE_AI_PROVIDER_BASE_URL`; absence of
-  credentials yields a clearly-labelled mock experience, never fake "live"
-  claims。
-- Server-side channel separation（developer channel holds system/${untrusted_
-  document} data)；input prompt-injection screening; output JSON-schema
-  validated before render; rate-limited (8 req/60s), 9s timeout, one
-  retry on 29/5xx with backoff+jitter。
+- Single gateway: `supabase/functions/ai-gateway` (Edge Function) is the only
+  holder of the xAI API key (`XAI_API_KEY`, never `VITE_*`)。
+- Client invokes the gateway through the authenticated Supabase SDK. Missing
+  browser-safe Supabase configuration uses clearly-labelled demo mode; a
+  configured backend with missing/invalid xAI credentials is shown as
+  unavailable, never as a successful mock "live" answer。
+- Server-controlled healthcare system instructions, bounded untrusted
+  user/document data, strict response schema validation, and no
+  automatic provider retries（to avoid duplicate billable requests）；
+- Prompt-injection screening; output schema-validated before render; rate-limited
+  (8 req/60s client, 20/min server), 20s provider timeout, cancellable.
 - Safety floor/ceiling: emergency keywords escalate internally; diagnostic
   overclaims (e.g. "you have X") are rewritten/or clamped;
   medicine dosage/ strength only surfaced when confidence≥0.85, else
@@ -120,8 +122,8 @@ plain RPC because policies require ownership coherence at row level.
  see `.env.example`:
 
 `VITE_*` — API base URLs, Supabase anon key, Cloudinary unsigned
-preset, map key (restricted, optional), AI gateway URL. Server-only:
-`AI_PROVIDER_API_KEY`(edge fn only); `service_role` keys must never appear
+preset, map key (restricted, optional). Server-only: `XAI_API_KEY` and
+`XAI_MODEL` (Edge Function only); `service_role` keys must never appear
 in `VITE_*` or the repo。
 
  ## Deployment requirements Other
