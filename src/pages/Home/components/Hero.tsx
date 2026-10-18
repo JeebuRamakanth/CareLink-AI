@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, MotionConfig } from 'framer-motion';
 import { Button } from '../../../components/ui/Button';
@@ -25,7 +25,7 @@ export function Hero() {
   const [careQuery, setCareQuery] = useState('Machilipatnam');
   const navigate = useNavigate();
 
-  const searchHospitals = (event: React.FormEvent<HTMLFormElement>) => {
+  const searchHospitals = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const query = careQuery.trim();
     navigate(query ? `${ROUTES.hospitals}?q=${encodeURIComponent(query)}` : ROUTES.hospitals);
