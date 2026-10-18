@@ -1,5 +1,5 @@
-import { useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion, MotionConfig } from 'framer-motion';
 import { Button } from '../../../components/ui/Button';
 import { ROUTES } from '../../../routes/routeConstants';
@@ -22,6 +22,14 @@ const TRUST_INDICATORS = [
 
 export function Hero() {
   const agentRef = useRef<HealthCommandCenterHandle>(null);
+  const [careQuery, setCareQuery] = useState('Machilipatnam');
+  const navigate = useNavigate();
+
+  const searchHospitals = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const query = careQuery.trim();
+    navigate(query ? `${ROUTES.hospitals}?q=${encodeURIComponent(query)}` : ROUTES.hospitals);
+  };
 
   const focusAgent = () => agentRef.current?.focus();
   const findCareNearMe = () => agentRef.current?.ask('Find a hospital near me');
@@ -54,6 +62,20 @@ export function Hero() {
           <p className="max-w-xl text-[0.95rem] leading-7 text-ink-300 sm:text-base sm:leading-7">
             Ask about symptoms, medicines, reports, doctors or nearby care — CareLink AI helps you understand what to do next.
           </p>
+
+          <form onSubmit={searchHospitals} className="surface-panel max-w-xl rounded-2xl border border-white/10 p-2.5 sm:flex sm:items-center sm:gap-2" role="search" aria-label="Find hospitals">
+            <label htmlFor="home-care-search" className="sr-only">City, hospital, or care service</label>
+            <span aria-hidden="true" className="px-2 text-brand-200">⌕</span>
+            <input
+              id="home-care-search"
+              value={careQuery}
+              onChange={(event) => setCareQuery(event.target.value)}
+              placeholder="City, hospital, or care service"
+              autoComplete="off"
+              className="min-w-0 flex-1 bg-transparent px-2 py-3 text-sm text-white outline-none placeholder:text-ink-400 focus-visible:ring-2 focus-visible:ring-brand-400/50 sm:py-2"
+            />
+            <Button type="submit" size="lg" className="mt-2 w-full sm:mt-0 sm:w-auto">Search care <IconArrowRight width={15} height={15} aria-hidden /></Button>
+          </form>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <Button onClick={focusAgent} size="lg" className="w-full sm:w-auto">
