@@ -5,10 +5,12 @@
  * Loads the REAL offline directory data files (src/data/hospitals.ts and
  * src/data/doctors.ts), strips their type-only imports, evaluates the actual
  * arrays, and asserts the sourcing/honesty rules hold:
- *   - every facility is located in Machilipatnam, Andhra Pradesh, India
+ *   - every facility is inside the Machilipatnam→Vijayawada corridor
+ *   - both source districts (Krishna, NTR) are represented
  *   - every record carries provenance with an explicit data_status
  *   - no fabricated ratings/review counts (must be 0)
- *   - no fabricated doctor experience (must be 0 when unlisted)
+ *   - no fabricated phone, coordinate, capability or doctor experience
+ *   - published pincodes are well-formed and never invented
  *   - doctor→hospital links reference only real hospitals in the directory
  *   - nothing is presented as verified
  *
@@ -79,8 +81,35 @@ check(
 check('directory: doctors array is non-empty', doctors.length > 0);
 
 check(
-  'directory: every hospital is in Machilipatnam, Andhra Pradesh, India',
-  hospitals.every((h) => h.city === 'Machilipatnam' && h.state === 'Andhra Pradesh' && h.country === 'India')
+  'directory: every hospital is in Andhra Pradesh, India',
+  hospitals.every((h) => h.state === 'Andhra Pradesh' && h.country === 'India')
+);
+check(
+  'directory: both corridor districts are represented',
+  new Set(hospitals.map((h) => h.district)).size >= 2
+    && hospitals.every((h) => h.district === 'Krishna' || h.district === 'NTR')
+);
+check(
+  'directory: corridor anchor cities are covered',
+  hospitals.some((h) => h.city === 'Machilipatnam') && hospitals.some((h) => h.city === 'Vijayawada')
+);
+check(
+  'directory: every facility has an honest category and ownership',
+  hospitals.every((h) => Boolean(h.category_label) && (h.ownership === 'Government' || h.ownership === 'Private'))
+);
+check(
+  'directory: published pincodes are well-formed 6-digit values',
+  hospitals.every((h) => !h.pincode || /^[0-9]{6}$/.test(h.pincode))
+);
+check(
+  'directory: no fabricated coordinates (both lat and lng, or neither)',
+  hospitals.every((h) => (typeof h.latitude === 'number') === (typeof h.longitude === 'number'))
+);
+check(
+  'directory: no fabricated capability flags',
+  hospitals.every((h) => h.facilities
+    && h.facilities.emergency === false && h.facilities.icu === false
+    && h.facilities.blood_bank === false && h.facilities.twenty_four_hours === false)
 );
 check(
   'directory: every doctor is in Machilipatnam, Andhra Pradesh, India',
@@ -125,6 +154,31 @@ check(
 check(
   'directory: source URLs are absolute when present',
   [...hospitals, ...doctors].every((r) => !r.provenance.source_url || /^https?:\/\//.test(r.provenance.source_url))
+);
+check(
+  'directory: generated file is not hand-edited',
+  hospitalsSource.includes('GENERATED FILE — DO NOT EDIT BY HAND')
+    && hospitalsSource.includes('scripts/directory/ingest.mjs')
+);
+check(
+  'directory: import report exists with achieved-coverage totals',
+  (() => {
+    try {
+      const report = JSON.parse(readFileSync(join(root, 'scripts/directory/last-import-report.json'), 'utf8'));
+      return report.totals.source_records_discovered > 0
+        && report.totals.unique_in_coverage === hospitals.length
+        && report.sources.length >= 2;
+    } catch { return false; }
+  })()
+);
+check(
+  'directory: coverage boundary is configurable, not a city-name search',
+  (() => {
+    const coverage = readFileSync(join(root, 'src/data/coverage.ts'), 'utf8');
+    return coverage.includes('CORRIDOR_BUFFER_KM')
+      && coverage.includes('CORRIDOR_LOCALITIES')
+      && coverage.includes('classifyCoverage');
+  })()
 );
 
 console.log(`\nCareLink directory integrity — ${checks.length} checks (${hospitals.length} hospitals, ${doctors.length} doctors)`);

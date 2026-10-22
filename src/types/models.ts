@@ -44,6 +44,7 @@ export interface Hospital extends BaseEntity {
   type: 'hospital' | 'medical_center' | 'specialty_center' | 'emergency_center';
   description: string;
   address: string;
+  /** The facility's locality/town, or '' when the source did not publish one. */
   city: string;
   state: string;
   country: string;
@@ -74,10 +75,19 @@ export interface Hospital extends BaseEntity {
   tags?: string[];
   is_verified?: boolean;
   doctor_count?: number;
+  /** District the facility belongs to (e.g. 'Krishna', 'NTR'). */
+  district?: string;
+  /** Postal code exactly as published by the source; '' when unavailable. */
+  pincode?: string;
+  /** Human-readable category, e.g. 'Primary Health Centre', 'District Hospital'. */
+  category_label?: string;
+  /** Government-funded vs private, derived from the facility category. */
+  ownership?: 'Government' | 'Private';
   provenance?: DataProvenance;
   facility_type?: string;
   source_label?: string;
-  verification_status?: 'VERIFIED' | 'OFFICIAL_SOURCE' | 'GOOGLE_PLACES' | 'THIRD_PARTY_DIRECTORY' | 'UNVERIFIED';
+  verification_status?: 'VERIFIED' | 'OFFICIAL_SOURCE' | 'GOOGLE_PLACES' | 'THIRD_PARTY_DIRECTORY' | 'UNVERIFIED'
+    | 'SOURCE_LISTED' | 'PROVIDER_LISTED' | 'DEVELOPMENT_SEED';
   last_checked_at?: string;
   google_maps_url?: string;
   opening_hours?: string[];

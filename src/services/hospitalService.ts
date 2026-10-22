@@ -1,6 +1,8 @@
 import { fetchRealHospitalDetail, fetchRealHospitals } from './health-data';
 import { discoverMachilipatnamHospitals, fetchGooglePlaceHospital } from './maps/googlePlacesService';
 import { isSupabaseConfigured } from './supabase/client';
+import { hospitalsData } from '../data/hospitals';
+import { classifyCoverage } from '../data/coverage';
 import type { Hospital, HospitalFilters } from '../types';
 import { env } from '../config';
 import { matchesHospitalSearch } from './hospitalDirectorySearch';
@@ -32,22 +34,44 @@ const sortHospitals = (items: Hospital[], sortBy?: HospitalFilters['sort_by']): 
   }
 };
 
-function isMachilipatnamRecord(hospital: Hospital): boolean {
-  const locality = `${hospital.city} ${hospital.address}`.toLowerCase();
-  return locality.includes('machilipatnam');
+/**
+ * Coverage test for a record that came from a live source (registry or Places).
+ * Uses the shared corridor boundary rather than a bare city-name match, so
+ * Vijayawada and every intermediate corridor settlement is included and an
+ * out-of-area record is excluded with a reason.
+ */
+function isInCoverage(hospital: Hospital): boolean {
+  return classifyCoverage({
+    latitude: hospital.latitude ?? null,
+    longitude: hospital.longitude ?? null,
+    locality: `${hospital.city} ${hospital.address}`,
+    address: hospital.address,
+    district: hospital.district ?? null,
+    pincode: hospital.pincode ?? null,
+  }).inCoverage;
+}
+
+/**
+ * The bundled, source-attributed corridor directory produced by
+ * `scripts/directory/ingest.mjs`. Always available offline so the Hospitals page
+ * shows real facilities instead of an empty list when no live provider is
+ * configured.
+ */
+export function getBundledHospitals(): Hospital[] {
+  return [...hospitalsData];
 }
 
 export async function getHospitals(): Promise<Hospital[]> {
   directoryNotice = env.maps.googlePlacesConfigured
     ? null
-    : 'Google Places discovery is not configured. Configure VITE_GOOGLE_MAPS_API_KEY to search live listings.';
+    : 'Google Places discovery is not configured. Showing the bundled government-sourced directory.';
 
   const [registryResult, placesResult] = await Promise.allSettled([
     fetchRealHospitals(),
     discoverMachilipatnamHospitals(),
   ]);
   const registry = registryResult.status === 'fulfilled'
-    ? registryResult.value.filter(isMachilipatnamRecord)
+    ? registryResult.value.filter(isInCoverage)
     : [];
   const places = placesResult.status === 'fulfilled' ? placesResult.value.hospitals : [];
 
@@ -70,13 +94,22 @@ export async function getHospitals(): Promise<Hospital[]> {
   for (const hospital of [...registry, ...places]) {
     if (!byId.has(hospital.id)) byId.set(hospital.id, hospital);
   }
+  // Live records win over the bundled copy; the bundled directory only fills in
+  // facilities the live sources did not return, so the page is never empty.
+  for (const bundled of getBundledHospitals()) {
+    if (!byId.has(bundled.id)) byId.set(bundled.id, bundled);
+  }
   return sortHospitals([...byId.values()], 'recommended');
 }
 
 export async function getHospitalById(id: string): Promise<Hospital | null> {
   if (id.startsWith('google-')) return fetchGooglePlaceHospital(id);
   const real = await fetchRealHospitalDetail(id);
-  return real && isMachilipatnamRecord(real) ? real : null;
+  if (real && isInCoverage(real)) return real;
+  // Fall back to the bundled directory so every listed facility has a detail
+  // page that resolves (id OR public slug).
+  const bundled = hospitalsData.find((h) => h.id === id || h.slug === id);
+  return bundled ?? null;
 }
 
 export function getHospitalDirectoryNotice(): string | null {

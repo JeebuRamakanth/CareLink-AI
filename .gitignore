@@ -40,3 +40,6 @@ android/app/debug
 android/keystore.properties
 key.properties
 upload_certificate.pem
+
+# Directory ingestion: raw source HTML cache (re-fetchable, not source of truth)
+scripts/directory/.cache/

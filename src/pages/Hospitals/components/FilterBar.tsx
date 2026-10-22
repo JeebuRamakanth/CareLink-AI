@@ -9,11 +9,15 @@ type FilterBarProps = {
   onSearchChange: (value: string) => void;
   onFilterChange: (changes: Partial<HospitalFilterState>) => void;
   onReset: () => void;
+  /** Options derived from the loaded dataset, so every filter matches real rows. */
+  options?: {
+    localities: string[];
+    categories: string[];
+    ownerships: string[];
+    districts: string[];
+  };
 };
 
-const departmentOptions = ['Cardiology', 'Neurology', 'Orthopedics', 'Oncology', 'Pediatrics', 'Emergency'];
-const specialtyOptions = ['Heart Care', 'Stroke', 'Sports Medicine', 'Cancer Care', 'Neonatal', 'Trauma'];
-const facilityTypeOptions = ['Hospital', 'Clinic', 'Medical Clinic', 'Nursing Home', 'Doctor', 'Dentist'];
 const ratingOptions = ['Any', '4.5+', '4.0+', '3.5+'];
 const distanceOptions = ['Any', 'Within 5 km', 'Within 10 km', 'Within 20 km'];
 const sortOptions = [
@@ -23,7 +27,10 @@ const sortOptions = [
   { label: '24×7 listed', value: '24x7 Access' },
 ];
 
-export function FilterBar({ searchValue, filters, onSearchChange, onFilterChange, onReset }: FilterBarProps) {
+export function FilterBar({ searchValue, filters, onSearchChange, onFilterChange, onReset, options }: FilterBarProps) {
+  const localityOptions = options?.localities ?? [];
+  const categoryOptions = options?.categories ?? [];
+  const ownershipOptions = options?.ownerships ?? [];
   const activeFilters = useMemo(() => {
     const entries = [
       searchValue && 'Search',
@@ -90,7 +97,7 @@ export function FilterBar({ searchValue, filters, onSearchChange, onFilterChange
             <FilterChip label="Insurance" active={filters.insurance} onClick={() => toggleFeature('insurance')} icon="🛡️" />
           </div>
 
-          <div className="grid gap-3 xl:grid-cols-[1.2fr_0.9fr_0.8fr_0.8fr_0.8fr]">
+          <div className="grid min-w-0 gap-3 xl:grid-cols-[1.2fr_0.9fr_0.8fr_0.8fr_0.8fr]">
             <FilterField label="Search directory" hint="Name, locality, specialty, type">
               <input
                 id="hospital-directory-search"
@@ -98,18 +105,22 @@ export function FilterBar({ searchValue, filters, onSearchChange, onFilterChange
                 onChange={(event) => onSearchChange(event.target.value)}
                 placeholder="Name, locality, specialty, or facility type"
                 aria-label="Search by facility name, locality, specialty, or facility type"
-                className="rounded-[0.8rem] border border-white/10 bg-slate-950/70 px-3 py-2.5 text-sm text-white outline-none transition focus:border-brand-400/40 focus:ring-2 focus:ring-brand-400/20"
+                className="w-full min-w-0 rounded-[0.8rem] border border-white/10 bg-slate-950/70 px-3 py-2.5 text-sm text-white outline-none transition focus:border-brand-400/40 focus:ring-2 focus:ring-brand-400/20"
               />
             </FilterField>
 
-            <FilterField label="Locality" hint="Within search area">
-              <input
+            <FilterField label="Locality" hint="Within corridor">
+              <select
                 value={filters.city}
                 onChange={(event) => updateFilter('city', event.target.value)}
-                placeholder="Search address/locality"
                 aria-label="Filter hospitals by locality"
-                className="rounded-[0.8rem] border border-white/10 bg-slate-950/70 px-3 py-2.5 text-sm text-white outline-none transition focus:border-brand-400/40 focus:ring-2 focus:ring-brand-400/20"
-              />
+                className="w-full min-w-0 rounded-[0.8rem] border border-white/10 bg-slate-950/70 px-3 py-2.5 text-sm text-white outline-none transition focus:border-brand-400/40 focus:ring-2 focus:ring-brand-400/20"
+              >
+                <option value="">All localities</option>
+                {localityOptions.map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
             </FilterField>
 
             <FilterField label="Facility type" hint="Type">
@@ -117,48 +128,37 @@ export function FilterBar({ searchValue, filters, onSearchChange, onFilterChange
                 value={filters.facilityType}
                 onChange={(event) => updateFilter('facilityType', event.target.value)}
                 aria-label="Filter by facility type"
-                className="rounded-[0.8rem] border border-white/10 bg-slate-950/70 px-3 py-2.5 text-sm text-white outline-none transition focus:border-brand-400/40 focus:ring-2 focus:ring-brand-400/20"
+                className="w-full min-w-0 rounded-[0.8rem] border border-white/10 bg-slate-950/70 px-3 py-2.5 text-sm text-white outline-none transition focus:border-brand-400/40 focus:ring-2 focus:ring-brand-400/20"
               >
                 <option value="">All facility types</option>
-                {facilityTypeOptions.map((option) => (
+                {categoryOptions.map((option) => (
                   <option key={option} value={option}>{option}</option>
                 ))}
               </select>
             </FilterField>
 
-            <FilterField label="Department" hint="Care area">
+            <FilterField label="Ownership" hint="Government or private">
               <select
-                value={filters.department}
-                onChange={(event) => updateFilter('department', event.target.value)}
-                className="rounded-[0.8rem] border border-white/10 bg-slate-950/70 px-3 py-2.5 text-sm text-white outline-none transition focus:border-brand-400/40 focus:ring-2 focus:ring-brand-400/20"
+                value={filters.ownership}
+                onChange={(event) => updateFilter('ownership', event.target.value)}
+                aria-label="Filter by ownership"
+                className="w-full min-w-0 rounded-[0.8rem] border border-white/10 bg-slate-950/70 px-3 py-2.5 text-sm text-white outline-none transition focus:border-brand-400/40 focus:ring-2 focus:ring-brand-400/20"
               >
-                <option value="">Select department</option>
-                {departmentOptions.map((option) => (
+                <option value="">All ownership</option>
+                {ownershipOptions.map((option) => (
                   <option key={option} value={option}>{option}</option>
                 ))}
               </select>
             </FilterField>
 
-            <FilterField label="Specialty" hint="Expertise">
-              <select
-                value={filters.specialty}
-                onChange={(event) => updateFilter('specialty', event.target.value)}
-                className="rounded-[0.8rem] border border-white/10 bg-slate-950/70 px-3 py-2.5 text-sm text-white outline-none transition focus:border-brand-400/40 focus:ring-2 focus:ring-brand-400/20"
-              >
-                <option value="">Select specialty</option>
-                {specialtyOptions.map((option) => (
-                  <option key={option} value={option}>{option}</option>
-                ))}
-              </select>
-            </FilterField>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-4">
             <FilterField label="Rating" hint="Minimum">
               <select
                 value={filters.rating}
                 onChange={(event) => updateFilter('rating', event.target.value)}
-                className="rounded-[0.8rem] border border-white/10 bg-slate-950/70 px-3 py-2.5 text-sm text-white outline-none transition focus:border-brand-400/40 focus:ring-2 focus:ring-brand-400/20"
+                className="w-full min-w-0 rounded-[0.8rem] border border-white/10 bg-slate-950/70 px-3 py-2.5 text-sm text-white outline-none transition focus:border-brand-400/40 focus:ring-2 focus:ring-brand-400/20"
               >
                 {ratingOptions.map((option) => (
                   <option key={option} value={option}>{option}</option>
@@ -170,7 +170,7 @@ export function FilterBar({ searchValue, filters, onSearchChange, onFilterChange
               <select
                 value={filters.distance}
                 onChange={(event) => updateFilter('distance', event.target.value)}
-                className="rounded-[0.8rem] border border-white/10 bg-slate-950/70 px-3 py-2.5 text-sm text-white outline-none transition focus:border-brand-400/40 focus:ring-2 focus:ring-brand-400/20"
+                className="w-full min-w-0 rounded-[0.8rem] border border-white/10 bg-slate-950/70 px-3 py-2.5 text-sm text-white outline-none transition focus:border-brand-400/40 focus:ring-2 focus:ring-brand-400/20"
               >
                 {distanceOptions.map((option) => (
                   <option key={option} value={option}>{option}</option>
@@ -182,7 +182,7 @@ export function FilterBar({ searchValue, filters, onSearchChange, onFilterChange
               <select
                 value={filters.sortBy}
                 onChange={(event) => updateFilter('sortBy', event.target.value)}
-                className="rounded-[0.8rem] border border-white/10 bg-slate-950/70 px-3 py-2.5 text-sm text-white outline-none transition focus:border-brand-400/40 focus:ring-2 focus:ring-brand-400/20"
+                className="w-full min-w-0 rounded-[0.8rem] border border-white/10 bg-slate-950/70 px-3 py-2.5 text-sm text-white outline-none transition focus:border-brand-400/40 focus:ring-2 focus:ring-brand-400/20"
               >
                 {sortOptions.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>

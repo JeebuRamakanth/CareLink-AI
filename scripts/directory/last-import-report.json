@@ -1,0 +1,550 @@
+{
+  "generated_at": "2026-10-22T15:59:24.386Z",
+  "coverage_boundary": {
+    "corridor": "Machilipatnam → Vijayawada, Andhra Pradesh, India",
+    "buffer_km": 25,
+    "districts": [
+      "Krishna",
+      "NTR"
+    ],
+    "interpretation": "A facility is in coverage when it is within 25 km of the Machilipatnam–Vijayawada corridor path, or its locality is on the documented corridor list. District-only matches are queued for manual review rather than displayed.",
+    "unresolved": "Facilities with neither coordinates nor a recognisable corridor locality cannot be placed; they are listed under \"requires review\" with their source."
+  },
+  "sources": [
+    {
+      "id": "krishna-ap-gov-in",
+      "name": "Krishna District, Government of Andhra Pradesh — Hospitals",
+      "url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
+      "coverage": "Government + private hospitals, PHCs, E-UPHCs, TB clinics and PP units across Krishna District",
+      "discovered": 103,
+      "limitations": [],
+      "imported": 42,
+      "last_successful_sync": "2026-10-22T15:59:24.386Z"
+    },
+    {
+      "id": "ntr-ap-gov-in",
+      "name": "NTR District, Government of Andhra Pradesh — Hospitals",
+      "url": "https://ntr.ap.gov.in/public-utility-category/hospitals/",
+      "coverage": "Government hospitals, PHCs, E-UPHCs, urban family welfare centres and dispensaries across NTR District (Vijayawada)",
+      "discovered": 49,
+      "limitations": [],
+      "imported": 25,
+      "last_successful_sync": "2026-10-22T15:59:24.386Z"
+    }
+  ],
+  "totals": {
+    "source_records_discovered": 152,
+    "duplicates_removed": 16,
+    "unique_in_coverage": 76,
+    "curated_facilities_merged": 1,
+    "curated_facilities_added": 11,
+    "requires_review": 71,
+    "outside_coverage": 0,
+    "with_coordinates": 1,
+    "with_phone": 9,
+    "with_website": 5
+  },
+  "by_category": {
+    "Assistant Medical Officer of Health office": 1,
+    "Urban Primary Health Centre (extended)": 32,
+    "Private Hospital": 7,
+    "Primary Health Centre": 19,
+    "District hospital": 1,
+    "District Leprosy Office": 1,
+    "Private hospital": 1,
+    "Unclassified": 2,
+    "Medical college / teaching hospital": 1,
+    "Government hospital": 2,
+    "Post-Partum unit": 2,
+    "Police dispensary": 1,
+    "Tuberculosis treatment centre": 1,
+    "Urban Family Welfare Centre": 4,
+    "Urban Health Centre": 1
+  },
+  "by_locality": {
+    "Vijayawada": 17,
+    "Machilipatnam": 15,
+    "Gannavaram": 1,
+    "Ambedkar Nagar Colony": 1,
+    "Bandar": 1,
+    "Bhimannavaripeta": 1,
+    "Giripuram": 1,
+    "Gulam Mohiddinnagar": 1,
+    "Gunadala": 2,
+    "Jakkampudi": 1,
+    "Karakatta South": 1,
+    "Kothapeta hill area": 1,
+    "New Raja Rajawari Peta": 1,
+    "Gudivada": 1,
+    "Patamata": 2,
+    "Ramalingeswara Nagar": 1,
+    "Saradanagar": 1,
+    "SHANTHI NAGAR": 1,
+    "Singh Nagar": 1,
+    "Varredgudam": 1,
+    "Benz Circle": 1,
+    "Chinnapuram": 1,
+    "G.konduru": 1,
+    "Ghantasala": 2,
+    "Ibrahimpatnam": 1,
+    "Koduru": 1,
+    "Mopidevi": 1,
+    "Movva": 1,
+    "Nagayalanka": 1,
+    "Pamarru": 1,
+    "Pedana": 2,
+    "Pedaparupudi": 1,
+    "Tallapalem": 1,
+    "Kanuru": 1,
+    "Kondapalli": 1,
+    "Pedaoutapalli": 1,
+    "Penamaluru": 1,
+    "Thotlavalluru": 1,
+    "Unguturu": 1,
+    "Avanigadda": 1,
+    "MTM": 1,
+    "Kothapeta": 1
+  },
+  "by_district": {
+    "NTR": 25,
+    "Krishna": 51
+  },
+  "requires_review": [
+    {
+      "name": "E-UPHC Bapujinagar",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "E-UPHC Bethavole Harijanawada",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Atukuru",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Bantumilli",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Chandrala",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Chevendrapalem",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Chinaogirala",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Chinapandraka",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Edurumondi",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Gollamudi",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Gollapalli",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Gudlavalleru",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Indupalli",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Kanumuru",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Kapileswarapuram",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Korukollu",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Kowthavaram",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Krithivennu",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Lakshmipuram",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Lingala Padu",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Mallavolu",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Mandapakala",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Moturu",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Nidumolu",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Pedakallipalli",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Pedatummidi",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Puritigadda",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Rajugudem",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Ramapuram",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Rudrapaka",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Sorlagondi",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Srikakulam",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Uppuluru",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Ventrapragada",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Yalamarru",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Zamigolvepalli",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC.Alluru",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC.Bapulapadu",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC.Buchavaram",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC.Chintalapadu",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC.Chowtapalli",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC.Devapudi",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC.Digavalli",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC.Edara",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC.Guraja",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC.Katuru",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC.Kolletikota",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC.Mulalanka",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC.Mustabada",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC.Nimmakuru",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC.Pendyala",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC.Ramanakkapeta",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC.Sagguru",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC.Seetanapalli",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC.Telladevarapalli",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC.Utukuru",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC.Veerankilock",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC.Veeravalli",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC.Velagaleru",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PPU Gudiwada",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PPUnit Nuzividu",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "T.B.Clinic,Nuzividu",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "Temporary Ward,KesaraPalli.",
+      "district": "Krishna",
+      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "E-UPHC Mittagudem",
+      "district": "NTR",
+      "reason": "district \"NTR\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://ntr.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Kanchikacherla",
+      "district": "NTR",
+      "reason": "district \"NTR\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://ntr.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Penuganchiprolu",
+      "district": "NTR",
+      "reason": "district \"NTR\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://ntr.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Vatsavai",
+      "district": "NTR",
+      "reason": "district \"NTR\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://ntr.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC Veerullapadu",
+      "district": "NTR",
+      "reason": "district \"NTR\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://ntr.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PHC.Chandarlapadu",
+      "district": "NTR",
+      "reason": "district \"NTR\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://ntr.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PP.Unit / G.H , Jaggaiahpeta",
+      "district": "NTR",
+      "reason": "district \"NTR\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://ntr.ap.gov.in/public-utility-category/hospitals/"
+    },
+    {
+      "name": "PP.Unit / G.H. Nandigama",
+      "district": "NTR",
+      "reason": "district \"NTR\" is covered but the locality could not be matched — requires manual review",
+      "source": "https://ntr.ap.gov.in/public-utility-category/hospitals/"
+    }
+  ],
+  "coverage_methods": {
+    "pincode": 43,
+    "locality": 33
+  },
+  "known_limitations": [
+    "Government directory pages publish name, address, category and pincode only — no phone, coordinates, opening hours or staff lists. Those fields stay absent rather than invented.",
+    "Private hospitals not listed in a government directory are only included when a reviewed source (provider site or insurance network) was available.",
+    "dme.ap.nic.in (Directorate of Medical Education) did not respond within the request timeout and is not used as an automatic source.",
+    "This is the coverage ACHIEVED from the listed sources, not a claim that every facility in the corridor has been found."
+  ]
+}
