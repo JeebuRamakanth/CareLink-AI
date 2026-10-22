@@ -35,7 +35,7 @@ const RELATIONS: { value: FamilyRelation; label: string }[] = [
 ];
 
 export function ProfilePage() {
-  const { user, isMockMode, signOut } = useAuth();
+  const { user, isMockMode, signOut, updatePassword } = useAuth();
   const navigate = useNavigate();
   const accountStatus = user?.accountStatus ?? 'active';
   const suspended = accountStatus === 'suspended' || accountStatus === 'disabled';
@@ -44,6 +44,13 @@ export function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Change-password state.
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [pwSubmitting, setPwSubmitting] = useState(false);
+  const [pwError, setPwError] = useState<string | null>(null);
+  const [pwSaved, setPwSaved] = useState(false);
 
   // Family form state.
   const [relation, setRelation] = useState<FamilyRelation>('child');
@@ -146,6 +153,31 @@ export function ProfilePage() {
     if (ok) await load();
   };
 
+  const onChangePassword = async () => {
+    if (pwSubmitting) return;
+    setPwError(null);
+    setPwSaved(false);
+    if (newPassword.length < 8) {
+      setPwError('Password should be at least 8 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPwError('The two passwords do not match.');
+      return;
+    }
+    setPwSubmitting(true);
+    const result = await updatePassword(newPassword);
+    setPwSubmitting(false);
+    if (!result.ok) {
+      setPwError(result.error?.message ?? 'Could not update your password. Please try again.');
+      return;
+    }
+    setNewPassword('');
+    setConfirmPassword('');
+    setPwSaved(true);
+    setTimeout(() => setPwSaved(false), 3000);
+  };
+
   if (loading) {
     return (
       <div className="mx-auto flex min-h-[60vh] max-w-3xl items-center justify-center px-6 py-20">
@@ -196,6 +228,49 @@ export function ProfilePage() {
           <div className="mt-5 flex items-center gap-3">
             <Button onClick={onSaveProfile} loading={saving} disabled={suspended}>Save changes</Button>
             {saved ? <span className="text-sm text-brand-200">Saved.</span> : null}
+          </div>
+        </Card>
+
+        <Card>
+          <h2 className="text-lg font-semibold text-white">Security</h2>
+          <p className="mt-1 text-sm text-ink-300">
+            Change your account password.{' '}
+            {isMockMode
+              ? 'Demo mode: the change is applied to this browser\u2019s local demo account only.'
+              : 'Your password is hashed and stored by Supabase Auth — CareLink never sees it.'}
+          </p>
+          {pwError ? (
+            <div role="alert" className="mt-4 rounded-[var(--radius-lg)] border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+              {pwError}
+            </div>
+          ) : null}
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <Input
+              label="New password"
+              type="password"
+              autoComplete="new-password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="At least 8 characters"
+            />
+            <Input
+              label="Confirm new password"
+              type="password"
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Re-enter new password"
+            />
+          </div>
+          <div className="mt-5 flex items-center gap-3">
+            <Button
+              onClick={onChangePassword}
+              loading={pwSubmitting}
+              disabled={suspended || pwSubmitting || !newPassword || !confirmPassword}
+            >
+              Update password
+            </Button>
+            {pwSaved ? <span className="text-sm text-brand-200">Password updated.</span> : null}
           </div>
         </Card>
 

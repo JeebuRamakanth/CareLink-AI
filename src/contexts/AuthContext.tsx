@@ -20,6 +20,7 @@ import {
   signOut as signOutService,
   signUp as signUpService,
   requestPasswordReset,
+  updatePassword as updatePasswordService,
 } from '../services/auth';
 import {
   clearPendingProfileSave,
@@ -54,6 +55,7 @@ export interface AuthContextValue extends AuthState {
   signUp: (email: string, password: string) => Promise<{ ok: boolean; error?: AuthError }>;
   signOut: () => Promise<void>;
   requestPasswordReset: (email: string) => Promise<{ ok: boolean; error?: AuthError }>;
+  updatePassword: (newPassword: string) => Promise<{ ok: boolean; error?: AuthError }>;
   clearError: () => void;
 }
 
@@ -189,6 +191,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { ok: true };
   }, []);
 
+  const updatePassword = useCallback(async (newPassword: string) => {
+    setError(null);
+    const { error: err } = await updatePasswordService(newPassword);
+    if (err) {
+      setError(err);
+      return { ok: false, error: err };
+    }
+    return { ok: true };
+  }, []);
+
   const clearError = useCallback(() => setError(null), []);
 
   const value = useMemo<AuthContextValue>(
@@ -204,9 +216,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signUp,
       signOut,
       requestPasswordReset: requestReset,
+      updatePassword,
       clearError,
     }),
-    [user, source, initializing, error, isMockMode, isSuspended(user), hasAdminRole(user), signIn, signUp, signOut, requestReset, clearError]
+    [user, source, initializing, error, isMockMode, signIn, signUp, signOut, requestReset, updatePassword, clearError]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -326,6 +326,45 @@ check(
   'dev-test user must resolve to empty roles and skip backend role lookup'
 );
 
+// 11. Password recovery + change-password flows (real Supabase Auth paths)
+check(
+  'auth: password reset passes a redirectTo recovery URL',
+  has('src/services/auth/authService.ts', 'resetPasswordForEmail') &&
+    has('src/services/auth/authService.ts', 'redirectTo: recoveryRedirectUrl()'),
+  'resetPasswordForEmail must send the browser back to the recovery page'
+);
+check(
+  'auth: updatePassword calls the provider updateUser',
+  has('src/services/auth/authService.ts', 'client.auth.updateUser({ password: newPassword })'),
+  'real password change must go through Supabase auth.updateUser'
+);
+check(
+  'auth: recovery route is registered and rendered',
+  has('src/routes/routeConstants.ts', "resetPassword: '/reset-password'") &&
+    has('src/routes/AppRoutes.tsx', '<ResetPasswordPage />') &&
+    has('src/pages/Auth/ResetPasswordPage.tsx', 'isRecoveryRedirect'),
+  'the emailed recovery link needs a real route + page'
+);
+check(
+  'auth: AuthContext exposes updatePassword to the UI',
+  has('src/contexts/AuthContext.tsx', 'updatePassword: (newPassword: string)') &&
+    has('src/pages/Auth/ProfilePage.tsx', 'await updatePassword(newPassword)'),
+  'the change-password UI must call the context method'
+);
+check(
+  'auth: recovery page never fakes success without a recovery link',
+  has('src/pages/Auth/ResetPasswordPage.tsx', '!recoveryLink'),
+  'a bare /reset-password visit must show honest guidance'
+);
+
+// 12. Startup configuration diagnostics (never print secret values)
+check(
+  'config: startup validates the browser-safe environment',
+  has('src/main.tsx', 'getConfigNotices()') &&
+    has('src/config/diagnostics.ts', 'service_role'),
+  'misconfiguration must be surfaced with variable NAMES only'
+);
+
 console.log(`\nCareLink wiring audit — ${checks.length} checks`);
 for (const c of checks) {
   console.log(`  ${c.ok ? 'PASS' : 'FAIL'}  ${c.name}`);

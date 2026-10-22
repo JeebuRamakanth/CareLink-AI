@@ -798,3 +798,59 @@ idempotent (`create table if not exists`, `create or replace`,
 - `npm run db:bundle` → `scripts/build-migration-bundle.sh` (ordered bundle).
 - `npm run verify:live-schema` → `scripts/verify-live-schema.mjs` (anon-only
   readiness probe; exits non-zero when incomplete).
+
+## Step 23 — Auth flow completion + startup config diagnostics (VERIFIED)
+
+### Password recovery was incomplete (found + fixed)
+`requestPasswordReset` sent the email but the provider had **no `redirectTo`**
+and the app had **no page to consume the recovery link** — so the reset could
+never actually be completed. Also no change-password existed for a signed-in user.
+
+- `src/services/auth/authService.ts`:
+  - `requestPasswordReset` now passes `redirectTo: ${origin}/reset-password`.
+  - NEW `PASSWORD_RECOVERY_PATH` + `isRecoveryRedirect()` (detects
+    `type=recovery` in the hash/query; the client's `detectSessionInUrl` turns
+    the token into a short-lived session authorizing exactly one change).
+  - NEW `updatePassword(newPassword)` → real `client.auth.updateUser({ password })`.
+    Mock mode applies it to the browser-only demo store (clearly labelled).
+- NEW `src/pages/Auth/ResetPasswordPage.tsx` (route `/reset-password`,
+  `ROUTES.resetPassword`, rendered in `AppRoutes`). Honest states: success,
+  validation errors, and a **no-recovery-link** state that shows guidance
+  instead of faking a password change.
+- `AuthContext.updatePassword` added; `ProfilePage` gained a **Security** card
+  (change password, confirm field, duplicate-submit guard, disabled while
+  suspended).
+- Owner action: add the deployment origin to Supabase Auth **Redirect URLs**
+  (Authentication → URL Configuration), else the recovery email cannot return
+  to `/reset-password`. Documented in `.env.example`.
+
+### Startup configuration diagnostics (NEW)
+`src/config/diagnostics.ts` + `main.tsx` validate the browser-safe env once at
+boot and log NON-SENSITIVE notices (variable NAMES only, never values):
+partial Supabase config (URL xor anon key), leftover `YOUR_…` placeholders,
+partial Cloudinary config, and a **service_role key leaked into
+`VITE_SUPABASE_ANON_KEY`** (that key bypasses RLS and must never ship). Demo
+mode (no credentials) stays silent — it is a supported state.
+
+### Verification (this environment)
+- SQL suite: **573 PASS / 0 FAIL** from clean replay (local Postgres 16 in
+  Docker; `PGHOST=127.0.0.1 PGPORT=55432`).
+- `npm run test:focused` 16/16; `verify:wiring` **54 checks** (6 new auth/config
+  checks); `verify:directory` 12/12; `verify:workflow` 37/37; `verify:navigation` 7/7.
+- NEW `npm run verify:auth` (`scripts/verify-auth.mjs`, headless Chromium over
+  CDP) — **11/11**: register→profile, protected route, sign out, anonymous
+  redirect, invalid credentials rejected, valid sign-in, session survives
+  reload, profile update, password change, NEW password signs in / old fails,
+  bare `/reset-password` shows honest guidance.
+- Browser: `verify:e2e` 12/12, `verify:sweep` 15 routes × 5 widths = 0 console
+  errors / 0 horizontal overflows.
+- `npm run build` green (742 modules); `npm run lint` 0 errors (pre-existing
+  warnings only).
+
+### BLOCKED (live credentials) — unchanged from Step 22b
+No Supabase anon key, DB password, service_role, Cloudinary, Maps, or xAI key
+exist in this environment. The live project `drpbukyjdkzhczabisxx` is reachable
+(`/auth/v1/health` → 401 "No API key found"), but with no key the live probe
+(`npm run verify:live-schema`) cannot run, the live DB schema cannot be applied
+(anon cannot run DDL), and the real Supabase Auth E2E cannot be exercised. All
+live paths are verified at repo/adapter/SQL-suite level; runtime stays honest demo.

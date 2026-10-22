@@ -16,6 +16,7 @@ export const ROUTES = {
   reviews: '/reviews',
   login: '/login',
   register: '/register',
+  resetPassword: '/reset-password',
   profile: '/profile',
   documents: '/documents',
   admin: '/admin',
