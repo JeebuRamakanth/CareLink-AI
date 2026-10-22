@@ -13,6 +13,7 @@ import { AgentCommandCenterPage } from '../pages/Agent/AgentCommandCenterPage';
 import { LoginPage } from '../pages/Auth/LoginPage';
 import { RegisterPage } from '../pages/Auth/RegisterPage';
 import { ProfilePage } from '../pages/Auth/ProfilePage';
+import { ResetPasswordPage } from '../pages/Auth/ResetPasswordPage';
 import { DocumentsLibraryPage } from '../pages/Documents/DocumentsLibraryPage';
 import { AboutPage } from '../pages/About/AboutPage';
 import { HelpPage } from '../pages/Help/HelpPage';
@@ -57,6 +58,10 @@ export function AppRoutes() {
         <Route path={ROUTES.documents} element={<DocumentsLibraryPage />} />
         <Route path={ROUTES.login} element={<LoginPage />} />
         <Route path={ROUTES.register} element={<RegisterPage />} />
+        {/* Password recovery completion. Public by design: the Supabase client
+            exchanges the emailed recovery token for a short-lived session that
+            authorizes exactly one password change (handled by the page). */}
+        <Route path={ROUTES.resetPassword} element={<ResetPasswordPage />} />
         {/* Protected — requires an authenticated user. */}
         <Route path={ROUTES.profile} element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
         <Route path={ROUTES.about} element={<AboutPage />} />

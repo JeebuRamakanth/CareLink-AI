@@ -21,6 +21,7 @@
     "verify:live-schema": "node scripts/verify-live-schema.mjs",
     "db:bundle": "bash scripts/build-migration-bundle.sh",
     "verify:navigation": "node scripts/verify-navigation.mjs",
+    "verify:auth": "node scripts/verify-auth.mjs",
     "verify:e2e": "node scripts/verify-e2e.mjs",
     "verify:sweep": "node scripts/verify-sweep.mjs"
   },

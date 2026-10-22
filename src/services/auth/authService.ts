@@ -245,6 +245,14 @@ export function onAuthStateChange(
   return () => unsubscribe?.();
 }
 
+/** Route the provider's recovery link returns to (consumed by ResetPasswordPage). */
+export const PASSWORD_RECOVERY_PATH = '/reset-password';
+
+function recoveryRedirectUrl(): string | undefined {
+  if (typeof window === 'undefined' || !window.location?.origin) return undefined;
+  return `${window.location.origin}${PASSWORD_RECOVERY_PATH}`;
+}
+
 /** Send a password-reset email (Supabase) or no-op stub (mock). */
 export async function requestPasswordReset(email: string): Promise<{ error?: AuthError }> {
   const cleanEmail = email.trim().toLowerCase();
@@ -255,7 +263,52 @@ export async function requestPasswordReset(email: string): Promise<{ error?: Aut
   }
   const client = await getSupabaseClient();
   if (!client) return { error: safeError('Service is temporarily unavailable.', 'network') };
-  const { error } = await client.auth.resetPasswordForEmail(cleanEmail);
+  const { error } = await client.auth.resetPasswordForEmail(cleanEmail, {
+    redirectTo: recoveryRedirectUrl(),
+  });
+  if (error) return { error: mapSupabaseError(error) };
+  return {};
+}
+
+/**
+ * Whether this page load is a Supabase password-recovery redirect. The client is
+ * configured with `detectSessionInUrl`, so the recovery token in the URL hash is
+ * exchanged for a short-lived session that authorizes exactly one password change.
+ */
+export function isRecoveryRedirect(): boolean {
+  if (typeof window === 'undefined') return false;
+  const { hash = '', search = '' } = window.location;
+  return /(?:^|[?#&])type=recovery(?:&|$)/.test(hash) || /(?:^|[?#&])type=recovery(?:&|$)/.test(search);
+}
+
+/**
+ * Set a new password for the CURRENTLY authenticated session.
+ *
+ * Used by both the recovery flow (after the user follows the emailed link) and
+ * the authenticated "change password" flow. The password is never stored locally
+ * in real mode — Supabase Auth owns hashing and storage. In local demo mode the
+ * change is applied to the browser-only demo store (clearly not production auth).
+ */
+export async function updatePassword(newPassword: string): Promise<{ error?: AuthError }> {
+  if (!isStrongPassword(newPassword)) {
+    return { error: safeError('Password should be at least 8 characters.', 'weak-password') };
+  }
+
+  if (!isSupabaseConfigured()) {
+    const session = readMockSession();
+    if (!session) return { error: safeError('Your session has expired. Please sign in again.', 'invalid-credentials') };
+    const users = readMockUsers();
+    const record = users[session.email];
+    if (!record) return { error: safeError('Your session has expired. Please sign in again.', 'invalid-credentials') };
+    users[session.email] = { ...record, password: newPassword };
+    writeMockUsers(users);
+    log.info('auth', 'mock password updated');
+    return {};
+  }
+
+  const client = await getSupabaseClient();
+  if (!client) return { error: safeError('Service is temporarily unavailable.', 'network') };
+  const { error } = await client.auth.updateUser({ password: newPassword });
   if (error) return { error: mapSupabaseError(error) };
   return {};
 }
