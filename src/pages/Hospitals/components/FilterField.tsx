@@ -8,10 +8,10 @@ type FilterFieldProps = {
 
 export function FilterField({ label, hint, children }: FilterFieldProps) {
   return (
-    <label className="group flex cursor-pointer flex-col gap-2 rounded-[1rem] border border-white/10 bg-slate-950/60 p-3.5 transition duration-200 hover:border-brand-400/25 hover:bg-slate-900/80 focus-within:border-brand-400/50 focus-within:bg-slate-900/90">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[0.72rem] font-semibold uppercase tracking-[0.26em] text-ink-400">{label}</span>
-        {hint ? <span className="text-[0.7rem] text-ink-500">{hint}</span> : null}
+    <label className="group flex min-w-0 cursor-pointer flex-col gap-2 rounded-[1rem] border border-white/10 bg-slate-950/60 p-3.5 transition duration-200 hover:border-brand-400/25 hover:bg-slate-900/80 focus-within:border-brand-400/50 focus-within:bg-slate-900/90">
+      <div className="flex min-w-0 items-center justify-between gap-2">
+        <span className="min-w-0 truncate text-[0.72rem] font-semibold uppercase tracking-[0.26em] text-ink-400">{label}</span>
+        {hint ? <span className="shrink-0 text-[0.7rem] text-ink-500">{hint}</span> : null}
       </div>
       {children}
     </label>

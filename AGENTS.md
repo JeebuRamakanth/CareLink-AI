@@ -854,3 +854,97 @@ exist in this environment. The live project `drpbukyjdkzhczabisxx` is reachable
 (`npm run verify:live-schema`) cannot run, the live DB schema cannot be applied
 (anon cannot run DDL), and the real Supabase Auth E2E cannot be exercised. All
 live paths are verified at repo/adapter/SQL-suite level; runtime stays honest demo.
+
+## Step 24 — Machilipatnam→Vijayawada corridor directory (VERIFIED)
+
+### What was actually broken (found by inspection)
+`src/data/hospitals.ts` was **an empty array** (`hospitalsData: Hospital[] = []`)
+while `doctors.ts` held 5 doctors — so with no live provider configured the
+Hospitals page rendered **zero facilities**, and the doctor cards pointed at
+hospital ids that no bundled record resolved. Separately,
+`hospitalService.getHospitals()` filtered every record through
+`isMachilipatnamRecord()` (a `city+address` substring match for
+"machilipatnam"), which **silently excluded Vijayawada and every intermediate
+settlement** — the exact opposite of the required corridor coverage.
+
+### Coverage boundary (configurable — `src/data/coverage.ts`)
+Two-part test, never a bare city-name search:
+1. **Geographic corridor** — within `CORRIDOR_BUFFER_KM` (25 km) of the sampled
+   Machilipatnam(16.1875,81.1389)→Vijayawada(16.5062,80.648) path.
+2. **Locality allow-list** — `CORRIDOR_LOCALITIES` (~50 towns/mandals/settlements
+   on the corridor) for records with no coordinates.
+3. **Pincode evidence** — `isCorridorPincode()` accepts only the anchor cities'
+   own urban delivery areas (`520xxx`, `521001–521005`). A rural pincode is
+   deliberately NOT assumed to be on the corridor.
+District alone never grants coverage — it queues the record for manual review.
+Evidence precedence: coordinates → pincode → locality → district(review) → outside.
+
+### Ingestion pipeline (repeatable, not a hardcoded list)
+- `scripts/directory/ingest.mjs` — collects the official Government of Andhra
+  Pradesh district directories (Krishna + NTR) with a 1 req/s polite crawl,
+  follows pagination, normalizes category labels (`E UPHC`/`E-UPHC`/`EUPHC`/`phc`
+  → one vocabulary), derives locality, classifies coverage, dedupes, merges the
+  curated migration-0031 facilities (matched by normalized name + pincode/city so
+  "District Hospital" and "District Hospital, Machilipatnam" collapse to ONE row,
+  keeping the curated stable id and its verified phone), and writes
+  `src/data/hospitals.ts` + `imported-facilities.json` + `last-import-report.json`.
+- `scripts/directory/emit-migration.mjs` — generates
+  `supabase/migrations/0034_corridor_directory_import.sql` from that same JSON, so
+  the app and the database **cannot drift apart**.
+- npm: `directory:ingest`, `directory:offline`, `directory:migration`,
+  `directory:refresh`.
+- Deterministic ids `7f200000-0000-4000-8000-<hash>` (curated seed keeps `7f10…`),
+  `on conflict (id) do nothing` → replaying never duplicates.
+- A record that vanishes from a source is reported, never silently deleted.
+
+### Achieved coverage (2026-10-22, documented in last-import-report.json)
+152 source records discovered → 16 duplicates removed → **76 unique in coverage**
+(51 Krishna + 25 NTR) → 71 require manual review (rural PHC villages that are not
+provably on the corridor) → 0 outside. Coverage methods: 44 pincode, 33 locality.
+Fields present only when a source stated them: 1 coordinate, 9 phones, 5 websites.
+**No rating, opening hour, capability or doctor was invented.**
+
+### Frontend wiring
+- `hospitalService`: corridor boundary replaces the Machilipatnam-only filter;
+  NEW `getBundledHospitals()` so the page is never empty offline; live records win,
+  bundled records fill gaps; `getHospitalById` resolves id OR public slug against
+  the bundled directory so every card has a working detail page.
+- `Hospital` type gained `district`, `pincode`, `category_label`, `ownership`.
+- `useHospitals` exposes `filterOptions` derived from the ACTUAL dataset;
+  `FilterBar` dropdowns use them. **Removed the hardcoded generic filter lists**
+  (`['Hospital','Clinic',…,'Dentist']`, invented department/specialty lists) that
+  could never match a real row; locality is now a select of real localities and a
+  real Government/Private `ownership` filter was added.
+
+### Tests
+- NEW `supabase/tests/260_step24_corridor_directory.sql` (13 assertions): import
+  present from both districts, provenance on every row, official source stays
+  VERIFIED, no fabricated rating/coordinate/capability, coverage recorded,
+  **idempotent replay does not duplicate**, pincodes well-formed, no doctor
+  fabricated, curated ids stable. SQL suite: **589 PASS / 0 FAIL**.
+- `verify-directory` 12 → **20 checks** (corridor districts, anchor cities,
+  ownership/category present, pincode shape, no fabricated coords/capabilities,
+  generated-file guard, report totals, boundary configurable).
+- `verify:wiring` 54 → **57 checks**.
+
+### Verification
+build green (743 modules); lint 0 errors; `verify:directory` 20/20;
+`verify:wiring` 57/57; `verify:workflow` 37/37; `verify:navigation` 7/7;
+`verify:e2e` 13/13; `verify:sweep` 15 routes × 5 widths = 0 console errors /
+0 overflow; `test:focused` 16/16; SQL 589/0.
+
+Browser-verified on the work host: `/hospitals` renders **76 facilities**
+(real names, honest "Unlisted" categories), locality select lists real corridor
+localities, ownership filter changes the count (76 → 11 Private → 21 Vijayawada),
+search filters, and a card opens a detail page showing the real source.
+
+### Gotcha fixed
+Real category labels made the filter `<select>` elements size to their widest
+option, overflowing the viewport by 74px at 320px. Fixed with `min-w-0`/`w-full`
+on the controls and grids in `FilterField`/`FilterBar` (this is the recurring
+Tailwind flex-child trap already noted in earlier steps).
+
+### BLOCKED (unchanged)
+No Supabase credentials exist here, so migration `0034` is verified only by the
+local Postgres replay (which does apply it cleanly). `dme.ap.nic.in` did not
+respond within the request timeout and is not used as an automatic source.

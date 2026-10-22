@@ -28,6 +28,7 @@ export function HospitalsPage() {
     resetFilters,
     refresh,
     activeFilterLabels,
+    filterOptions,
   } = useHospitals(initialQuery);
 
   const resultsState = error ? 'error' : loading ? 'loading' : filteredHospitals.length === 0 ? 'empty' : 'success';
@@ -42,6 +43,7 @@ export function HospitalsPage() {
           onSearchChange={setSearchTerm}
           onFilterChange={setFilters}
           onReset={resetFilters}
+          options={filterOptions}
         />
         <ResultsToolbar
           resultCount={filteredHospitals.length}

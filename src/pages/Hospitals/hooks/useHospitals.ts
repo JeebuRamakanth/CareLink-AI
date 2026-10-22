@@ -12,6 +12,7 @@ export type HospitalFilterState = {
   department: string;
   specialty: string;
   facilityType: string;
+  ownership: string;
   emergency: boolean;
   hours24: boolean;
   icu: boolean;
@@ -30,6 +31,7 @@ const initialFilters: HospitalFilterState = {
   department: '',
   specialty: '',
   facilityType: '',
+  ownership: '',
   emergency: false,
   hours24: false,
   icu: false,
@@ -159,6 +161,10 @@ export function useHospitals(initialSearchTerm = '') {
       labels.push('Facility type');
     }
 
+    if (filters.ownership) {
+      labels.push(filters.ownership);
+    }
+
     if (filters.emergency) {
       labels.push('Emergency');
     }
@@ -214,6 +220,10 @@ export function useHospitals(initialSearchTerm = '') {
         facilityType: filters.facilityType,
         specialty: filters.specialty,
       });
+      const matchesOwnership = !filters.ownership
+        || (filters.ownership === 'Government'
+          ? hospital.ownership === 'Government'
+          : hospital.ownership === 'Private');
       const matchesDepartment = !filters.department || hospital.departments.some((department) => normalizeText(department).includes(normalizeText(filters.department)));
       const matchesEmergency = !filters.emergency || hospital.facilities.emergency;
       const matchesHours24 = !filters.hours24 || hospital.facilities.twenty_four_hours;
@@ -225,7 +235,7 @@ export function useHospitals(initialSearchTerm = '') {
       const matchesRating = minimumRating === null || hospital.rating >= minimumRating;
       const matchesDistance = maximumDistance === null || (hospital.distance_km ?? Number.POSITIVE_INFINITY) <= maximumDistance;
 
-      return matchesSearch && matchesDirectory && matchesDepartment && matchesEmergency && matchesHours24 && matchesIcu && matchesAmbulance && matchesBloodBank && matchesParking && matchesInsurance && matchesRating && matchesDistance;
+      return matchesSearch && matchesDirectory && matchesOwnership && matchesDepartment && matchesEmergency && matchesHours24 && matchesIcu && matchesAmbulance && matchesBloodBank && matchesParking && matchesInsurance && matchesRating && matchesDistance;
     });
 
     switch (filters.sortBy) {
@@ -252,6 +262,20 @@ export function useHospitals(initialSearchTerm = '') {
     [filteredHospitals, page],
   );
 
+  // Filter options derived from the ACTUAL dataset, so every dropdown value
+  // matches at least one facility. Hardcoded generic lists (e.g. 'Dentist')
+  // would offer filters that always return nothing.
+  const filterOptions = useMemo(() => {
+    const unique = (values: Array<string | undefined>) =>
+      [...new Set(values.filter((v): v is string => Boolean(v && v.trim())))].sort((a, b) => a.localeCompare(b));
+    return {
+      localities: unique(hospitals.map((h) => h.city)),
+      categories: unique(hospitals.map((h) => h.category_label ?? h.facility_type)),
+      ownerships: unique(hospitals.map((h) => h.ownership)),
+      districts: unique(hospitals.map((h) => h.district)),
+    };
+  }, [hospitals]);
+
   useEffect(() => {
     if (page > pageCount) setPage(pageCount);
   }, [page, pageCount]);
@@ -273,6 +297,7 @@ export function useHospitals(initialSearchTerm = '') {
     resetFilters,
     refresh,
     activeFilterLabels,
+    filterOptions,
     liveDistance,
   };
 }
