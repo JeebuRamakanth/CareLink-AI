@@ -1,9 +1,9 @@
 import { fetchRealHospitalDetail, fetchRealHospitals } from './health-data';
-import { discoverMachilipatnamHospitals, fetchGooglePlaceHospital } from './maps/googlePlacesService';
+import { discoverCorridorHospitals, fetchGooglePlaceHospital } from './maps/googlePlacesService';
 import { isSupabaseConfigured } from './supabase/client';
 import { hospitalsData } from '../data/hospitals';
 import { geocodedLocalities } from '../data/geocodedLocalities';
-import { classifyCoverage, type LocalityLookup } from '../data/coverage';
+import { classifyCoverage, coverageScopeLabel, type LocalityLookup } from '../data/coverage';
 import type { Hospital, HospitalFilters } from '../types';
 import { env } from '../config';
 import { matchesHospitalSearch } from './hospitalDirectorySearch';
@@ -79,13 +79,9 @@ export function getBundledHospitals(): Hospital[] {
 }
 
 export async function getHospitals(): Promise<Hospital[]> {
-  directoryNotice = env.maps.googlePlacesConfigured
-    ? null
-    : 'Google Places discovery is not configured. Showing the bundled government-sourced directory.';
-
   const [registryResult, placesResult] = await Promise.allSettled([
     fetchRealHospitals(),
-    discoverMachilipatnamHospitals(),
+    discoverCorridorHospitals(),
   ]);
   const registry = registryResult.status === 'fulfilled'
     ? registryResult.value.filter(isInCoverage)
@@ -99,7 +95,22 @@ export async function getHospitals(): Promise<Hospital[]> {
   } else if (placesResult.value.warning) {
     warnings.push(placesResult.value.warning);
   }
-  if (warnings.length) directoryNotice = warnings.join(' ');
+
+  // The notice states the ACTUAL source state, derived from configuration — not
+  // a fixed string. When Places is configured but returned nothing, that is said
+  // explicitly rather than claimed as "not configured".
+  const liveSources: string[] = [];
+  if (isSupabaseConfigured()) liveSources.push('the provider registry');
+  if (env.maps.googlePlacesConfigured) liveSources.push('Google Places discovery');
+  const bundledCount = getBundledHospitals().length;
+  if (liveSources.length === 0) {
+    directoryNotice = `Google Places discovery and the provider registry are not configured. Showing the bundled government-sourced directory (${bundledCount} facilities).`;
+  } else if (liveSources.length === 1) {
+    directoryNotice = `Showing ${liveSources[0]} plus the bundled government-sourced directory (${bundledCount} facilities).`;
+  } else {
+    directoryNotice = `Showing the provider registry and Google Places discovery, with the bundled government-sourced directory (${bundledCount} facilities) filling any gaps.`;
+  }
+  if (warnings.length) directoryNotice = `${warnings.join(' ')} ${directoryNotice}`;
 
   const hasConfiguredSource = env.maps.googlePlacesConfigured || isSupabaseConfigured();
   const hasSourceFailure = registryResult.status === 'rejected' || placesResult.status === 'rejected';
@@ -131,6 +142,14 @@ export async function getHospitalById(id: string): Promise<Hospital | null> {
 
 export function getHospitalDirectoryNotice(): string | null {
   return directoryNotice;
+}
+
+/**
+ * The real configured coverage scope, for page copy. Derived from the corridor
+ * boundary so the UI cannot advertise a stale search area.
+ */
+export function getCoverageScopeLabel(): string {
+  return coverageScopeLabel();
 }
 
 export async function searchHospitals(query: string): Promise<Hospital[]> {

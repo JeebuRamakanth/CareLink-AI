@@ -18,7 +18,7 @@ import type { Doctor } from '../types';
  *   - No portraits are fabricated; `image_url` is omitted so the UI shows the
  *     existing fallback avatar rather than a random person's photo.
  *
- * Generated: 2026-10-22T16:52:49.419Z
+ * Generated: 2026-10-23T15:22:57.259Z
  * Doctors: 14
  */
 const CREATED = '2026-10-22T00:00:00.000Z';

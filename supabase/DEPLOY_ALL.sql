@@ -1,7 +1,7 @@
 -- =========================================================================
 -- CareLink-AI — FULL SCHEMA DEPLOY BUNDLE (generated)
 -- Source: supabase/migrations/*.sql concatenated in replay order.
--- Generated: 2026-10-11T12:56:36Z
+-- Generated: 2026-10-23T16:13:10Z
 --
 -- HOW TO APPLY (Supabase dashboard): SQL Editor -> New query -> paste this
 -- file -> Run. Or: psql "$SUPABASE_DB_URL" -f supabase/DEPLOY_ALL.sql
@@ -6413,9 +6413,15 @@ begin
          'low'::text, 'Provider media not verified'
   from public.provider_media pm
   where pm.verified_media = false
-  limit 200;
+  limit 2000;
 end;
 $$;
+
+comment on function public.carelink_admin_data_quality() is
+  'Data-quality flag report. The row cap is a safety valve, NOT a report size: '
+  'it is deliberately high so that a growing directory can never truncate a '
+  'whole issue category before it is listed (a lower cap silently hid '
+  'orphaned_review rows once the corridor directory exceeded it).';
 
 -- ---------------------------------------------------------------------------
 -- 5. Permissions for new capabilities

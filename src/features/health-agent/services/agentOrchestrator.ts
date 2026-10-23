@@ -113,6 +113,32 @@ const patientPoint = (request: AgentOrchestratorRequest): PatientPoint | null =>
 /** Whether the active turn produced real-provider data (drives REAL/MOCK badge). */
 const dataSourceFor = (): 'real' | 'mock' => (isAnyProviderReal() ? 'real' : 'mock');
 
+/**
+ * Provenance of the RECORDS in a result, which is a different question from
+ * whether an external provider is configured:
+ *
+ *   'live'              — served by a configured backend/provider
+ *   'sourced_directory' — the bundled, source-attributed corridor directory
+ *                         (real government/provider records, offline copy)
+ *   'demo'              — illustrative sample data (labs/pharmacies today)
+ *
+ * The previous model labelled the sourced directory "Demo data" merely because
+ * no provider key was configured, which misrepresented real records. A result
+ * is only 'demo' when it actually contains sample data.
+ */
+const directoryProvenance = (): 'live' | 'sourced_directory' =>
+  isAnyProviderReal() ? 'live' : 'sourced_directory';
+
+export type ResultProvenance = 'live' | 'sourced_directory' | 'demo';
+
+/** Resolve the record-level provenance of a built result for the UI badge. */
+export function resultProvenance(result: Pick<AgentResult, 'dataSource' | 'isDemoData'>): ResultProvenance {
+  if (result.isDemoData) return 'demo';
+  return result.dataSource === 'real' ? 'live' : 'sourced_directory';
+}
+
+export { directoryProvenance };
+
 /** Patient origin for real directory distances (null when no coordinates exist). */
 const originOf = (patient?: PatientPoint | null): RecommendationOrigin | null =>
   patient && typeof patient.lat === 'number' && typeof patient.lng === 'number'
@@ -291,7 +317,7 @@ function buildSymptomResult(entities: string[], context?: ConversationContext): 
     meta: { confidence: 'medium', urgency: 'attention', tier: 'triage', disclaimer: DISCLAIMER_MEDICAL },
     recommendedNextSteps: [`Book a consultation with a ${specialtyLabel}, or visit a hospital if symptoms worsen.`],
     dataSource: dataSourceFor(),
-    isDemoData: !isAnyProviderReal(),
+    isDemoData: false,
     sources: ['CareLink directory'],
     followUpQuestions: ['When did the symptoms start?', 'How severe are they on a scale of 1–10?', 'Any known triggers?'],
     actions: [
@@ -333,7 +359,7 @@ async function buildDiseaseResult(entities: string[], rawInput: string, context?
     recommendedNextSteps: ['Connect with a specialist to build or review your management plan.'],
     hospitals: ranked,
     dataSource: dataSourceFor(),
-    isDemoData: !isAnyProviderReal(),
+    isDemoData: false,
     sources: ['CareLink directory'],
     followUpQuestions: ['Are you currently on any treatment?', 'When was your last check-up?'],
     actions: [
@@ -360,7 +386,7 @@ async function buildHospitalResult(entities: string[], _adapters: AgentAdapters,
     recommendedNextSteps: ['Compare profiles and pick the facility that matches your needs.'],
     hospitals,
     dataSource: dataSourceFor(),
-    isDemoData: !isAnyProviderReal(),
+    isDemoData: false,
     sources: ['CareLink hospital directory'],
     actions: [
       ...(hospitals[0]?.detailSlug ? [{ type: 'view-hospital' as const, label: 'View relevant doctors', href: hospitalHref(hospitals[0].detailSlug), icon: 'view-doctor' as const }] : []),
@@ -382,7 +408,7 @@ async function buildDoctorResult(entities: string[], _adapters: AgentAdapters, c
     recommendedNextSteps: ['Review profiles and request a consultation.'],
     doctors,
     dataSource: dataSourceFor(),
-    isDemoData: !isAnyProviderReal(),
+    isDemoData: false,
     sources: ['CareLink doctor directory'],
     actions: [{ type: 'book-appointment', label: 'Request an appointment', href: ROUTES.appointments, icon: 'book-appointment' }],
     suggestedReplies: ['Find a hospital', 'Book an appointment', 'What should I do next?'],
@@ -634,7 +660,7 @@ async function buildRouteResult(context?: ConversationContext, patient?: Patient
     routes: [hospital.route ?? buildRouteFromHospital(hospital)],
     hospitals: [hospital],
     dataSource: dataSourceFor(),
-    isDemoData: !isAnyProviderReal(),
+    isDemoData: false,
     sources: ['CareLink directory'],
     actions: [{ type: 'view-hospital', label: 'View hospital', href: `${ROUTES.hospitals}/${hospital.detailSlug}`, icon: 'view-hospital' }],
     suggestedReplies: ['View hospital', 'Find a doctor', 'Book an appointment'],
@@ -682,7 +708,7 @@ async function buildChildCareResult(context?: ConversationContext, patient?: Pat
     doctors,
     hospitals,
     dataSource: dataSourceFor(),
-    isDemoData: !isAnyProviderReal(),
+    isDemoData: false,
     sources: ['CareLink directory'],
     suggestedReplies: ['Find a pediatrician', 'Vaccination schedule', 'Find a hospital'],
   });
@@ -701,7 +727,7 @@ async function buildElderCareResult(context?: ConversationContext, patient?: Pat
     doctors,
     hospitals,
     dataSource: dataSourceFor(),
-    isDemoData: !isAnyProviderReal(),
+    isDemoData: false,
     sources: ['CareLink directory'],
     suggestedReplies: ['Find a doctor', 'Find a hospital', 'My medicines'],
   });
@@ -719,7 +745,7 @@ async function buildMentalHealthResult(context?: ConversationContext, patient?: 
     recommendedNextSteps: ['Connect with a mental-health professional or counselor for support.'],
     hospitals,
     dataSource: dataSourceFor(),
-    isDemoData: !isAnyProviderReal(),
+    isDemoData: false,
     sources: ['CareLink directory'],
     actions: [{ type: 'call-emergency', label: 'Crisis helpline', href: 'tel:988', icon: 'call-emergency' }],
     suggestedReplies: ['Find a counselor', 'Find a hospital', 'What should I do next?'],
@@ -752,7 +778,7 @@ async function buildLocationResult(context?: ConversationContext, patient?: Pati
     recommendedNextSteps: ['Pick the closest facility and confirm availability before you travel.'],
     hospitals: ranked,
     dataSource: dataSourceFor(),
-    isDemoData: !isAnyProviderReal(),
+    isDemoData: false,
     sources: ['CareLink hospital directory'],
     suggestedReplies: ['Find a hospital', 'Find a doctor', 'Find a pharmacy'],
   });
@@ -796,7 +822,7 @@ async function buildEmergencyResult(adapters: AgentAdapters, input: string, cont
     hospitals: facilities,
     routes: facilities.map((f) => f.route).filter((r): r is NonNullable<typeof r> => Boolean(r)),
     dataSource: dataSourceFor(),
-    isDemoData: !isAnyProviderReal(),
+    isDemoData: false,
     sources: [isAnyProviderReal() ? 'CareLink emergency navigation' : 'CareLink emergency navigation (mock)'],
     actions: [
       { type: 'call-emergency', label: 'Call emergency services', href: 'tel:911', icon: 'call-emergency' },

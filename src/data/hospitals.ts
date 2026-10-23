@@ -17,10 +17,10 @@ import type { Hospital } from '../types';
  *   - `rating` / `review_count` stay 0 until real eligible patient reviews exist.
  *   - Coverage is the Machilipatnam–Vijayawada corridor (see src/data/coverage.ts).
  *
- * Generated: 2026-10-22T16:49:46.402Z
- * Records: 103
+ * Generated: 2026-10-23T15:20:39.595Z
+ * Records: 105
  */
-const CREATED = '2026-10-22T00:00:00.000Z';
+const CREATED = '2026-10-23T00:00:00.000Z';
 
 export const hospitalsData: Hospital[] = [
   {
@@ -53,12 +53,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "NTR District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "NTR District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://ntr.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -91,12 +91,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "SOURCE_LISTED",
     source_label: "andhrahospitals.org",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "andhrahospitals.org",
       "source_url": "https://www.andhrahospitals.org/Ah/chg_location/MACHILIPATNAM",
       "data_status": "SOURCE_LISTED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -129,12 +129,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "THIRD_PARTY_DIRECTORY",
     source_label: "Star Health network directory",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Star Health network directory",
       "source_url": "https://www.starhealth.in/network-hospitals/star-health-network-hospitals-in-machilipatnam-andhra-pradesh",
       "data_status": "THIRD_PARTY_DIRECTORY",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -167,11 +167,11 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "THIRD_PARTY_DIRECTORY",
     source_label: "third-party directory",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "third-party directory",
       "data_status": "THIRD_PARTY_DIRECTORY",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -204,12 +204,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "OFFICIAL_SOURCE",
     source_label: "krishna.ap.gov.in",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "krishna.ap.gov.in",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -242,12 +242,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "NTR District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "NTR District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://ntr.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -280,12 +280,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "PROVIDER_LISTED",
     source_label: "madhuneuro.com",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "madhuneuro.com",
       "source_url": "https://madhuneuro.com/orthopaedics",
       "data_status": "PROVIDER_LISTED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -318,12 +318,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -356,11 +356,11 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "THIRD_PARTY_DIRECTORY",
     source_label: "third-party directory",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "third-party directory",
       "data_status": "THIRD_PARTY_DIRECTORY",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -393,12 +393,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -431,12 +431,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -469,12 +469,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "NTR District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "NTR District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://ntr.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -507,12 +507,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -545,12 +545,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -583,12 +583,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -623,12 +623,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "OFFICIAL_SOURCE",
     source_label: "krishna.ap.gov.in",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "krishna.ap.gov.in",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -661,12 +661,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "NTR District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "NTR District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://ntr.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -699,12 +699,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -737,12 +737,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -775,12 +775,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "NTR District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "NTR District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://ntr.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -813,12 +813,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -851,12 +851,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -889,12 +889,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -927,12 +927,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "NTR District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "NTR District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://ntr.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -965,12 +965,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "NTR District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "NTR District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://ntr.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -1003,12 +1003,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "NTR District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "NTR District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://ntr.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -1041,12 +1041,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "NTR District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "NTR District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://ntr.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -1079,12 +1079,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "NTR District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "NTR District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://ntr.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -1117,12 +1117,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -1155,12 +1155,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "NTR District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "NTR District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://ntr.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -1193,12 +1193,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -1231,12 +1231,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -1269,12 +1269,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "NTR District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "NTR District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://ntr.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -1307,12 +1307,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "NTR District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "NTR District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://ntr.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -1345,12 +1345,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -1383,12 +1383,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "NTR District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "NTR District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://ntr.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -1421,12 +1421,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -1459,12 +1459,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -1497,12 +1497,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -1535,12 +1535,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "NTR District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "NTR District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://ntr.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -1573,12 +1573,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -1611,12 +1611,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "NTR District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "NTR District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://ntr.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -1649,12 +1649,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "OFFICIAL_SOURCE",
     source_label: "gmcmachilipatnam-ap-gov.com",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "gmcmachilipatnam-ap-gov.com",
       "source_url": "https://www.gmcmachilipatnam-ap-gov.com/contact-us",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -1687,12 +1687,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "PROVIDER_LISTED",
     source_label: "muralikrishnahospital.com",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "muralikrishnahospital.com",
       "source_url": "https://muralikrishnahospital.com",
       "data_status": "PROVIDER_LISTED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -1725,12 +1725,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "THIRD_PARTY_DIRECTORY",
     source_label: "Star Health network directory",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Star Health network directory",
       "source_url": "https://www.starhealth.in/network-hospitals/star-health-network-hospitals-in-machilipatnam-andhra-pradesh",
       "data_status": "THIRD_PARTY_DIRECTORY",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -1763,12 +1763,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "NTR District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "NTR District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://ntr.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -1801,12 +1801,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "NTR District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "NTR District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://ntr.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -1839,12 +1839,50 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
+    },
+  },
+  {
+    id: "7f200000-0000-4000-8000-92d0db34369b",
+    created_at: CREATED,
+    updated_at: CREATED,
+    status: 'active',
+    name: "PHC Atukuru",
+    slug: "krishna-phc-atukuru",
+    type: 'hospital',
+    facility_type: "PHC",
+    category_label: "Primary Health Centre",
+    ownership: "Government",
+    description: "Primary Health Centre listed by Krishna District, Government of Andhra Pradesh — Hospitals for the Machilipatnam–Vijayawada corridor.",
+    address: "PHC Atukuru",
+    city: "Atukuru",
+    district: "Krishna",
+    pincode: "521229",
+    state: 'Andhra Pradesh',
+    country: 'India',
+    phone: "",
+    email: undefined,
+    website: undefined,
+    specialties: [],
+    departments: [],
+    facilities: { emergency: false, icu: false, ambulance: false, blood_bank: false, parking: false, twenty_four_hours: false, telehealth: false },
+    rating: 0,
+    review_count: 0,
+    availability_status: null,
+    is_verified: false,
+    verification_status: "UNVERIFIED",
+    source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
+    last_checked_at: "2026-10-23",
+    provenance: {
+      "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
+      "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
+      "data_status": "VERIFIED",
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -1877,12 +1915,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -1915,12 +1953,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -1953,12 +1991,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -1991,12 +2029,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -2029,12 +2067,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -2067,12 +2105,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "NTR District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "NTR District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://ntr.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -2105,12 +2143,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -2143,12 +2181,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -2181,12 +2219,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -2219,12 +2257,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "NTR District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "NTR District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://ntr.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -2257,12 +2295,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -2295,12 +2333,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -2333,12 +2371,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -2371,12 +2409,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -2409,12 +2447,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -2447,12 +2485,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -2485,12 +2523,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -2523,12 +2561,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -2561,12 +2599,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -2599,12 +2637,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -2637,12 +2675,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -2675,12 +2713,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -2713,12 +2751,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -2751,12 +2789,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -2789,12 +2827,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -2827,12 +2865,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -2865,12 +2903,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -2903,12 +2941,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -2941,12 +2979,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -2979,12 +3017,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -3017,12 +3055,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -3055,12 +3093,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -3093,12 +3131,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -3131,12 +3169,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -3169,12 +3207,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -3207,12 +3245,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -3245,12 +3283,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -3283,12 +3321,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -3321,12 +3359,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -3359,12 +3397,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -3397,12 +3435,50 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
+    },
+  },
+  {
+    id: "7f200000-0000-4000-8000-eed322044b58",
+    created_at: CREATED,
+    updated_at: CREATED,
+    status: 'active',
+    name: "PHC.Sagguru",
+    slug: "krishna-phc-sagguru",
+    type: 'hospital',
+    facility_type: "PHC",
+    category_label: "Primary Health Centre",
+    ownership: "Government",
+    description: "Primary Health Centre listed by Krishna District, Government of Andhra Pradesh — Hospitals for the Machilipatnam–Vijayawada corridor.",
+    address: "PHC.Sagguru",
+    city: "Sagguru",
+    district: "Krishna",
+    pincode: "521211",
+    state: 'Andhra Pradesh',
+    country: 'India',
+    phone: "",
+    email: undefined,
+    website: undefined,
+    specialties: [],
+    departments: [],
+    facilities: { emergency: false, icu: false, ambulance: false, blood_bank: false, parking: false, twenty_four_hours: false, telehealth: false },
+    rating: 0,
+    review_count: 0,
+    availability_status: null,
+    is_verified: false,
+    verification_status: "UNVERIFIED",
+    source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
+    last_checked_at: "2026-10-23",
+    provenance: {
+      "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
+      "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
+      "data_status": "VERIFIED",
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -3435,12 +3511,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -3473,12 +3549,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -3511,12 +3587,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -3549,12 +3625,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "NTR District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "NTR District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://ntr.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -3587,12 +3663,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -3625,12 +3701,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -3663,11 +3739,11 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "THIRD_PARTY_DIRECTORY",
     source_label: "third-party directory",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "third-party directory",
       "data_status": "THIRD_PARTY_DIRECTORY",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -3700,12 +3776,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "PROVIDER_LISTED",
     source_label: "savehospitalmachilipatnam.com",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "savehospitalmachilipatnam.com",
       "source_url": "https://savehospitalmachilipatnam.com/en",
       "data_status": "PROVIDER_LISTED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -3738,12 +3814,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -3776,12 +3852,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "NTR District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "NTR District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://ntr.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -3814,12 +3890,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "NTR District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "NTR District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://ntr.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -3852,12 +3928,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "NTR District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "NTR District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://ntr.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -3890,12 +3966,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "NTR District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "NTR District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://ntr.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
   {
@@ -3928,12 +4004,12 @@ export const hospitalsData: Hospital[] = [
     is_verified: false,
     verification_status: "UNVERIFIED",
     source_label: "Krishna District, Government of Andhra Pradesh — Hospitals",
-    last_checked_at: "2026-10-22",
+    last_checked_at: "2026-10-23",
     provenance: {
       "data_source": "Krishna District, Government of Andhra Pradesh — Hospitals",
       "source_url": "https://krishna.ap.gov.in/public-utility-category/hospitals/",
       "data_status": "VERIFIED",
-      "fetched_at": "2026-10-22"
+      "fetched_at": "2026-10-23"
     },
   },
 ];

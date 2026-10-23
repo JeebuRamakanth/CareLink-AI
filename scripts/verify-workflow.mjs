@@ -94,7 +94,18 @@ check('state: pending request is not persisted as an appointment', /if \(appoint
 const apptPage = read(APPT_PAGE);
 const apptFilters = read('src/pages/Appointments/components/AppointmentsFilters.tsx');
 check('ui: My Appointments has a Pending requests tab', /Pending requests/.test(apptFilters));
-check('ui: My Appointments discloses demo mode without a backend', /No appointment backend is configured/.test(apptPage));
+check(
+  'ui: My Appointments discloses unconfigured backend with setup steps',
+  /Appointment requests are not being sent to a facility/.test(apptPage) && /VITE_SUPABASE_URL/.test(apptPage)
+);
+check(
+  'state: persisted pending requests are loaded into the dashboard',
+  /listMyAppointmentRequests\(\)/.test(apptCtx) && /rowToRequestAppointment/.test(apptCtx)
+);
+check(
+  'state: cancelling a pending request uses the owner-scoped request RPC',
+  /cancelAppointmentRequest\(/.test(apptCtx)
+);
 
 // 7. SQL test suite covers the workflow.
 check('tests: SQL suite 250 exists', exists('supabase/tests/250_step22_appointment_request.sql'));

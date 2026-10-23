@@ -17,8 +17,8 @@ import type { GeocodedLocality } from '../types';
  *   - A locality that geocodes OUTSIDE the corridor buffer is retained here as
  *     evidence of an exclusion decision, and is never used to include a facility.
  *
- * Generated: 2026-10-22T16:48:28.846Z
- * Localities: 50 (in corridor 27, outside 23)
+ * Generated: 2026-10-23T15:20:36.422Z
+ * Localities: 58 (in corridor 29, outside 29)
  */
 export const geocodedLocalities: GeocodedLocality[] = [
   {
@@ -31,6 +31,17 @@ export const geocodedLocalities: GeocodedLocality[] = [
     geocodeSource: "OpenStreetMap Nominatim",
     geocodeReference: "node/7116293152",
     resolvedName: "Alluru PHC, SH234, Jujjuru, Veerullapadu Mandal, NTR District, Andhra Pradesh, 521181, India",
+  },
+  {
+    locality: "Atukuru",
+    district: "Krishna",
+    latitude: 16.6751841,
+    longitude: 80.5956709,
+    corridorDistanceKm: 19.6,
+    inCoverage: true,
+    geocodeSource: "OpenStreetMap Nominatim",
+    geocodeReference: "node/4759481144",
+    resolvedName: "Atukuru, G.Konduru Mandal, NTR District, Andhra Pradesh, 521229, India",
   },
   {
     locality: "Bantumilli",
@@ -187,6 +198,17 @@ export const geocodedLocalities: GeocodedLocality[] = [
     resolvedName: "Gollamudi PHC, Chevitikallu - Vatsavai Road, Bodavada, Veerullapadu Mandal, NTR District, Andhra Pradesh, 521185, India",
   },
   {
+    locality: "Gollapalli",
+    district: "Krishna",
+    latitude: 14.49959,
+    longitude: 78.9052715,
+    corridorDistanceKm: 290.95,
+    inCoverage: false,
+    geocodeSource: "OpenStreetMap Nominatim",
+    geocodeReference: "node/5940735096",
+    resolvedName: "Gollapalli, Sidhout Mandal, YSR  Kadapa District, Andhra Pradesh, India",
+  },
+  {
     locality: "Gudiwada",
     district: "Krishna",
     latitude: 16.4346036,
@@ -286,6 +308,17 @@ export const geocodedLocalities: GeocodedLocality[] = [
     resolvedName: "Kesarapalli Minor, Venkatanarasimhapuram, Bahubalendrunigudem, Gannavaram Mandal, Krishna District, Andhra Pradesh, 521101, India",
   },
   {
+    locality: "Kolletikota",
+    district: "Krishna",
+    latitude: 16.6266064,
+    longitude: 81.2921577,
+    corridorDistanceKm: 49.6,
+    inCoverage: false,
+    geocodeSource: "OpenStreetMap Nominatim",
+    geocodeReference: "node/4772828695",
+    resolvedName: "Kolletikota, Kaikalur Mandal, Eluru District, Andhra Pradesh, India",
+  },
+  {
     locality: "Korukollu",
     district: "Krishna",
     latitude: 16.4853687,
@@ -341,6 +374,17 @@ export const geocodedLocalities: GeocodedLocality[] = [
     resolvedName: "Mandapakala, Koduru Mandal, Krishna District, Andhra Pradesh, 521328, India",
   },
   {
+    locality: "Mittagudem",
+    district: "NTR",
+    latitude: 16.8590782,
+    longitude: 80.8363228,
+    corridorDistanceKm: 44.07,
+    inCoverage: false,
+    geocodeSource: "OpenStreetMap Nominatim",
+    geocodeReference: "node/4750883366",
+    resolvedName: "Mittagudem, Nuzvid Mandal, Eluru District, Andhra Pradesh, 521213, India",
+  },
+  {
     locality: "Moturu",
     district: "Krishna",
     latitude: 16.4480333,
@@ -350,6 +394,17 @@ export const geocodedLocalities: GeocodedLocality[] = [
     geocodeSource: "OpenStreetMap Nominatim",
     geocodeReference: "node/4754919548",
     resolvedName: "Moturu, Gudivada Mandal, Krishna District, Andhra Pradesh, India",
+  },
+  {
+    locality: "Mulalanka",
+    district: "Krishna",
+    latitude: 16.4298761,
+    longitude: 81.34022,
+    corridorDistanceKm: 34.47,
+    inCoverage: false,
+    geocodeSource: "OpenStreetMap Nominatim",
+    geocodeReference: "node/4754919854",
+    resolvedName: "Mulalanka, Kalidindi Mandal, Eluru District, Andhra Pradesh, India",
   },
   {
     locality: "Mustabada",
@@ -451,6 +506,17 @@ export const geocodedLocalities: GeocodedLocality[] = [
     resolvedName: "Primary Health Centre, Rajugudem, MDR031, Venkateshwara Nagar, Tiruvuru Mandal, NTR District, Andhra Pradesh, 521235, India",
   },
   {
+    locality: "Ramanakkapeta",
+    district: "Krishna",
+    latitude: 17.1979307,
+    longitude: 81.1547074,
+    corridorDistanceKm: 93.93,
+    inCoverage: false,
+    geocodeSource: "OpenStreetMap Nominatim",
+    geocodeReference: "node/11383430909",
+    resolvedName: "Ramanakkapeta, Jeelugu Milli Mandal, Eluru District, Andhra Pradesh, 534456, India",
+  },
+  {
     locality: "Ramapuram",
     district: "Krishna",
     latitude: 13.098106,
@@ -471,6 +537,17 @@ export const geocodedLocalities: GeocodedLocality[] = [
     geocodeSource: "OpenStreetMap Nominatim",
     geocodeReference: "node/4754919644",
     resolvedName: "Rudrapaka, Nandivada Mandal, Krishna District, Andhra Pradesh, 521326, India",
+  },
+  {
+    locality: "Sagguru",
+    district: "Krishna",
+    latitude: 16.6538671,
+    longitude: 80.834763,
+    corridorDistanceKm: 24.77,
+    inCoverage: true,
+    geocodeSource: "OpenStreetMap Nominatim",
+    geocodeReference: "node/4750883390",
+    resolvedName: "Sagguru, Agiripalle Mandal, Eluru District, Andhra Pradesh, India",
   },
   {
     locality: "Sorlagondi",
@@ -504,6 +581,17 @@ export const geocodedLocalities: GeocodedLocality[] = [
     geocodeSource: "OpenStreetMap Nominatim",
     geocodeReference: "way/375053295",
     resolvedName: "Gudavalli-Uppuluru road, B.C Colony, Velpuru, Kankipadu Mandal, Krishna District, Andhra Pradesh, 521104, India",
+  },
+  {
+    locality: "Utukuru",
+    district: "Krishna",
+    latitude: 14.4540339,
+    longitude: 78.8121426,
+    corridorDistanceKm: 301.28,
+    inCoverage: false,
+    geocodeSource: "OpenStreetMap Nominatim",
+    geocodeReference: "node/5940734858",
+    resolvedName: "Utukuru, Chinthakommadinne Mandal, YSR  Kadapa District, Andhra Pradesh, 516003, India",
   },
   {
     locality: "Vatsavai",

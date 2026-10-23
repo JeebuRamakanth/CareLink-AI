@@ -124,7 +124,8 @@ export function ReviewComposer({ target }: ReviewComposerProps) {
   if (!configured) {
     return (
       <p className="text-xs leading-6 text-ink-400">
-        Review submission requires a configured backend. This page is showing demo provider data.
+        Review submission needs a configured Supabase backend. The facility information on this page comes from the
+        sourced directory — reviews themselves are disabled until the backend is connected.
       </p>
     );
   }

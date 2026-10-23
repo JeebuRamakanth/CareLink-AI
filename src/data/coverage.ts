@@ -309,3 +309,32 @@ export function describeCoverage(): string {
     `Districts: ${COVERAGE_DISTRICTS.join(', ')}`,
   ].join(' | ');
 }
+
+/**
+ * Short scope phrase for UI copy. Generated from the real configured boundary so
+ * a page can never advertise a stale scope (the previous "12 km Machilipatnam
+ * radius" text was hardcoded and no longer matched the query).
+ */
+export function coverageScopeLabel(): string {
+  return `Machilipatnam → Vijayawada corridor · ${CORRIDOR_BUFFER_KM} km buffer`;
+}
+
+/**
+ * Bounding rectangle that fully contains the corridor plus `bufferKm` of
+ * latitude/longitude padding. Used as the Google Places `locationBias` so live
+ * discovery covers the whole corridor rather than a circle around one city.
+ */
+export function corridorBoundingBox(bufferKm = CORRIDOR_BUFFER_KM): {
+  low: GeoPoint;
+  high: GeoPoint;
+} {
+  const latPad = bufferKm / 111;
+  const midLat = (CORRIDOR_ANCHORS.machilipatnam.latitude + CORRIDOR_ANCHORS.vijayawada.latitude) / 2;
+  const lngPad = bufferKm / (111 * Math.cos((midLat * Math.PI) / 180));
+  const lats = [CORRIDOR_ANCHORS.machilipatnam.latitude, CORRIDOR_ANCHORS.vijayawada.latitude];
+  const lngs = [CORRIDOR_ANCHORS.machilipatnam.longitude, CORRIDOR_ANCHORS.vijayawada.longitude];
+  return {
+    low: { latitude: Math.min(...lats) - latPad, longitude: Math.min(...lngs) - lngPad },
+    high: { latitude: Math.max(...lats) + latPad, longitude: Math.max(...lngs) + lngPad },
+  };
+}

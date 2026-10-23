@@ -8,6 +8,7 @@ import { Pagination } from './components/Pagination';
 import { useHospitals } from './hooks/useHospitals';
 import { useSearchParams } from 'react-router-dom';
 import { env } from '../../config';
+import { getCoverageScopeLabel } from '../../services/hospitalService';
 
 export function HospitalsPage() {
   const [searchParams] = useSearchParams();
@@ -56,7 +57,7 @@ export function HospitalsPage() {
           lastUpdated={loading ? 'Searching providers' : 'Current directory response'}
         />
         <section aria-label="Directory coverage and sources" className="rounded-2xl border border-white/10 bg-slate-950/60 p-5 text-sm leading-6 text-ink-300">
-          <p><strong className="text-white">Search area:</strong> a 12 km straight-line radius centered on Machilipatnam town. Facilities outside this radius are excluded; this is not an exhaustive district-wide directory.</p>
+          <p><strong className="text-white">Search area:</strong> {getCoverageScopeLabel()}. Facilities outside this corridor are excluded. The boundary is a documented interpretation of the practical healthcare travel corridor, not an official administrative boundary.</p>
           <p className="mt-2"><strong className="text-white">Sources:</strong> configured public provider records and live Google Places discovery when enabled. Place listings are discovery results, not independent verification of operational status or every detail.</p>
           {env.maps.googlePlacesConfigured ? (
             <a href="https://www.google.com/maps" target="_blank" rel="noreferrer" className="mt-3 inline-block">
@@ -69,7 +70,7 @@ export function HospitalsPage() {
           state={resultsState}
           title="Nearby healthcare facilities"
           hospitals={visibleHospitals}
-          description="Results are limited to the stated Machilipatnam search area."
+          description="Results are limited to the configured Machilipatnam → Vijayawada corridor."
           eyebrow="Results"
           errorTitle="Unable to load hospitals"
           errorMessage={error ?? 'Please try again in a moment.'}

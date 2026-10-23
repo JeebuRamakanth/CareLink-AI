@@ -28,12 +28,33 @@ test('place mapping uses a stable place ID and labels listings as unverified', (
   assert.equal(hospital.last_checked_at, '2026-10-09T00:00:00.000Z');
 });
 
-test('place mapper rejects records missing identity/location and those outside the defined radius', () => {
+test('place mapper rejects records missing identity/location and those outside the corridor', () => {
   assert.equal(mapGooglePlaceToHospital(machilipatnamPlace({ id: undefined })), null);
   assert.equal(mapGooglePlaceToHospital(machilipatnamPlace({ location: undefined })), null);
+  // ~36 km from the corridor path — genuinely out of coverage.
   assert.equal(mapGooglePlaceToHospital(machilipatnamPlace({
-    location: { latitude: 16.4, longitude: 81.13 },
+    location: { latitude: 16.4, longitude: 81.4 },
   })), null);
+});
+
+test('place mapper keeps corridor facilities the old 12 km Machilipatnam radius discarded', () => {
+  // Vijayawada (the corridor's second anchor city) and an intermediate corridor
+  // settlement must both be admitted.
+  const vijayawada = mapGooglePlaceToHospital(machilipatnamPlace({
+    id: 'ChIJ-vijayawada-001',
+    displayName: { text: 'Corridor Teaching Hospital' },
+    formattedAddress: 'Vijayawada, Andhra Pradesh, India',
+    location: { latitude: 16.5062, longitude: 80.648 },
+  }));
+  assert.ok(vijayawada, 'Vijayawada must be inside the corridor');
+  assert.equal(vijayawada.verification_status, 'GOOGLE_PLACES');
+
+  const gudivada = mapGooglePlaceToHospital(machilipatnamPlace({
+    id: 'ChIJ-gudivada-001',
+    formattedAddress: 'Gudivada, Andhra Pradesh, India',
+    location: { latitude: 16.4302, longitude: 80.9956 },
+  }));
+  assert.ok(gudivada, 'Gudivada (intermediate corridor town) must be inside the corridor');
 });
 
 test('deduplication uses only exact provider IDs and keeps similarly named distinct places', () => {

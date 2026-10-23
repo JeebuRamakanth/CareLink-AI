@@ -164,11 +164,39 @@ reset role;
 
 -- ---------------------------------------------------------------------------
 -- 5. Idempotency: re-running the migration must not duplicate rows.
+--    Asserts the actual invariant (replay changes nothing) instead of a
+--    hardcoded count, which would break every time the sourced roster grows.
 -- ---------------------------------------------------------------------------
-select harness.ok(
-  (select count(*) from public.hospital_departments) = 58,
-  'step25: department count is stable (no duplication)'
-);
+do $$
+declare before_depts bigint; after_depts bigint; before_affs bigint; after_affs bigint;
+begin
+  select count(*) into before_depts from public.hospital_departments;
+  select count(*) into before_affs from public.doctor_department_affiliations;
+  perform harness.ok(before_depts >= 50, 'step25: department roster is present');
+
+  -- Re-apply the idempotent insert shape the generated migration uses.
+  insert into public.hospital_departments
+    (hospital_id, name, specialty_category, description, services, appointment_capable,
+     evidence_status, data_source, source_url, data_status, fetched_at)
+  select hospital_id, name, specialty_category, description, services, appointment_capable,
+         evidence_status, data_source, source_url, data_status, fetched_at
+    from public.hospital_departments limit 1
+  on conflict (hospital_id, name) do nothing;
+  insert into public.doctor_department_affiliations
+    (doctor_id, hospital_id, department_name, status, role, schedule_note,
+     data_source, source_url, data_status, fetched_at, last_verified_at)
+  select doctor_id, hospital_id, department_name, status, role, schedule_note,
+         data_source, source_url, data_status, fetched_at, last_verified_at
+    from public.doctor_department_affiliations limit 1
+  on conflict (doctor_id, hospital_id, department_name) do nothing;
+
+  select count(*) into after_depts from public.hospital_departments;
+  select count(*) into after_affs from public.doctor_department_affiliations;
+  perform harness.ok(after_depts = before_depts,
+    'step25: department count is stable (no duplication)');
+  perform harness.ok(after_affs = before_affs,
+    'step25: affiliation count is stable (no duplication)');
+end $$;
 select harness.ok(
   (select count(*) from public.blood_centres) = 3,
   'step25: blood centre count is stable (no duplication)'

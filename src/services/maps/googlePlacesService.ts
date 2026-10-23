@@ -2,11 +2,10 @@ import { env } from '../../config';
 import type { Hospital } from '../../types';
 import {
   deduplicateGooglePlaces,
-  MACHILIPATNAM_CENTER,
   mapGooglePlaceToHospital,
-  SEARCH_RADIUS_METERS,
   type GooglePlace,
 } from './hospitalPlaceMapping';
+import { corridorBoundingBox } from '../../data/coverage';
 import { googlePlacesRequestError } from './googlePlacesErrors';
 
 const SEARCH_URL = 'https://places.googleapis.com/v1/places:searchText';
@@ -30,6 +29,11 @@ const FIELD_MASK = [
 ].join(',');
 const DETAIL_FIELD_MASK = FIELD_MASK.replaceAll('places.', '').replace(',nextPageToken', '');
 
+/**
+ * Discovery queries cover the WHOLE Machilipatnam → Vijayawada corridor. The
+ * previous set asked only for "…in Machilipatnam", so the corridor's second
+ * anchor city and every intermediate settlement could never be discovered.
+ */
 const SEARCH_QUERIES = [
   'hospitals in Machilipatnam, Andhra Pradesh, India',
   'government hospital in Machilipatnam, Andhra Pradesh, India',
@@ -39,7 +43,19 @@ const SEARCH_QUERIES = [
   'orthopaedic, cardiac and neurological hospitals in Machilipatnam, Andhra Pradesh, India',
   'clinics and nursing homes in Machilipatnam, Andhra Pradesh, India',
   'emergency and trauma hospitals in Machilipatnam, Andhra Pradesh, India',
+  'hospitals in Vijayawada, Andhra Pradesh, India',
+  'government and teaching hospitals in Vijayawada, Andhra Pradesh, India',
+  'multispecialty and super specialty hospitals in Vijayawada, Andhra Pradesh, India',
+  'clinics and nursing homes in Vijayawada, Andhra Pradesh, India',
+  'hospitals in Gudivada, Andhra Pradesh, India',
+  'hospitals in Pedana, Andhra Pradesh, India',
+  'hospitals in Vuyyuru, Andhra Pradesh, India',
+  'hospitals in Gannavaram, Andhra Pradesh, India',
+  'hospitals in Tenali, Andhra Pradesh, India',
 ];
+
+/** The corridor rectangle used as the Places locationBias for every query. */
+const CORRIDOR_BOX = corridorBoundingBox();
 
 type SearchResponse = {
   places?: GooglePlace[];
@@ -91,9 +107,9 @@ async function searchQuery(query: string): Promise<GooglePlace[]> {
       languageCode: 'en',
       pageSize: 20,
       locationBias: {
-        circle: {
-          center: MACHILIPATNAM_CENTER,
-          radius: SEARCH_RADIUS_METERS,
+        rectangle: {
+          low: { latitude: CORRIDOR_BOX.low.latitude, longitude: CORRIDOR_BOX.low.longitude },
+          high: { latitude: CORRIDOR_BOX.high.latitude, longitude: CORRIDOR_BOX.high.longitude },
         },
       },
       ...(pageToken ? { pageToken } : {}),
@@ -140,8 +156,12 @@ async function runDiscovery(): Promise<{ hospitals: Hospital[]; warning: string 
   };
 }
 
-/** Searches a 12 km radius around Machilipatnam; results are not exhaustive. */
-export function discoverMachilipatnamHospitals(): Promise<{ hospitals: Hospital[]; warning: string | null }> {
+/**
+ * Discovers healthcare facilities across the Machilipatnam → Vijayawada
+ * corridor. Results outside the corridor boundary are dropped by the mapper, and
+ * the returned list is explicitly not exhaustive.
+ */
+export function discoverCorridorHospitals(): Promise<{ hospitals: Hospital[]; warning: string | null }> {
   if (!env.maps.googlePlacesConfigured) return Promise.resolve({ hospitals: [], warning: null });
   if (!discoveryInFlight) {
     discoveryInFlight = runDiscovery().finally(() => {

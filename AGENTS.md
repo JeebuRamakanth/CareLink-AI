@@ -1047,3 +1047,113 @@ INSERT/UPDATE/DELETE.
 No Supabase URL/anon key, DB password, Cloudinary, Maps or xAI key exist here, so
 migration 0035 is verified by the local replay only, and live blood stock (e-RaktKosh)
 is not integrated — the UI says so instead of guessing.
+
+## Step 26 — Screenshot-warning root causes fixed + corridor coverage corrected (VERIFIED)
+
+Each visible warning was traced to its code path and the UNDERLYING condition fixed —
+no warning text was merely softened.
+
+### 1. "12 km straight-line radius centered on Machilipatnam" — REAL query bug
+Three separate places still limited the app to one city, so Vijayawada and every
+intermediate corridor settlement were silently excluded:
+- `hospitalPlaceMapping.ts` used `MACHILIPATNAM_CENTER` + `SEARCH_RADIUS_METERS=12_000`
+  and returned `null` for any live Places result beyond 12 km. **Removed**; mapping now
+  filters with the shared `classifyCoverage()` corridor boundary.
+- `googlePlacesService.ts` asked only `"…in Machilipatnam"` with a 12 km circle bias.
+  **Replaced** with corridor-wide queries (Vijayawada, Gudivada, Pedana, Vuyyuru,
+  Gannavaram, Tenali) and a `corridorBoundingBox()` rectangle bias. The exported
+  `discoverMachilipatnamHospitals()` is renamed `discoverCorridorHospitals()`.
+- `HospitalsPage.tsx` + `Hospitals/Hero.tsx` hardcoded the radius text. **Replaced**
+  with `getCoverageScopeLabel()` / `coverageScopeLabel()`, generated from the real
+  configured boundary, so the page can never advertise a stale scope again.
+- Tests: `src/data/coverage.test.mjs` (5) + `hospitalPlaceMapping.test.mjs` assert
+  Vijayawada/Gudivada are admitted and an out-of-corridor place is rejected.
+
+### 2. "No appointment backend is configured" — the real gap was WIRING, not just a key
+`listMyAppointmentRequests()` existed but was **never called anywhere**, so the
+"Pending requests" tab was permanently empty even with Supabase configured.
+- `AppointmentContext.refreshFromBackend` now loads owner-scoped appointment REQUESTS
+  alongside confirmed appointments (`rowToRequestAppointment`), and
+  `cancelAppointment` routes a pending request through the owner-scoped
+  `carelink_cancel_appointment_request` RPC instead of the appointments repo.
+- The warning is now an actionable setup state naming `VITE_SUPABASE_URL`,
+  `VITE_SUPABASE_ANON_KEY` and `npm run db:bundle` (it still disappears only when the
+  backend is genuinely configured).
+- **Fabricated demo appointments removed.** The seed held invented bookings for
+  facilities outside the corridor with invented phone numbers, emails and street
+  addresses. `seedAppointments` is now `[]`, so a new user sees the honest empty state.
+- "Appointment count" previously rendered the number of status TABS (7). It now shows
+  the real record count.
+- `verify-workflow.mjs` gained 3 checks (pending-request loading, request-cancel RPC,
+  actionable setup copy) → 39 checks.
+
+### 3. DEMO DATA / LOW CONFIDENCE / CARELINK DEMO RESPONSE — badges were misleading
+`dataSourceFor()` conflated "no provider key" with "the data is fake", so the REAL
+source-attributed corridor directory was badged **"Demo data"**.
+- New `resultProvenance()` in `agentOrchestrator.ts` returns
+  `live | sourced_directory | demo`. Hospital/doctor/blood/report/route/etc. builders
+  (which read the real directory) no longer set `isDemoData`; only lab/pharmacy/medicine
+  — which still use sample datasets — remain `demo`.
+- `AIChatPage` + `HealthCommandCenter` render **"Sourced directory"** (sky) vs
+  **"Demo data"** (amber) vs no badge for live.
+- `recommendationRanking.ts` no longer contradicts the card: it stops printing
+  "0.0 km away" when distance is unknown, prints "no verified ratings yet" instead of
+  "rated 0.0/5", and omits open/closed when availability is unlisted.
+  Covered by `recommendationRanking.test.mjs` (4).
+- "Mock consultation details" heading now renders "Published consultation details" for a
+  real directory doctor; empty InfoCells are omitted instead of showing blanks.
+
+### 4. Data-quality report silently truncated whole categories — REAL latent bug
+`carelink_admin_data_quality()` had a global `limit 200`. With the corridor directory
+the unverified/missing-coordinate categories alone exceed 200 rows, so
+`orphaned_review` flags were **silently never returned** (this reproduced on HEAD too).
+Fixed by raising the cap to 2000 + documenting it as a safety valve, and a regression
+test asserts the cap can never be smaller than the current report size.
+
+### 5. Corridor coverage expanded 103 → 105 facilities (12 left in review)
+`geocode-localities.mjs` only tried one query form and cached `null` forever.
+- Multi-form queries (district → state → country), a settlement-type guard (a canal like
+  "Kesarapalli Minor" can never be a village's location) and an Andhra-Pradesh guard.
+- Previously-resolved localities are now **accumulated** instead of being dropped when
+  the review queue shrinks. Geocoded in-coverage localities: 27 → 29.
+- Live re-ingest: **105 in coverage**, 12 require review, 30 outside. Migration `0034`
+  regenerated from the same JSON so app and DB cannot drift.
+- Department evidence: SAVE Multi-Speciality gained the published
+  "Obstetrics & Gynaecology" department → 59 departments.
+
+### 6. Doctors page honesty (found during the browser audit)
+- Hero claimed "Verified specialists" while every card said "Unverified listing".
+  Now: "Source-attributed listings" + "a directory listing is not a credential check".
+- The specialty filter was hardcoded (Cardiology/OB-GYN/…) and could never match the
+  real 14 specialties. `useDoctors` now derives `filterOptions` from the dataset.
+- A literal **"Pagination placeholder for doctor results."** was user-visible; the
+  component now renders nothing (the directory is a single grid).
+- `CardImage` no longer prints a bare "Placeholder" badge — it shows
+  "No published photo" with an accessible `role="img"` label.
+- `ReviewComposer` / `ProviderDiscoveryPage` no longer claim "showing demo provider
+  data" / leak a developer note into user copy.
+
+### 7. Integration readiness diagnostics (status only — never values)
+- `getIntegrationReadiness()` in `src/config/diagnostics.ts` + `src/main.tsx` logs a
+  per-integration status at boot (Supabase, AI gateway, Places, directions, Cloudinary,
+  directory, blood centres), naming only VARIABLE names.
+- NEW `npm run verify:readiness` (`scripts/verify-readiness.mjs`) prints the same report
+  and, with `--check`, probes the live Supabase Auth endpoint. It never prints a value.
+- `.env.example` documents the exact Google Places and xAI setup steps (billing, key
+  restrictions, `supabase secrets set`), and states that Maps DIRECTIONS links need no key.
+
+### Verification (this environment)
+build green; lint 0 errors (pre-existing warnings only); `test:focused` **53/53**;
+`verify:wiring` **68/68**; `verify:directory` 21/21; `verify:workflow` **39/39**;
+`verify:navigation` 7/7; `verify:e2e` **15/15**; `verify:auth` **11/11**;
+`verify:sweep` 18 routes × 5 widths = **0 console errors / 0 overflow**;
+SQL replay **618 PASS / 0 FAIL** (local Postgres 16 in Docker).
+`verify:readiness` reports every integration as CONFIGURED or an explicit
+not-configured demo state.
+
+### BLOCKED (external credentials — unchanged)
+No Supabase URL/anon key, DB password, service_role, Cloudinary, Google Places, Maps or
+xAI key exist in this environment. Consequently: the live schema cannot be applied (anon
+cannot run DDL), the real owner Auth E2E and live AI/Places calls cannot be exercised,
+and live blood stock (e-RaktKosh) is not integrated. All of those paths are verified at
+repo/adapter/SQL-suite level only and runtime stays an honest, clearly-labelled demo.

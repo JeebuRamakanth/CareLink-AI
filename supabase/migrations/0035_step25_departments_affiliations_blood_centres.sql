@@ -150,7 +150,7 @@ grant select on public.doctor_department_affiliations to anon, authenticated;
 grant select on public.blood_centres to anon, authenticated;
 
 -- ---------------------------------------------------------------------------
--- 5. Departments (58 rows).
+-- 5. Departments (59 rows).
 -- ---------------------------------------------------------------------------
 insert into public.hospital_departments
   (hospital_id, name, specialty_category, description, services, appointment_capable,
@@ -200,6 +200,7 @@ values
   ('7f100008-0000-0000-0000-000000000008','Cardiology',null,null,'[]'::jsonb,true,'published','SAVE Multi-Speciality Hospital — Services','https://savehospitalmachilipatnam.com/en/services','PROVIDER_LISTED','2026-10-22'),
   ('7f100008-0000-0000-0000-000000000008','Paediatrics',null,null,'[]'::jsonb,true,'published','SAVE Multi-Speciality Hospital — Services','https://savehospitalmachilipatnam.com/en/services','PROVIDER_LISTED','2026-10-22'),
   ('7f100008-0000-0000-0000-000000000008','Rehabilitation Medicine',null,null,'[]'::jsonb,true,'published','SAVE Multi-Speciality Hospital — Services','https://savehospitalmachilipatnam.com/en/services','PROVIDER_LISTED','2026-10-22'),
+  ('7f100008-0000-0000-0000-000000000008','Obstetrics & Gynaecology',null,null,'[]'::jsonb,true,'published','SAVE Multi-Speciality Hospital — Services','https://savehospitalmachilipatnam.com/en/services','PROVIDER_LISTED','2026-10-22'),
   ('7f100008-0000-0000-0000-000000000008','Pharmacy Services',null,null,'[]'::jsonb,true,'published','SAVE Multi-Speciality Hospital — Services','https://savehospitalmachilipatnam.com/en/services','PROVIDER_LISTED','2026-10-22'),
   ('7f10000a-0000-0000-0000-00000000000a','Neurology',null,null,'[]'::jsonb,true,'published','Dr. Madhu Super Speciality Hospital — Machilipatnam branch services','https://madhuneuro.com/machilipatnam/','PROVIDER_LISTED','2026-10-22'),
   ('7f10000a-0000-0000-0000-00000000000a','Neurosurgery',null,null,'[]'::jsonb,true,'published','Dr. Madhu Super Speciality Hospital — Machilipatnam branch services','https://madhuneuro.com/machilipatnam/','PROVIDER_LISTED','2026-10-22'),

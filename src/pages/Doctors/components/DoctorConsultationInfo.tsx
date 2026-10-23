@@ -7,6 +7,10 @@ type DoctorConsultationInfoProps = {
 
 export function DoctorConsultationInfo({ consultationInfo }: DoctorConsultationInfoProps) {
   const shouldReduceMotion = useReducedMotion();
+  // A directory doctor carries no mock disclaimer; only the hand-authored demo
+  // profile does. The heading follows suit so a real listing is never labelled
+  // "Mock".
+  const isDemoProfile = Boolean(consultationInfo.mockDisclaimer);
 
   return (
     <motion.section
@@ -18,7 +22,9 @@ export function DoctorConsultationInfo({ consultationInfo }: DoctorConsultationI
       <div className="space-y-5">
         <div>
           <p className="text-sm uppercase tracking-[0.28em] text-brand-200">Consultation info</p>
-          <h2 className="mt-3 text-2xl font-semibold text-white">Mock consultation details</h2>
+          <h2 className="mt-3 text-2xl font-semibold text-white">
+            {isDemoProfile ? 'Mock consultation details' : 'Published consultation details'}
+          </h2>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -30,13 +36,22 @@ export function DoctorConsultationInfo({ consultationInfo }: DoctorConsultationI
           <InfoCell label="Location" value={consultationInfo.location} />
         </div>
 
-        <p className="text-xs text-ink-500">{consultationInfo.mockDisclaimer}</p>
+        {consultationInfo.mockDisclaimer ? (
+          <p className="text-xs text-ink-500">{consultationInfo.mockDisclaimer}</p>
+        ) : (
+          <p className="text-xs text-ink-500">
+            Only fields published by the facility are shown. A blank field means the source did not publish it.
+          </p>
+        )}
       </div>
     </motion.section>
   );
 }
 
 function InfoCell({ label, value }: { label: string; value: string }) {
+  // A field the source did not publish is omitted rather than rendered as a
+  // blank cell, so the grid only shows real, attributable values.
+  if (!value?.trim()) return null;
   return (
     <div className="rounded-[1.5rem] border border-white/10 bg-slate-950/80 p-4">
       <p className="text-sm uppercase tracking-[0.24em] text-ink-400">{label}</p>

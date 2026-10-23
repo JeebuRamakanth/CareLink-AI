@@ -267,6 +267,15 @@ select harness.ok(
   (select count(*) >= 1 from public.carelink_admin_data_quality() where issue_kind = 'orphaned_review'),
   '200: data quality flags orphaned reviews'
 );
+-- Regression guard: the report row cap must never cut off a whole issue
+-- category. With the corridor directory in place, the unverified/missing
+-- categories alone exceed 200 rows; a cap at or below that silently hid the
+-- later orphaned_review flags. The cap must exceed the number of flagged rows.
+select harness.ok(
+  (select count(*) from public.carelink_admin_data_quality())
+    < (select (regexp_match(pg_get_functiondef('public.carelink_admin_data_quality()'::regprocedure), 'limit\s+(\d+)'))[1]::int),
+  '200: data quality row cap cannot truncate an issue category'
+);
 -- Nothing was deleted.
 select harness.ok(
   (select count(*) >= 2 from public.hospitals where name = 'Step16 City Hospital'),

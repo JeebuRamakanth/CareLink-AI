@@ -80,12 +80,21 @@ export function AppointmentsPage() {
           onTabChange={setActiveTab}
           searchValue={searchQuery}
           onSearchChange={setSearchQuery}
+          appointmentCount={appointments.length}
         />
       </motion.div>
 
       {!backendConfigured ? (
         <div role="status" className="mt-6 rounded-[1.5rem] border border-amber-400/25 bg-amber-500/10 px-5 py-3.5 text-sm text-amber-100">
-          No appointment backend is configured. New bookings are saved locally as clearly-labelled demo data and are NOT sent to any facility. Configure Supabase to persist real appointment requests.
+          <p className="font-semibold">Appointment requests are not being sent to a facility.</p>
+          <p className="mt-1">
+            No Supabase backend is configured, so a submitted request is kept only in this browser and is clearly
+            labelled demo data — it is never transmitted. To enable real, persisted requests, set
+            <code className="mx-1 rounded bg-black/30 px-1.5 py-0.5">VITE_SUPABASE_URL</code> and
+            <code className="mx-1 rounded bg-black/30 px-1.5 py-0.5">VITE_SUPABASE_ANON_KEY</code>, then apply the
+            migrations in <code className="mx-1 rounded bg-black/30 px-1.5 py-0.5">supabase/migrations/</code> (see
+            <code className="mx-1 rounded bg-black/30 px-1.5 py-0.5">npm run db:bundle</code>).
+          </p>
         </div>
       ) : null}
 

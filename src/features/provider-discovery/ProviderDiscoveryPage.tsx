@@ -92,7 +92,7 @@ export function ProviderDiscoveryPage({ kind }: ProviderDiscoveryPageProps) {
           <>
             <div className="rounded-[1.25rem] border border-white/10 bg-white/5 px-4 py-3 text-sm text-ink-300">
               <span className="font-semibold text-white">{items.length} results</span>
-              {' '}available — sourced from the configured data foundation;the UI never labels demo data as live.
+              {' '}from the configured provider sources. Each result is labelled with its own source and verification status.
             </div>
             <div className="grid gap-4 xl:grid-cols-2">
               {items.map((provider) => (
