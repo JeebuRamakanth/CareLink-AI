@@ -18,9 +18,7 @@ import type {
   MedicalReportValue,
 } from './agentTypes';
 import {
-  agentLabRecommendations,
   agentMedicineResults,
-  agentPharmacyRecommendations,
   agentRecoverySeed,
 } from './mockData';
 import {
@@ -29,6 +27,8 @@ import {
   findDirectoryHospitalsBySpecialty,
   getDirectoryDoctors,
   getDirectoryHospitals,
+  getDirectoryLabs,
+  getDirectoryPharmacies,
 } from './directoryBridge';
 
 const DISCLAIMER_MEDICAL =
@@ -131,28 +131,41 @@ function buildDoctorResponse(classification: IntentClassification): AgentRespons
 }
 
 function buildPharmacyResponse(): AgentResponse {
+  // REAL sourced corridor pharmacy directory. The cache is primed by AgentContext
+  // before every message; an unprimed cache yields an EMPTY list (honest loading
+  // state), never the legacy fabricated US demo pharmacies.
+  const pharmacies = getDirectoryPharmacies();
   return {
     kind: 'pharmacy',
     title: 'Pharmacies near you',
-    explanation: 'Nearby pharmacies from the CareLink network.',
+    explanation: pharmacies.length > 0
+      ? 'Pharmacies from the sourced corridor directory. Medicine stock is not connected — confirm availability with the pharmacy.'
+      : 'The sourced pharmacy directory is still loading. Try again in a moment.',
     meta: {
-      confidence: 'medium',
+      confidence: pharmacies.length > 0 ? 'medium' : 'low',
       urgency: 'routine',
-      disclaimer: 'Stock availability shown is a placeholder — confirm directly with the pharmacy before visiting.',
+      disclaimer: 'Medicine stock is not connected — confirm availability directly with the pharmacy before visiting.',
     },
     suggestedReplies: ['Find a hospital', 'Upload a prescription', 'Find a doctor'],
-    data: agentPharmacyRecommendations,
+    data: pharmacies,
   };
 }
 
 function buildLabResponse(): AgentResponse {
+  const labs = getDirectoryLabs();
   return {
     kind: 'lab',
     title: 'Diagnostic & lab centers',
-    explanation: 'Diagnostic and lab centers from the CareLink network. Home collection is indicated where available.',
-    meta: { confidence: 'medium', urgency: 'routine', disclaimer: 'Test availability is indicative — confirm directly with the lab.' },
+    explanation: labs.length > 0
+      ? 'Laboratories from the sourced corridor directory. Test menus and home collection are shown only when the source published them.'
+      : 'The sourced laboratory directory is still loading. Try again in a moment.',
+    meta: {
+      confidence: labs.length > 0 ? 'medium' : 'low',
+      urgency: 'routine',
+      disclaimer: 'Test availability is not published for every facility — confirm directly with the lab.',
+    },
     suggestedReplies: ['Upload a lab report', 'Find a doctor', 'What should I do next?'],
-    data: agentLabRecommendations,
+    data: labs,
   };
 }
 

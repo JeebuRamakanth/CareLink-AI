@@ -60,6 +60,7 @@ import {
 import { runAITurn, type AIEngineResult } from './ai/aiEngine';
 import { inputSafetyFloor } from './ai/safetyLayer';
 import { getBloodCentres } from '../../../services/bloodCentreService';
+import { getPharmacyRecommendations, getLaboratoryRecommendations } from './pharmacyRecommendations';
 import { haversineKm, estimateDriveMinutes } from '../../../lib/location';
 import {
   filterDoctorsBySpecialty,
@@ -418,39 +419,80 @@ async function buildDoctorResult(entities: string[], _adapters: AgentAdapters, c
 async function buildPharmacyResult(adapters: AgentAdapters, context?: ConversationContext, medicine?: string, patient?: PatientPoint | null): Promise<AgentResult> {
   const input = rankInput('routine', undefined, context);
   input.specialty = medicine;
-  const ranked = rankPharmacies(
-    await adapters.pharmacies.search(medicine ?? '', { activeProfileId: 'self', profile: { id: 'self', label: 'Self', relation: 'self', contextSummary: '', contextTags: [] } }),
-    input
-  ).slice(0, 4);
-  const { results: pharmacies } = localizePharmacies(ranked, patient ?? null, !isAnyProviderReal());
+  // REAL sourced pharmacy directory (corridor-wide), never the legacy fabricated
+  // US demo set. The adapters path is retained only for a configured live
+  // provider; the bundled directory is the truthful default.
+  const realPharmacies = await getPharmacyRecommendations(
+    patient && typeof patient.lat === 'number' && typeof patient.lng === 'number'
+      ? { lat: patient.lat, lng: patient.lng }
+      : null,
+    6,
+  );
+  const usingReal = realPharmacies.length > 0;
+  const source = usingReal
+    ? realPharmacies
+    : await adapters.pharmacies.search(medicine ?? '', { activeProfileId: 'self', profile: { id: 'self', label: 'Self', relation: 'self', contextSummary: '', contextTags: [] } });
+  const ranked = rankPharmacies(source, input).slice(0, 4);
+  const { results: pharmacies } = usingReal
+    ? { results: ranked }
+    : localizePharmacies(ranked, patient ?? null, !isAnyProviderReal());
   return emptyResult('pharmacy', {
     summary: medicine ? `Pharmacies for ${medicine}` : 'Pharmacies near you',
-    explanation: 'Nearby pharmacies from the CareLink network, ranked by distance, open status and estimated cost.',
+    explanation: usingReal
+      ? 'Pharmacies from the sourced corridor directory, ranked by distance from your location. Medicine stock is not connected — confirm availability with the pharmacy.'
+      : 'Nearby pharmacies from the CareLink network, ranked by distance, open status and estimated cost.',
     urgency: 'routine',
-    meta: { confidence: 'medium', urgency: 'routine', tier: 'next-action', disclaimer: 'Stock availability shown is a placeholder — confirm directly with the pharmacy before visiting.' },
+    meta: {
+      confidence: pharmacies.length > 0 ? 'medium' : 'low',
+      urgency: 'routine',
+      tier: 'next-action',
+      disclaimer: 'Medicine stock is not connected — confirm availability directly with the pharmacy before visiting.',
+    },
     recommendedNextSteps: ['Call ahead to confirm the medicine is in stock before you travel.'],
     pharmacies,
     dataSource: dataSourceFor(),
-    isDemoData: !isAnyProviderReal(),
-    sources: [isAnyProviderReal() ? 'CareLink pharmacy network' : 'CareLink pharmacy network (mock)'],
+    isDemoData: !usingReal && !isAnyProviderReal(),
+    sources: [usingReal
+      ? 'Sourced corridor pharmacy directory (OpenStreetMap, ODbL)'
+      : (isAnyProviderReal() ? 'CareLink pharmacy network' : 'CareLink pharmacy network (mock)')],
     suggestedReplies: ['Find a hospital', 'Upload a prescription', 'Find a doctor'],
   });
 }
 
-function buildLabResult(context?: ConversationContext, patient?: PatientPoint | null): AgentResult {
+async function buildLabResult(context?: ConversationContext, patient?: PatientPoint | null): Promise<AgentResult> {
   const input = rankInput('routine', undefined, context);
-  const ranked = rankLabs(labRecommendations, input).slice(0, 4);
-  const { results: labs } = localizeLabs(ranked, patient ?? null, !isAnyProviderReal());
+  // REAL sourced laboratory directory. Falls back to the mock set only when the
+  // sourced directory has no records at all (it never silently mixes the two).
+  const realLabs = await getLaboratoryRecommendations(
+    patient && typeof patient.lat === 'number' && typeof patient.lng === 'number'
+      ? { lat: patient.lat, lng: patient.lng }
+      : null,
+    6,
+  );
+  const usingReal = realLabs.length > 0;
+  const ranked = rankLabs(usingReal ? realLabs : labRecommendations, input).slice(0, 4);
+  const { results: labs } = usingReal
+    ? { results: ranked }
+    : localizeLabs(ranked, patient ?? null, !isAnyProviderReal());
   return emptyResult('lab', {
     summary: 'Diagnostic & lab centers',
-    explanation: 'Diagnostic and lab centers from the CareLink network, ranked by distance, home collection and relevance. Home collection is indicated where available.',
+    explanation: usingReal
+      ? 'Laboratories from the sourced corridor directory, ranked by distance. Test menus and home collection are shown only when the source published them.'
+      : 'Diagnostic and lab centers from the CareLink network, ranked by distance, home collection and relevance. Home collection is indicated where available.',
     urgency: 'routine',
-    meta: { confidence: 'medium', urgency: 'routine', tier: 'next-action', disclaimer: 'Test availability is indicative — confirm directly with the lab.' },
+    meta: {
+      confidence: labs.length > 0 ? 'medium' : 'low',
+      urgency: 'routine',
+      tier: 'next-action',
+      disclaimer: 'Test availability is not published for every facility — confirm directly with the lab.',
+    },
     recommendedNextSteps: ['Choose a lab and call to confirm test availability.'],
     labs,
     dataSource: dataSourceFor(),
-    isDemoData: !isAnyProviderReal(),
-    sources: [isAnyProviderReal() ? 'CareLink lab network' : 'CareLink lab network (mock)'],
+    isDemoData: !usingReal && !isAnyProviderReal(),
+    sources: [usingReal
+      ? 'Sourced corridor laboratory directory (OpenStreetMap, ODbL)'
+      : (isAnyProviderReal() ? 'CareLink lab network' : 'CareLink lab network (mock)')],
     suggestedReplies: ['Upload a lab report', 'Find a doctor', 'What should I do next?'],
   });
 }
@@ -888,7 +930,7 @@ export function createAgentOrchestrator(adapters: AgentAdapters = resolvedAdapte
         result = await buildPharmacyResult(adapters, priorContext, classification.entities.find((e) => /metformin|paracetamol|amoxicillin/i.test(e)), patient);
         break;
       case 'lab':
-        result = buildLabResult(priorContext, patient);
+        result = await buildLabResult(priorContext, patient);
         break;
       case 'blood':
         result = await buildBloodCentreResult(patient);

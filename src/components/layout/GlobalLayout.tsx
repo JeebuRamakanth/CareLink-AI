@@ -3,20 +3,12 @@ import { NavLink, Link } from 'react-router-dom';
 import { LayoutContainer } from './LayoutContainer';
 import { PageTransition } from './PageTransition';
 import { ScrollToTop } from './ScrollToTop';
+import { NavDrawer } from './NavDrawer';
+import { primaryNavItems } from './navigationData';
 import type { ReactNode } from 'react';
 import { ROUTES } from '../../routes/routeConstants';
 import { useOptionalAuth } from '../../contexts/AuthContext';
 import { NotificationBell } from '../notifications/NotificationBell';
-
-const navItems = [
-  { label: 'Home', href: ROUTES.home },
-  { label: 'Hospitals', href: ROUTES.hospitals },
-  { label: 'Doctors', href: ROUTES.doctors },
-  { label: 'Blood Banks', href: ROUTES.bloodBanks },
-  { label: 'Reviews', href: ROUTES.reviews },
-  { label: 'Appointments', href: ROUTES.appointments },
-  { label: 'Documents', href: ROUTES.documents }
-];
 
 const footerGroups: { heading: string; links: { label: string; href: string }[] }[] = [
   {
@@ -101,23 +93,26 @@ export function GlobalLayout({ children, activePage = 'Home' }: GlobalLayoutProp
       ) : null}
       <header className={['sticky top-0 z-50 border-b border-white/10 backdrop-blur-xl transition-all duration-300', scrolled ? 'bg-slate-950/70 shadow-[0_10px_40px_-24px_rgba(2,6,23,0.64)]' : 'bg-slate-950/55'].join(' ')}>
         <LayoutContainer>
-          <div className="flex h-[80px] items-center justify-between px-0 sm:h-[72px] sm:px-0 md:h-[80px] lg:h-[80px]">
-            <Link to={ROUTES.home} className="group flex items-center gap-3 rounded-full px-1 py-1 transition-transform duration-200 hover:scale-[1.01]" aria-label="CareLink.AI home">
-              <div className="relative flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/10 text-sm font-semibold text-white">
+          <div className="flex h-[72px] items-center justify-between gap-3 sm:h-[76px]">
+            {/* Brand — always visible so the identity survives every layout. */}
+            <Link to={ROUTES.home} className="group flex min-w-0 items-center gap-3 rounded-full px-1 py-1 transition-transform duration-200 hover:scale-[1.01]" aria-label="CareLink.AI home">
+              <div className="relative flex size-10 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/10 text-sm font-semibold text-white">
                 <span className="absolute inset-0 rounded-full bg-gradient-to-br from-brand-400/20 to-accent-400/15" />
                 <span className="relative">C</span>
               </div>
-              <div className="leading-none">
-                <p className="text-[0.95rem] font-semibold tracking-[0.24em] text-white uppercase">CareLink.AI</p>
+              <div className="min-w-0 leading-none">
+                <p className="truncate text-[0.95rem] font-semibold uppercase tracking-[0.24em] text-white">CareLink.AI</p>
                 <p className="mt-1 text-[0.7rem] font-medium text-brand-200">AI for care</p>
               </div>
             </Link>
 
+            {/* Wide-screen rail — the highest-frequency destinations only, so the
+                bar never crowds. Everything else lives in the drawer. */}
             <nav className="hidden items-center gap-1 xl:flex" aria-label="Primary navigation">
-              {navItems.map((item) => (
+              {primaryNavItems.map((item) => (
                 <NavLink
                   key={item.label}
-                  to={item.href}
+                  to={item.to}
                   className={({ isActive }: { isActive: boolean }) => ['group relative rounded-full px-3 py-2 text-[0.92rem] font-medium tracking-[0.02em] transition-all duration-200', isActive ? 'text-white' : 'text-ink-300 hover:text-white'].join(' ')}
                 >
                   {({ isActive }: { isActive: boolean }) => (
@@ -130,108 +125,59 @@ export function GlobalLayout({ children, activePage = 'Home' }: GlobalLayoutProp
               ))}
             </nav>
 
-            <div className="hidden items-center gap-2 xl:flex">
-              {auth.user ? (
-                <>
-                  <Link to={ROUTES.profile} className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-[0.92rem] font-medium text-ink-200 transition-all duration-200 hover:bg-white/10 hover:text-white">
-                    {auth.user.email ? auth.user.email.split('@')[0] : 'Account'}
-                  </Link>
-                  <Link to={ROUTES.profile} className="flex items-center gap-2 rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-4 py-2 text-[0.92rem] font-semibold text-white transition-all duration-200 hover:-translate-y-0.5">
-                    Profile
-                  </Link>
-                  {isAdmin ? (
-                    <Link to={ROUTES.admin} className="flex items-center gap-2 rounded-full border border-brand-400/30 bg-white/5 px-4 py-2 text-[0.92rem] font-semibold text-brand-100 transition-all duration-200 hover:bg-white/10 hover:text-white">
-                      <span className="inline-flex h-1.5 w-1.5 rounded-full bg-brand-300" aria-hidden />
-                      Console
-                    </Link>
-                  ) : null}
-                  <NotificationBell />
-                </>
-              ) : (
-                <>
-                  <Link to={ROUTES.login} className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-[0.92rem] font-medium text-ink-200 transition-all duration-200 hover:bg-white/10 hover:text-white">Login</Link>
-                  <Link to={ROUTES.register} className="rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-4 py-2 text-[0.92rem] font-semibold text-white transition-all duration-200 hover:-translate-y-0.5">Register</Link>
-                </>
-              )}
-              <Link to={ROUTES.ai} className="flex items-center gap-2 rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-4 py-2 text-[0.92rem] font-semibold text-white shadow-[0_16px_40px_-20px_rgba(77,132,255,0.8)] transition-all duration-200 hover:-translate-y-0.5">
-                <span className="inline-flex h-2.5 w-2.5 animate-pulse rounded-full bg-white" />
+            <div className="flex shrink-0 items-center gap-2">
+              <Link to={ROUTES.ai} className="hidden items-center gap-2 rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-4 py-2 text-[0.92rem] font-semibold text-white shadow-[0_16px_40px_-20px_rgba(77,132,255,0.8)] transition-all duration-200 hover:-translate-y-0.5 sm:flex">
+                <span className="inline-flex size-2.5 animate-pulse rounded-full bg-white" />
                 Ask CareLink AI
               </Link>
-            </div>
 
-            <button
-              type="button"
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition-all duration-200 hover:bg-white/15 xl:hidden"
-              onClick={() => setMobileMenuOpen((prev) => !prev)}
-              aria-label="Toggle navigation menu"
-              aria-expanded={mobileMenuOpen}
-            >
-              <span className="sr-only">Menu</span>
-              <div className="flex flex-col gap-1.5">
-                <span className="h-0.5 w-5 rounded-full bg-white" />
-                <span className="h-0.5 w-5 rounded-full bg-white" />
-                <span className="h-0.5 w-5 rounded-full bg-white" />
-              </div>
-            </button>
-          </div>
-        </LayoutContainer>
-
-        {mobileMenuOpen ? (
-          <div className="border-t border-white/10 bg-slate-950/85 backdrop-blur-xl xl:hidden">
-            <LayoutContainer className="py-4">
-              <nav className="flex flex-col gap-2" aria-label="Mobile navigation">
-                <NavLink
-                  to={ROUTES.ai}
-                  className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-brand-500 to-accent-500 px-4 py-3 text-sm font-semibold text-white transition-all duration-200"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <span className="inline-flex h-2.5 w-2.5 animate-pulse rounded-full bg-white" />
-                  Ask CareLink AI
-                </NavLink>
-                {navItems.map((item) => (
-                  <NavLink
-                    key={item.label}
-                    to={item.href}
-                    className={({ isActive }: { isActive: boolean }) => ['rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-ink-200 transition-all duration-200 hover:bg-white/10 hover:text-white', isActive ? 'border-brand-400/30 bg-white/10 text-white' : ''].join(' ')}
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    {item.label}
-                  </NavLink>
-                ))}
+              {/* Account controls collapse into the drawer below xl so the bar
+                  cannot overlap at 768–1279 px. */}
+              <div className="hidden items-center gap-2 xl:flex">
                 {auth.user ? (
                   <>
-                    <NavLink to={ROUTES.profile} className="rounded-2xl border border-brand-400/30 bg-white/10 px-4 py-3 text-sm font-medium text-white" onClick={() => setMobileMenuOpen(false)}>
-                      {auth.user.email ? auth.user.email : 'Profile'}
-                    </NavLink>
+                    <Link to={ROUTES.profile} className="flex items-center gap-2 rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-4 py-2 text-[0.92rem] font-semibold text-white transition-all duration-200 hover:-translate-y-0.5">
+                      Profile
+                    </Link>
                     {isAdmin ? (
-                      <NavLink to={ROUTES.admin} className="rounded-2xl border border-brand-400/30 bg-white/10 px-4 py-3 text-sm font-medium text-brand-100" onClick={() => setMobileMenuOpen(false)}>
-                        Admin Console
-                      </NavLink>
+                      <Link to={ROUTES.admin} className="flex items-center gap-2 rounded-full border border-brand-400/30 bg-white/5 px-4 py-2 text-[0.92rem] font-semibold text-brand-100 transition-all duration-200 hover:bg-white/10 hover:text-white">
+                        <span className="inline-flex size-1.5 rounded-full bg-brand-300" aria-hidden />
+                        Console
+                      </Link>
                     ) : null}
+                    <NotificationBell />
                   </>
                 ) : (
-                  <div className="mt-2 flex gap-2">
-                    <Link
-                      to={ROUTES.login}
-                      onClick={() => setMobileMenuOpen(false)}
-                      className="flex-1 rounded-2xl border border-white/10 bg-white/5 py-3 text-center text-sm font-medium text-ink-200 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/50"
-                    >
-                      Login
-                    </Link>
-                    <Link
-                      to={ROUTES.register}
-                      onClick={() => setMobileMenuOpen(false)}
-                      className="flex-1 rounded-2xl bg-gradient-to-r from-brand-500 to-accent-500 py-3 text-center text-sm font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/50"
-                    >
-                      Register
-                    </Link>
-                  </div>
+                  <>
+                    <Link to={ROUTES.login} className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-[0.92rem] font-medium text-ink-200 transition-all duration-200 hover:bg-white/10 hover:text-white">Login</Link>
+                    <Link to={ROUTES.register} className="rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-4 py-2 text-[0.92rem] font-semibold text-white transition-all duration-200 hover:-translate-y-0.5">Register</Link>
+                  </>
                 )}
-              </nav>
-            </LayoutContainer>
+              </div>
+
+              {/* Hamburger — the single entry point to the full navigation map. */}
+              <button
+                type="button"
+                className="flex size-10 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition-all duration-200 hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/50"
+                onClick={() => setMobileMenuOpen(true)}
+                aria-label="Open navigation menu"
+                aria-expanded={mobileMenuOpen}
+                aria-controls="site-navigation-drawer"
+              >
+                <span className="flex flex-col gap-[5px]" aria-hidden>
+                  <span className="h-0.5 w-5 rounded-full bg-white" />
+                  <span className="h-0.5 w-5 rounded-full bg-white" />
+                  <span className="h-0.5 w-5 rounded-full bg-white" />
+                </span>
+              </button>
+            </div>
           </div>
-        ) : null}
+        </LayoutContainer>
       </header>
+
+      <div id="site-navigation-drawer">
+        <NavDrawer open={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
+      </div>
 
       <PageTransition keyName={activePage}>
         <main id="main-content" className="pb-16">

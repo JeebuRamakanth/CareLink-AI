@@ -341,3 +341,71 @@ export interface BloodDonor extends BaseEntity {
   medical_eligibility: boolean;
   preferred_contact: 'sms' | 'email' | 'call';
 }
+
+/**
+ * A pharmacy in the sourced corridor directory.
+ *
+ * Field presence is strictly source-driven: a field a source did not publish is
+ * absent rather than guessed. `stock_source` is `'not_integrated'` for every
+ * record because no live inventory feed is connected — a pharmacy's existence
+ * never implies a medicine is in stock.
+ */
+export interface Pharmacy {
+  id: string;
+  slug: string;
+  name: string;
+  address: string;
+  locality: string;
+  district?: string;
+  pincode?: string;
+  state: string;
+  country: string;
+  latitude?: number;
+  longitude?: number;
+  /** Public phone, only when a source published one. */
+  phone?: string;
+  /** Published opening hours string (e.g. OSM `opening_hours`), verbatim. */
+  opening_hours?: string;
+  /** Chain/brand name when the source identifies one (e.g. 'Apollo Pharmacy'). */
+  brand?: string;
+  ownership?: 'Government' | 'Private' | 'Charitable';
+  /** Operational status only when a source states it. */
+  operational_status?: string;
+  /** Live medicine inventory is never assumed; see `stock_checked_at`. */
+  stock_source?: 'live' | 'not_integrated';
+  stock_checked_at?: string;
+  provenance?: DataProvenance;
+  source_label?: string;
+  last_imported_at?: string;
+  last_checked_at?: string;
+  is_verified?: boolean;
+}
+
+/**
+ * A laboratory in the sourced corridor directory. Same honesty rules as
+ * `Pharmacy`: tests, prices and opening hours appear only when published.
+ */
+export interface Laboratory {
+  id: string;
+  slug: string;
+  name: string;
+  address: string;
+  locality: string;
+  district?: string;
+  pincode?: string;
+  state: string;
+  country: string;
+  latitude?: number;
+  longitude?: number;
+  phone?: string;
+  opening_hours?: string;
+  ownership?: 'Government' | 'Private' | 'Charitable';
+  /** Tests are listed only when a source publishes them. */
+  tests?: string[];
+  home_collection?: boolean;
+  provenance?: DataProvenance;
+  source_label?: string;
+  last_imported_at?: string;
+  last_checked_at?: string;
+  is_verified?: boolean;
+}

@@ -467,6 +467,88 @@ check(
   'the chatbot must use the same directory data as the app'
 );
 
+/* ---------------------------------------------------------------------------
+ * Step 27 — global navigation, doctors hero, assistant prompts, pharmacy.
+ * ------------------------------------------------------------------------- */
+check(
+  'step27: the header renders a hamburger that opens a real navigation dialog',
+  has('src/components/layout/GlobalLayout.tsx', 'NavDrawer') &&
+    has('src/components/layout/GlobalLayout.tsx', 'Open navigation menu') &&
+    has('src/components/layout/NavDrawer.tsx', 'aria-modal'),
+  'the hamburger must drive an accessible dialog, not a decorative icon'
+);
+check(
+  'step27: the navigation overlay locks scrolling and restores it',
+  has('src/components/layout/NavDrawer.tsx', "document.body.style.overflow = 'hidden'") &&
+    has('src/components/layout/NavDrawer.tsx', "document.body.style.overflow = previousOverflow"),
+  'background scroll must be locked while open and restored on close'
+);
+check(
+  'step27: the navigation overlay closes on Escape, backdrop and selection',
+  has('src/components/layout/NavDrawer.tsx', "event.key === 'Escape'") &&
+    has('src/components/layout/NavDrawer.tsx', 'onClick={onClose}') &&
+    has('src/components/layout/NavDrawer.tsx', 'onClick={onClose}'),
+  'all three dismissal paths are required'
+);
+check(
+  'step27: navigation destinations are centralized and guarded',
+  has('src/components/layout/navigationData.ts', 'requiresAuth') &&
+    has('src/components/layout/navigationData.ts', 'requiresAdmin') &&
+    has('src/components/layout/navigationData.ts', 'ROUTES.pharmacies'),
+  'a link must never dangle or expose an account-only page to a guest'
+);
+check(
+  'step27: the doctors hero no longer renders a right-side search card',
+  !has('src/pages/Doctors/components/Hero.tsx', 'Doctor Name') &&
+    has('src/pages/Doctors/components/Hero.tsx', 'doctor-search-input'),
+  'the hero focuses the real filter input instead of duplicating search'
+);
+check(
+  'step27: the assistant exposes a three-dot quick-prompt menu',
+  has('src/features/health-agent/components/AIChatPage.tsx', 'QuickPromptMenu') &&
+    has('src/features/health-agent/components/AIChatPage.tsx', 'aria-label="Open quick prompts"') &&
+    has('src/features/health-agent/components/AIChatPage.tsx', 'role="menuitem"'),
+  'the prompt menu is separate from the global hamburger'
+);
+check(
+  'step27: quick prompts run the SAME submit pipeline as Send/Enter',
+  has('src/features/health-agent/components/AIChatPage.tsx', 'onPickPrompt={handlePickPrompt}') &&
+    has('src/features/health-agent/components/AIChatPage.tsx', 'void conv.sendMessage(prompt)'),
+  'a prompt must be executed, never merely inserted into the composer'
+);
+check(
+  'step27: the prompt menu is gated on in-flight state, not the empty draft',
+  has('src/features/health-agent/components/AIChatPage.tsx', '<QuickPromptMenu onPick={onPickPrompt} disabled={busy} />'),
+  'an empty composer must not disable the quick prompts'
+);
+check(
+  'step27: pharmacy + lab results come from the sourced directory service',
+  has('src/features/health-agent/services/pharmacyRecommendations.ts', 'getPharmacies') &&
+    has('src/features/health-agent/services/pharmacyRecommendations.ts', 'getLaboratories') &&
+    has('src/features/health-agent/services/agentOrchestrator.ts', 'getPharmacyRecommendations') &&
+    has('src/features/health-agent/services/agentOrchestrator.ts', 'getLaboratoryRecommendations'),
+  'the chatbot must show the same records as the directory pages'
+);
+check(
+  'step27: the legacy workspace reads the same pharmacy/lab directory',
+  has('src/services/agent/directoryBridge.ts', 'getDirectoryPharmacies') &&
+    has('src/services/agent/directoryBridge.ts', 'getDirectoryLabs') &&
+    has('src/services/agent/mockAgentService.ts', 'getDirectoryPharmacies'),
+  'the /agent command center must not fall back to fabricated US demo data'
+);
+check(
+  'step27: medicine stock is never integrated or fabricated',
+  has('src/services/pharmacyService.ts', "return 'not_integrated'") &&
+    has('src/pages/Pharmacies/PharmaciesPage.tsx', 'Live medicine stock is not connected'),
+  'no stock level may ever be displayed'
+);
+check(
+  'step27: pharmacy distance requires real coordinates',
+  has('src/services/pharmacyService.ts', 'pharmacyDistance') &&
+    has('src/services/pharmacyService.ts', 'typeof pharmacy.latitude !== \'number\''),
+  'a missing coordinate must yield null distance, not a fabricated number'
+);
+
 console.log(`\nCareLink wiring audit — ${checks.length} checks`);
 for (const c of checks) {
   console.log(`  ${c.ok ? 'PASS' : 'FAIL'}  ${c.name}`);

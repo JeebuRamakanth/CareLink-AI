@@ -22,6 +22,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const read = (p) => readFileSync(join(root, p), 'utf8');
 
 /** Evaluate a `export const X: T[] = [ ... ];` data module without a TS runtime. */
 function loadArray(relPath, exportName) {
@@ -178,6 +179,88 @@ check(
     return coverage.includes('CORRIDOR_BUFFER_KM')
       && coverage.includes('CORRIDOR_LOCALITIES')
       && coverage.includes('classifyCoverage');
+  })()
+);
+
+// ---------------------------------------------------------------------------
+// Step 27 — sourced pharmacy + laboratory directory integrity.
+// ---------------------------------------------------------------------------
+const pharmacies = read('src/data/pharmacies.ts');
+const laboratories = read('src/data/laboratories.ts');
+const pharmacyReport = (() => {
+  try { return JSON.parse(readFileSync(join(root, 'scripts/directory/last-pharmacy-import-report.json'), 'utf8')); }
+  catch { return null; }
+})();
+
+check(
+  'pharmacy directory is generated and non-empty',
+  pharmacies.includes('GENERATED FILE') && (pharmacies.match(/\n\s{4}id:/g) ?? []).length >= 20,
+  `${(pharmacies.match(/\n\s{4}id:/g) ?? []).length} records`
+);
+
+check(
+  'pharmacy directory preserves OpenStreetMap provenance on every record',
+  (() => {
+    const records = pharmacies.split(/\n  \{\n/).slice(1);
+    return records.length > 0 && records.every((r) => r.includes('openstreetmap.org') && r.includes('OpenStreetMap contributors'));
+  })()
+);
+
+check(
+  'no pharmacy record claims live stock',
+  !pharmacies.includes("stock_source: \"live\"") && pharmacies.includes("stock_source: \"not_integrated\"")
+);
+
+check(
+  'pharmacy directory is corridor-wide (both anchor cities present)',
+  pharmacies.includes('Machilipatnam') && pharmacies.includes('Vijayawada')
+);
+
+check(
+  'pharmacy import report records achieved coverage and duplicates removed',
+  pharmacyReport !== null
+    && pharmacyReport.pharmacies?.written > 0
+    && typeof pharmacyReport.pharmacies?.duplicates_removed === 'number'
+    && pharmacyReport.sources?.[0]?.licence === 'ODbL 1.0'
+);
+
+check(
+  'laboratory directory is generated from the same source',
+  laboratories.includes('GENERATED FILE') && laboratories.includes('OpenStreetMap')
+);
+
+check(
+  'a backend migration exists for the pharmacy/lab directory and is additive',
+  (() => {
+    const migration = read('supabase/migrations/0036_step27_pharmacy_lab_directory.sql');
+    return migration.includes('add column if not exists')
+      && migration.includes('on conflict (id) do nothing')
+      && migration.includes('stock_source')
+      && !/\bdrop table\b/i.test(migration);
+  })()
+);
+
+check(
+  'pharmacy/lab migration has no stock-amount column',
+  (() => {
+    const migration = read('supabase/migrations/0036_step27_pharmacy_lab_directory.sql');
+    return !/units_available|inventory_quantity|stock_level/i.test(migration);
+  })()
+);
+
+check(
+  'pharmacies page consumes the service, not a hardcoded array',
+  (() => {
+    const page = read('src/pages/Pharmacies/PharmaciesPage.tsx');
+    return page.includes('getPharmacies') && !page.includes('pharmaciesData');
+  })()
+);
+
+check(
+  'labs page consumes the service, not a hardcoded array',
+  (() => {
+    const page = read('src/pages/Labs/LabsPage.tsx');
+    return page.includes('getLaboratories') && !page.includes('laboratoriesData');
   })()
 );
 

@@ -83,6 +83,30 @@ check(
   `unregistered: ${danglingPaths.join(', ')}`
 );
 
+// 2b. The global navigation drawer must expose every destination it declares,
+// and every declared destination must resolve to a registered route.
+const navDataSrc = read('src/components/layout/navigationData.ts');
+const declaredNavTargets = [...navDataSrc.matchAll(/to:\s*(?:`\$\{ROUTES\.(\w+)\}([^`]*)`|ROUTES\.(\w+))/g)]
+  .map((m) => (m[1] ?? m[3]) + (m[2] ?? ''));
+const unknownNavKeys = declaredNavTargets.filter((k) => !routeKeys.has(k.split('?')[0]));
+check(
+  'nav: every declared drawer destination resolves to a route key',
+  unknownNavKeys.length === 0,
+  `unknown: ${unknownNavKeys.join(', ')}`
+);
+const navRequired = ['home', 'hospitals', 'doctors', 'pharmacies', 'labs', 'bloodBanks', 'reviews', 'appointments', 'documents', 'ai', 'about', 'help', 'contact', 'login', 'register'];
+const missingNav = navRequired.filter((k) => !declaredNavTargets.includes(k));
+check(
+  'nav: the drawer covers the full product surface',
+  missingNav.length === 0,
+  `missing: ${missingNav.join(', ')}`
+);
+check(
+  'nav: account-only destinations are conditionally rendered',
+  navDataSrc.includes('requiresAuth') && navDataSrc.includes('requiresAdmin'),
+  'a guest must never be offered a guarded page'
+);
+
 // 3. No dead interactive buttons (live <button> without onClick / submit).
 const deadButtons = [];
 for (const f of files) {
