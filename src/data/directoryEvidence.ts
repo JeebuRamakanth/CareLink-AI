@@ -104,9 +104,12 @@ const DEPARTMENT_SEEDS: DepartmentSeed[] = [
     })),
 
   // --- SAVE Multi-Speciality Hospital, Machilipatnam ---
+  // The official services page lists these specialities; each is named there
+  // (e.g. "Maternity & Women's Health" with prenatal/postnatal care, and
+  // "Physiotherapy & Rehabilitation" with physical/occupational therapy).
   ...['ENT', 'Orthopaedics', 'Ophthalmology', 'General Medicine', 'Emergency Medicine',
     'Diagnostic Support', 'General Surgery', 'Cardiology', 'Paediatrics', 'Rehabilitation Medicine',
-    'Pharmacy Services']
+    'Obstetrics & Gynaecology', 'Pharmacy Services']
     .map((name): DepartmentSeed => ({
       hospitalId: '7f100008-0000-0000-0000-000000000008',
       name,

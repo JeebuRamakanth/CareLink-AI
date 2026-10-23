@@ -93,10 +93,17 @@ export function rankHospitals(
 
       const reasons: string[] = [];
       if (rel.matched) reasons.push(`relevant ${input.specialty ?? input.context.specialties[0]} specialists`);
-      reasons.push(`${h.distanceKm.toFixed(1)} km away`);
-      reasons.push(`rated ${h.rating.toFixed(1)}/5`);
+      // Never claim a distance that was not actually computed: the card shows
+      // "Distance unavailable" when the facility has no coordinates, so the
+      // explanation must not contradict it with a fabricated "0.0 km away".
+      if (h.distanceAvailable !== false) reasons.push(`${h.distanceKm.toFixed(1)} km away`);
+      // A 0 rating means "no verified patient ratings yet" — never "rated 0.0/5".
+      if (h.rating > 0) reasons.push(`rated ${h.rating.toFixed(1)}/5`);
+      else reasons.push('no verified ratings yet');
       if (h.hasEmergency) reasons.push('has emergency services');
-      reasons.push(h.isOpen ? 'currently open' : 'currently closed');
+      // Only claim open/closed when real hours exist; otherwise stay silent and
+      // let the card's "Availability unlisted" label speak.
+      if (h.availabilityLabel === undefined) reasons.push(h.isOpen ? 'currently open' : 'currently closed');
 
       const reason: RecommendationReason = {
         recommendationScore: score,

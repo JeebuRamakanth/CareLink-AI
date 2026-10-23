@@ -50,6 +50,7 @@ import {
 import { useHealthAgent } from '../hooks/useHealthAgent';
 import type { HealthAgentStatus } from '../hooks/useHealthAgent';
 import { setPendingHandoff } from '../services/pendingHandoff';
+import { resultProvenance } from '../services/agentOrchestrator';
 import type { AgentAction, AgentLanguage, AgentResult } from '../types';
 
 /**
@@ -182,11 +183,25 @@ function ResultPreview({ result, onReply, onReset }: { result: AgentResult; onRe
           {result.urgency}
         </Badge>
         <span className="text-[0.66rem] font-semibold uppercase tracking-[0.2em] text-ink-400">{result.meta.confidence} confidence</span>
-        {result.isDemoData ? (
-          <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-500/15 px-2 py-0.5 text-[0.62rem] font-semibold uppercase tracking-[0.15em] text-amber-200" title="No external provider configured — results are illustrative demo data.">
-            Demo data
-          </span>
-        ) : null}
+        {(() => {
+          const provenance = resultProvenance(result);
+          if (provenance === 'live') return null;
+          return (
+            <span
+              className={cn(
+                'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[0.62rem] font-semibold uppercase tracking-[0.15em]',
+                provenance === 'sourced_directory'
+                  ? 'border-sky-400/30 bg-sky-500/12 text-sky-200'
+                  : 'border-amber-400/40 bg-amber-500/15 text-amber-200'
+              )}
+              title={provenance === 'sourced_directory'
+                ? 'Bundled source-attributed directory (government/provider records) — no live provider configured.'
+                : 'No external provider configured — these records are illustrative sample data.'}
+            >
+              {provenance === 'sourced_directory' ? 'Sourced directory' : 'Demo data'}
+            </span>
+          );
+        })()}
         {result.meta.disclaimer ? (
           <span className="inline-flex items-center gap-1 text-[0.7rem] text-ink-400">
             <IconShield width={12} height={12} aria-hidden /> Guidance, not a diagnosis

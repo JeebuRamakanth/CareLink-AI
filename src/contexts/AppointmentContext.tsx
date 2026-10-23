@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { mockAppointments } from '../pages/Appointments/data/appointmentsData';
+import { seedAppointments } from '../pages/Appointments/data/appointmentsData';
 import type { AppointmentRecord, AppointmentStatus } from '../pages/Appointments/data/appointmentsData';
 import {
   cancelAppointment as persistCancel,
@@ -7,6 +7,11 @@ import {
   listAppointments,
   rescheduleAppointment as persistReschedule,
 } from '../services/health-data/appointmentsRepository';
+import {
+  cancelAppointmentRequest,
+  listMyAppointmentRequests,
+  type AppointmentRequestRow,
+} from '../services/health-data/appointmentRequestsRepository';
 import { isSupabaseConfigured } from '../services/supabase/client';
 
 const APPOINTMENTS_STORAGE_KEY = 'carelink_ai_appointments';
@@ -24,7 +29,7 @@ const AppointmentContext = createContext<AppointmentContextValue | undefined>(un
 
 export function AppointmentProvider({ children }: { children: React.ReactNode }) {
   const [appointments, setAppointments] = useState<AppointmentRecord[]>(() => {
-    if (typeof window === 'undefined') return mockAppointments;
+    if (typeof window === 'undefined') return seedAppointments;
     try {
       const stored = window.localStorage.getItem(APPOINTMENTS_STORAGE_KEY);
       if (stored) {
@@ -33,7 +38,7 @@ export function AppointmentProvider({ children }: { children: React.ReactNode })
     } catch {
       // ignore parse errors and fall back to mock data
     }
-    return mockAppointments;
+    return seedAppointments;
   });
 
   useEffect(() => {
@@ -47,12 +52,15 @@ export function AppointmentProvider({ children }: { children: React.ReactNode })
 
   const refreshFromBackend = useCallback(async () => {
     if (!isSupabaseConfigured()) return;
-    const rows = await listAppointments();
-    if (!rows || rows.length === 0) return;
+    const [rows, requestRows] = await Promise.all([
+      listAppointments(),
+      listMyAppointmentRequests(),
+    ]);
+    if ((!rows || rows.length === 0) && (!requestRows || requestRows.length === 0)) return;
     setAppointments((current) => {
       const byLocalId = new Map(current.map((a) => [a.dbId ?? a.appointmentId, a]));
       let next = [...current];
-      for (const row of rows) {
+      for (const row of rows ?? []) {
         const existing = byLocalId.get(row.id);
         if (existing) {
           // Keep the local UI shape but refresh status/family linkage from the DB..
@@ -72,6 +80,12 @@ export function AppointmentProvider({ children }: { children: React.ReactNode })
         } else {
           next.unshift(rowToAppointment(row));
         }
+      }
+      // PENDING requests are loaded from their own owner-scoped RPC. They are a
+      // REQUEST awaiting confirmation — never merged into the confirmed list.
+      for (const request of requestRows ?? []) {
+        if (next.some((a) => a.appointmentId === request.id || a.requestKey === request.request_key)) continue;
+        next.unshift(rowToRequestAppointment(request));
       }
       return next;
     });
@@ -152,6 +166,7 @@ export function AppointmentProvider({ children }: { children: React.ReactNode })
         }
       },
       cancelAppointment: (appointmentId: string, reason: string) => {
+        const target = appointments.find((a) => a.appointmentId === appointmentId);
         setAppointments((current) =>
           current.map((appointment) =>
             appointment.appointmentId === appointmentId
@@ -164,11 +179,15 @@ export function AppointmentProvider({ children }: { children: React.ReactNode })
               : appointment
           )
         );
-        if (isSupabaseConfigured()) {
-          const target = appointments.find((a) => a.appointmentId === appointmentId);
-          const dbId = target?.dbId ?? appointmentId;
-          void persistCancel(dbId, reason).catch(() => null);
+        if (!isSupabaseConfigured()) return;
+        // A pending REQUEST is cancelled through its own RPC (owner-scoped,
+        // pending-only); a confirmed appointment uses the appointments repo.
+        if (target?.isRequest) {
+          void cancelAppointmentRequest(target.dbId ?? target.appointmentId, reason).catch(() => null);
+          return;
         }
+        const dbId = target?.dbId ?? appointmentId;
+        void persistCancel(dbId, reason).catch(() => null);
       },
       getAppointmentById: (appointmentId: string) => appointments.find((item) => item.appointmentId === appointmentId),
     }),
@@ -207,6 +226,44 @@ function rowToAppointment(row: NonNullable<Awaited<ReturnType<typeof listAppoint
     hospitalAddress: '',
     doctorLocation: row.location ?? '',
     familyProfileId: row.family_profile_id ?? undefined,
+  };
+}
+
+/**
+ * Convert a persisted appointment REQUEST row into the UI's AppointmentRecord
+ * shape. It stays status `pending` with `isRequest: true` so the dashboard never
+ * presents it as a confirmed hospital appointment.
+ */
+function rowToRequestAppointment(row: AppointmentRequestRow): AppointmentRecord {
+  const doctorName = row.doctor_name ?? 'Requested doctor';
+  return {
+    appointmentId: row.id,
+    dbId: row.id,
+    requestKey: row.request_key,
+    isRequest: row.status === 'pending',
+    familyProfileId: row.family_profile_id ?? undefined,
+    doctorId: row.doctor_id ?? '',
+    doctorName,
+    specialty: row.specialty ?? '',
+    doctorAvatar: doctorName.split(/\s+/).map((s) => s.charAt(0)).join('').slice(0, 2).toUpperCase(),
+    hospitalId: row.hospital_id ?? '',
+    hospitalName: row.hospital_name ?? 'Hospital',
+    patientId: '',
+    patientName: 'Myself',
+    appointmentType: (row.appointment_type as AppointmentRecord['appointmentType']) ?? 'Consultation',
+    date: row.scheduled_date,
+    time: row.scheduled_time,
+    status: (row.status as AppointmentStatus) ?? 'pending',
+    consultationFee: '',
+    bookingTimestamp: row.created_at,
+    bookingDate: row.created_at ? row.created_at.slice(0, 10) : '',
+    notes: row.reason ?? '',
+    location: '',
+    consultationMode: 'In-person',
+    contactPhone: '',
+    contactEmail: '',
+    hospitalAddress: '',
+    doctorLocation: '',
   };
 }
 

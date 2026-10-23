@@ -17,9 +17,11 @@ type AppointmentsFiltersProps = {
   onTabChange: (tab: AppointmentStatus | 'all') => void;
   searchValue: string;
   onSearchChange: (value: string) => void;
+  /** Real number of appointment records the user has (not the number of tabs). */
+  appointmentCount: number;
 };
 
-export function AppointmentsFilters({ activeTab, onTabChange, searchValue, onSearchChange }: AppointmentsFiltersProps) {
+export function AppointmentsFilters({ activeTab, onTabChange, searchValue, onSearchChange, appointmentCount }: AppointmentsFiltersProps) {
   const showTabs = useMemo(() => tabs, []);
 
   return (
@@ -46,7 +48,7 @@ export function AppointmentsFilters({ activeTab, onTabChange, searchValue, onSea
           </label>
           <div className="rounded-[1.5rem] border border-white/10 bg-slate-950/80 p-4 text-sm text-ink-300">
             <p className="font-semibold text-white">Appointment count</p>
-            <p className="mt-2 text-3xl font-semibold text-brand-100">{showTabs.length}</p>
+            <p className="mt-2 text-3xl font-semibold text-brand-100">{appointmentCount}</p>
           </div>
         </div>
       </div>

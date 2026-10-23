@@ -74,7 +74,7 @@ check(
   'directory: hospitals are sourced or no unverified local records are bundled',
   hospitals.length > 0 || (
     hospitalsSource.includes('No independently verified local records')
-    && hospitalServiceSource.includes('discoverMachilipatnamHospitals')
+    && hospitalServiceSource.includes('discoverCorridorHospitals')
     && hospitalServiceSource.includes('fetchRealHospitals')
   )
 );

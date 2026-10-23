@@ -1,7 +1,13 @@
 import type { Hospital } from '../../types';
+import { classifyCoverage, CORRIDOR_BUFFER_KM } from '../../data/coverage';
 
-export const MACHILIPATNAM_CENTER = { latitude: 16.18, longitude: 81.13 };
-export const SEARCH_RADIUS_METERS = 12_000;
+/**
+ * Live discovery is bounded by the SAME corridor boundary the rest of the app
+ * uses (Machilipatnam → Vijayawada, `CORRIDOR_BUFFER_KM`). A single-city radius
+ * used to silently discard every Vijayawada and intermediate-corridor facility
+ * returned by Google Places.
+ */
+export const CORRIDOR_DISCOVERY_BUFFER_KM = CORRIDOR_BUFFER_KM;
 
 export type GooglePlace = {
   id?: string;
@@ -19,17 +25,6 @@ export type GooglePlace = {
   businessStatus?: 'OPERATIONAL' | 'CLOSED_TEMPORARILY' | 'CLOSED_PERMANENTLY';
   attributions?: Array<{ provider?: string; providerUri?: string }>;
 };
-
-function distanceMeters(point: { latitude: number; longitude: number }): number {
-  const radians = (degrees: number) => (degrees * Math.PI) / 180;
-  const lat1 = radians(MACHILIPATNAM_CENTER.latitude);
-  const lat2 = radians(point.latitude);
-  const deltaLat = lat2 - lat1;
-  const deltaLng = radians(point.longitude - MACHILIPATNAM_CENTER.longitude);
-  const a = Math.sin(deltaLat / 2) ** 2
-    + Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLng / 2) ** 2;
-  return 6_371_000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
 
 function classifyPlace(place: GooglePlace): string {
   const rawType = place.primaryType ?? place.types?.find((type) =>
@@ -56,8 +51,14 @@ export function mapGooglePlaceToHospital(place: GooglePlace, checkedAt = new Dat
   const latitude = location?.latitude;
   const longitude = location?.longitude;
   if (!id || !name || !place.formattedAddress || !location
-    || typeof latitude !== 'number' || typeof longitude !== 'number'
-    || distanceMeters({ latitude, longitude }) > SEARCH_RADIUS_METERS) {
+    || typeof latitude !== 'number' || typeof longitude !== 'number') {
+    return null;
+  }
+
+  // Corridor boundary, not a single-city radius: a Places result is kept when it
+  // falls inside the Machilipatnam→Vijayawada corridor. Out-of-area results are
+  // dropped with the shared classifier so app and discovery cannot disagree.
+  if (!classifyCoverage({ latitude, longitude, locality: place.formattedAddress }).inCoverage) {
     return null;
   }
 

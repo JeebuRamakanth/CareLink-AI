@@ -7,14 +7,16 @@ type FilterBarProps = {
   onSearchChange: (value: string) => void;
   onFilterChange: (changes: Partial<DoctorFilterState>) => void;
   onReset: () => void;
+  /** Options derived from the loaded dataset so every value matches real rows. */
+  options?: { specialties: string[]; hospitals: string[]; cities: string[] };
 };
 
-const specialtyOptions = ['Cardiology', 'Neurology', 'Pediatrics', 'Orthopedics', 'OB-GYN', 'Emergency Medicine'];
 const experienceOptions = ['Any', '5+', '10+', '15+'];
 const ratingOptions = ['Any', '3.5+', '4.0+', '4.5+'];
 const availabilityOptions = ['Any', 'available', 'busy', 'limited', 'offline'];
 
-export function FilterBar({ searchValue, filters, onSearchChange, onFilterChange, onReset }: FilterBarProps) {
+export function FilterBar({ searchValue, filters, onSearchChange, onFilterChange, onReset, options }: FilterBarProps) {
+  const specialtyOptions = options?.specialties ?? [];
   return (
     <Section>
       <div className="rounded-[1.4rem] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] p-4 shadow-[0_20px_80px_rgba(0,0,0,0.2)] sm:p-5">

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-22T16:49:46.397Z",
+  "generated_at": "2026-10-23T15:20:39.592Z",
   "coverage_boundary": {
     "corridor": "Machilipatnam → Vijayawada, Andhra Pradesh, India",
     "buffer_km": 25,
@@ -18,8 +18,8 @@
       "coverage": "Government + private hospitals, PHCs, E-UPHCs, TB clinics and PP units across Krishna District",
       "discovered": 103,
       "limitations": [],
-      "imported": 69,
-      "last_successful_sync": "2026-10-22T16:49:46.397Z"
+      "imported": 71,
+      "last_successful_sync": "2026-10-23T15:20:39.592Z"
     },
     {
       "id": "ntr-ap-gov-in",
@@ -29,17 +29,17 @@
       "discovered": 49,
       "limitations": [],
       "imported": 25,
-      "last_successful_sync": "2026-10-22T16:49:46.397Z"
+      "last_successful_sync": "2026-10-23T15:20:39.592Z"
     }
   ],
   "totals": {
     "source_records_discovered": 152,
     "duplicates_removed": 16,
-    "unique_in_coverage": 103,
+    "unique_in_coverage": 105,
     "curated_facilities_merged": 1,
     "curated_facilities_added": 11,
-    "requires_review": 20,
-    "outside_coverage": 24,
+    "requires_review": 12,
+    "outside_coverage": 30,
     "with_coordinates": 1,
     "with_phone": 9,
     "with_website": 5
@@ -48,7 +48,7 @@
     "Assistant Medical Officer of Health office": 1,
     "Urban Primary Health Centre (extended)": 33,
     "Private Hospital": 7,
-    "Primary Health Centre": 43,
+    "Primary Health Centre": 45,
     "District hospital": 1,
     "District Leprosy Office": 1,
     "Private hospital": 1,
@@ -84,6 +84,7 @@
     "Singh Nagar": 1,
     "Varredgudam": 1,
     "Benz Circle": 1,
+    "Atukuru": 1,
     "Bantumilli": 1,
     "Chandrala": 1,
     "Chinaogirala": 1,
@@ -124,6 +125,7 @@
     "Nimmakuru": 1,
     "Pedaoutapalli": 1,
     "Penamaluru": 1,
+    "Sagguru": 1,
     "Thotlavalluru": 1,
     "Unguturu": 1,
     "Velagaleru": 1,
@@ -134,7 +136,7 @@
   },
   "by_district": {
     "NTR": 25,
-    "Krishna": 78
+    "Krishna": 80
   },
   "requires_review": [
     {
@@ -144,19 +146,7 @@
       "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
     },
     {
-      "name": "PHC Atukuru",
-      "district": "Krishna",
-      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
-      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
-    },
-    {
       "name": "PHC Chevendrapalem",
-      "district": "Krishna",
-      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
-      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
-    },
-    {
-      "name": "PHC Gollapalli",
       "district": "Krishna",
       "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
       "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
@@ -186,30 +176,6 @@
       "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
     },
     {
-      "name": "PHC.Kolletikota",
-      "district": "Krishna",
-      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
-      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
-    },
-    {
-      "name": "PHC.Mulalanka",
-      "district": "Krishna",
-      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
-      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
-    },
-    {
-      "name": "PHC.Ramanakkapeta",
-      "district": "Krishna",
-      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
-      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
-    },
-    {
-      "name": "PHC.Sagguru",
-      "district": "Krishna",
-      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
-      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
-    },
-    {
       "name": "PHC.Seetanapalli",
       "district": "Krishna",
       "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
@@ -217,12 +183,6 @@
     },
     {
       "name": "PHC.Telladevarapalli",
-      "district": "Krishna",
-      "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
-      "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
-    },
-    {
-      "name": "PHC.Utukuru",
       "district": "Krishna",
       "reason": "district \"Krishna\" is covered but the locality could not be matched — requires manual review",
       "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
@@ -240,12 +200,6 @@
       "source": "https://krishna.ap.gov.in/public-utility-category/hospitals/"
     },
     {
-      "name": "E-UPHC Mittagudem",
-      "district": "NTR",
-      "reason": "district \"NTR\" is covered but the locality could not be matched — requires manual review",
-      "source": "https://ntr.ap.gov.in/public-utility-category/hospitals/"
-    },
-    {
       "name": "PP.Unit / G.H , Jaggaiahpeta",
       "district": "NTR",
       "reason": "district \"NTR\" is covered but the locality could not be matched — requires manual review",
@@ -261,7 +215,7 @@
   "coverage_methods": {
     "pincode": 43,
     "locality": 33,
-    "geocoded_locality": 27
+    "geocoded_locality": 29
   },
   "known_limitations": [
     "Government directory pages publish name, address, category and pincode only — no phone, coordinates, opening hours or staff lists. Those fields stay absent rather than invented.",

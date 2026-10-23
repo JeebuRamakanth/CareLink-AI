@@ -20,6 +20,7 @@ export function DoctorsPage() {
     resetFilters,
     refresh,
     activeFilterLabels,
+    filterOptions,
   } = useDoctors(initialQuery);
 
   const resultsState = error ? 'error' : loading ? 'loading' : filteredDoctors.length === 0 ? 'empty' : 'success';
@@ -34,6 +35,7 @@ export function DoctorsPage() {
           onSearchChange={setSearchTerm}
           onFilterChange={setFilters}
           onReset={resetFilters}
+          options={filterOptions}
         />
         <ResultsToolbar
           resultCount={filteredDoctors.length}
@@ -44,7 +46,7 @@ export function DoctorsPage() {
         <DoctorResultsSection
           state={resultsState}
           title="Doctor network"
-          description="Discover verified doctors from the CareLink.AI data foundation."
+          description="Doctors listed from the published pages of their own facilities. A listing is not a credential check."
           eyebrow="Results"
           errorTitle="Unable to load doctors"
           errorMessage={error ?? 'Please try again in a moment.'}

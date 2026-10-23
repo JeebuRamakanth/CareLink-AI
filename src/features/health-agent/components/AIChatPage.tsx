@@ -63,6 +63,7 @@ import {
 } from '../utils/helpers';
 import { explainRecommendation } from '../services/recommendationRanking';
 import { hospitalFocusTopic } from '../services/contextManager';
+import { resultProvenance } from '../services/agentOrchestrator';
 import '../../../components/agent/agent.css';
 import type {
   AgentAction,
@@ -217,11 +218,25 @@ function ResultCard({ result, onReply, focusTopic, patientOrigin }: ResultCardPr
           Copy
         </button>
         <span className="text-[0.66rem] font-semibold uppercase tracking-[0.2em] text-ink-400">{result.meta.confidence} confidence</span>
-        {result.dataSource ? (
-          <span className={cn('inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.16em]', result.dataSource === 'real' ? 'border-emerald-400/25 bg-emerald-500/12 text-emerald-200' : 'border-amber-400/25 bg-amber-500/12 text-amber-200')}>
-            {result.dataSource === 'real' ? 'Real data' : 'Demo data'}
-          </span>
-        ) : null}
+        {(() => {
+          const recordProvenance = resultProvenance(result);
+          if (recordProvenance === 'live') return null;
+          return (
+            <span
+              title={recordProvenance === 'sourced_directory'
+                ? 'Bundled source-attributed directory (government/provider records) — no live provider configured.'
+                : 'No external provider configured — these records are illustrative sample data.'}
+              className={cn(
+                'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.16em]',
+                recordProvenance === 'sourced_directory'
+                  ? 'border-sky-400/30 bg-sky-500/12 text-sky-200'
+                  : 'border-amber-400/25 bg-amber-500/12 text-amber-200'
+              )}
+            >
+              {recordProvenance === 'sourced_directory' ? 'Sourced directory' : 'Demo data'}
+            </span>
+          );
+        })()}
         {result.provenance ? (
           <span
             title={`AI source: ${result.provenance.provider} · ${new Date(result.provenance.fetchedAt).toLocaleString()}`}

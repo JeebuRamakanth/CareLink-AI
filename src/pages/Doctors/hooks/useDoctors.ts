@@ -142,6 +142,19 @@ export function useDoctors(initialSearchTerm = '') {
     return labels;
   }, [filters, searchTerm]);
 
+  // Filter options derived from the ACTUAL dataset so every dropdown value
+  // matches at least one listed doctor. A hardcoded list (Cardiology, OB-GYN, …)
+  // offers filters that can never match the sourced directory.
+  const filterOptions = useMemo(() => {
+    const unique = (values: Array<string | undefined>) =>
+      [...new Set(values.filter((v): v is string => Boolean(v && v.trim())))].sort((a, b) => a.localeCompare(b));
+    return {
+      specialties: unique(doctors.map((doctor) => doctor.specialty)),
+      hospitals: unique(doctors.flatMap((doctor) => doctor.hospital_ids)),
+      cities: unique(doctors.map((doctor) => doctor.city)),
+    };
+  }, [doctors]);
+
   return {
     doctors,
     filteredDoctors,
@@ -154,5 +167,6 @@ export function useDoctors(initialSearchTerm = '') {
     resetFilters,
     refresh,
     activeFilterLabels,
+    filterOptions,
   };
 }

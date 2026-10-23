@@ -79,10 +79,10 @@ export function DoctorResultsSection({
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.3rem] border border-white/10 bg-white/5 px-4 py-3 text-sm text-ink-300">
           <div>
             <p className="font-semibold text-white">{resultCount} results available</p>
-            <p className="mt-1 text-ink-400">Doctors are now rendered from the structured CareLink.AI data foundation.</p>
+            <p className="mt-1 text-ink-400">Doctors listed from the published pages of their own facilities.</p>
           </div>
           <div className="rounded-full border border-brand-400/25 bg-brand-400/10 px-3 py-1.5 text-[0.7rem] font-semibold uppercase tracking-[0.24em] text-brand-100">
-            Data driven
+            Source-attributed
           </div>
         </div>
         {children ? (
