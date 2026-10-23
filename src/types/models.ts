@@ -111,6 +111,118 @@ export interface HospitalFilters {
   sort_by?: 'recommended' | 'highest_rated' | 'nearest' | 'twenty_four_hours';
 }
 
+/**
+ * A hospital department/specialty unit published by a facility.
+ *
+ * A department is attached to a hospital ONLY when a facility-specific source
+ * states it (an official department page, a provider service page, or a
+ * government roster). The catalogue of possible department names is not evidence
+ * that a given hospital runs that department.
+ */
+export interface HospitalDepartment {
+  /** Stable id, derived from hospital + department name. */
+  id: string;
+  hospital_id: string;
+  /** Canonical department name from the specialty taxonomy. */
+  name: string;
+  /** Specialty group the department belongs to, e.g. 'Surgery'. */
+  specialty_category?: string;
+  description?: string;
+  services: string[];
+  /** Publicly published department phone, when a source states one. */
+  phone?: string;
+  /** Publicly published floor/location within the facility, when stated. */
+  location_note?: string;
+  /** Publicly published opening hours for the department, when stated. */
+  opening_hours?: string;
+  /**
+   * Whether the facility actually supports requesting an appointment for this
+   * department. Only true when a booking path exists (published slots or an
+   * accepted appointment request).
+   */
+  appointment_capable: boolean;
+  /** 'published' when a facility-specific source names it; 'unverified_suggestion' otherwise. */
+  evidence_status: 'published' | 'unverified_suggestion';
+  provenance?: DataProvenance;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * A doctor↔hospital (and optionally doctor↔department) affiliation.
+ *
+ * Modelled as its own record because one doctor may work at several hospitals
+ * and one hospital may have many doctors; a single `hospital_id` on the doctor
+ * would wrongly prevent legitimate multiple affiliations.
+ */
+export interface DoctorAffiliation {
+  id: string;
+  doctor_id: string;
+  hospital_id: string;
+  /** Department the doctor is affiliated with, when the source states one. */
+  department_name?: string;
+  /** 'current' | 'historical' | 'uncertain' as stated by the source. */
+  status: 'current' | 'historical' | 'uncertain';
+  /** Human-readable role, e.g. 'Chief physician', 'Visiting specialist'. */
+  role?: string;
+  /** Published consultation timing text, verbatim from the source. */
+  schedule_note?: string;
+  provenance?: DataProvenance;
+  last_verified_at?: string;
+}
+
+/**
+ * A blood centre. Kept SEPARATE from a hospital identity: a blood centre is its
+ * own registry record and is linked to a hospital only when a source states the
+ * association.
+ */
+export interface BloodCentre {
+  id: string;
+  slug: string;
+  name: string;
+  /** Associated hospital id, when a source states the association. */
+  hospital_id?: string;
+  address: string;
+  locality: string;
+  district?: string;
+  pincode?: string;
+  state: string;
+  country: string;
+  phone: string;
+  /** Secondary phone, when the source published more than one. */
+  phone_alt?: string;
+  email?: string;
+  website?: string;
+  /** Official registration identifier (e.g. a licence number), when published. */
+  registration_id?: string;
+  ownership?: 'Government' | 'Private' | 'Charitable';
+  category_label?: string;
+  latitude?: number;
+  longitude?: number;
+  /** Operational status only when a source states it. */
+  operational_status?: string;
+  /** Live stock integration state. Never a fabricated stock level. */
+  stock_source?: 'live' | 'not_integrated';
+  stock_checked_at?: string;
+  provenance?: DataProvenance;
+  last_imported_at?: string;
+  last_verified_at?: string;
+  is_verified?: boolean;
+}
+
+/** A corridor locality resolved to real coordinates by the geocoder. */
+export interface GeocodedLocality {
+  locality: string;
+  district: string;
+  latitude: number;
+  longitude: number;
+  corridorDistanceKm: number;
+  inCoverage: boolean;
+  geocodeSource: string;
+  geocodeReference?: string;
+  resolvedName?: string;
+}
+
 export interface Doctor extends BaseEntity {
   status: EntityStatus;
   first_name: string;

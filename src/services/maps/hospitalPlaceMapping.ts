@@ -112,12 +112,11 @@ export function mapGooglePlaceToHospital(place: GooglePlace, checkedAt = new Dat
   };
 }
 
-export function hospitalDirectionsUrl(hospital: Pick<Hospital, 'id' | 'name' | 'address'>): string {
-  const placeId = hospital.id.startsWith('google-')
-    ? `&destination_place_id=${encodeURIComponent(hospital.id.slice('google-'.length))}`
-    : '';
-  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${hospital.name}, ${hospital.address}`)}${placeId}`;
-}
+/**
+ * Directions URLs live in the single tested helper `directionsService.ts`
+ * (Place ID > coordinates > address > locality). This module maps Google Place
+ * payloads onto the domain record only.
+ */
 
 export function hospitalDetailsPath(id: string): string {
   return `/hospitals/${encodeURIComponent(id)}`;

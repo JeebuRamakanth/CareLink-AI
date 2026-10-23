@@ -6,7 +6,8 @@ import { useAppointmentContext } from '../../contexts/AppointmentContext';
 import { useAgent } from '../../contexts/AgentContext';
 import { ReviewComposer } from '../../components/reviews/ReviewComposer';
 import { useOptionalLocationContext } from '../../contexts/LocationContext';
-import { directionsUrl } from '../../services/maps/mapsService';
+import { buildDirectionsUrl, buildPlaceSearchUrl } from '../../services/maps/directionsService';
+
 import type { BookingPatientOption, BookingSelection } from './components/DoctorBookingModal';
 import type { AppointmentType } from '../Appointments/data/appointmentsData';
 import { DoctorHero } from './components/DoctorHero';
@@ -232,7 +233,7 @@ export function DoctorProfilePage() {
 
   return (
     <Container className="py-8 sm:py-10 lg:py-16">
-      <div className="space-y-10" ref={topSectionRef}>
+      <div className="min-w-0 space-y-10" ref={topSectionRef}>
         <DoctorHero doctor={doctor} onBack={() => navigate(-1)} />
         <DoctorQuickActions
           onBookAppointment={() => setIsBookingOpen(true)}
@@ -243,16 +244,21 @@ export function DoctorProfilePage() {
           }}
           onViewHospital={() => navigate(`/hospitals/${doctor.hospitalConnection.id}`)}
           onGetDirections={() => {
-            // Real directions deep-link: exact origin from the live location context
-            // (never fabricated); otherwise a provider destination link.
+            // Real directions deep-link for the doctor's affiliated facility,
+            // routed from the live location when the user granted permission.
             const origin = locationCtx?.location && typeof locationCtx.location.lat === 'number'
-              ? { label: locationCtx.location.label, lat: locationCtx.location.lat, lng: locationCtx.location.lng }
+              ? { label: locationCtx.location.label, latitude: locationCtx.location.lat, longitude: locationCtx.location.lng }
               : undefined;
-            const url = directionsUrl({
-              destination: `${doctor.name}, ${doctor.consultationInfo?.location ?? ''}`,
-              origin,
-              mode: 'driving',
-            });
+            const url = buildDirectionsUrl({
+              name: doctor.hospitalConnection.name || doctor.name,
+              address: doctor.hospitalConnection.address,
+              locality: doctor.hospitalConnection.location,
+            }, { origin, mode: 'driving' })
+              ?? buildPlaceSearchUrl({ name: doctor.hospitalConnection.name || doctor.name, address: doctor.hospitalConnection.address, locality: doctor.hospitalConnection.location });
+            if (!url) {
+              setContactNotice('No published location is available for this doctor’s facility, so directions cannot be opened.');
+              return;
+            }
             if (typeof window !== 'undefined') window.open(url, '_blank', 'noopener,noreferrer');
           }}
           onWriteReview={() => {
@@ -272,8 +278,8 @@ export function DoctorProfilePage() {
           </div>
         ) : null}
 
-        <div className="grid gap-8 xl:grid-cols-[0.92fr_0.78fr] xl:items-start">
-          <div className="space-y-8">
+        <div className="grid min-w-0 grid-cols-1 gap-8 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,0.78fr)] xl:items-start">
+          <div className="min-w-0 space-y-8">
             <DoctorMatchSummary
               matchInfo={
                 doctor.profileMatch ?? {
@@ -307,7 +313,7 @@ export function DoctorProfilePage() {
               onFilterChange={setSelectedReviewFilter}
             />
           </div>
-          <div className="space-y-8">
+          <div className="min-w-0 space-y-8">
             <DoctorAvailability
               slots={doctor.availabilitySlots}
               selectedSlot={selectedSlot}
@@ -319,13 +325,18 @@ export function DoctorProfilePage() {
               onViewHospital={() => navigate(`/hospitals/${doctor.hospitalConnection.id}`)}
               onGetDirections={() => {
                 const origin = locationCtx?.location && typeof locationCtx.location.lat === 'number'
-                  ? { label: locationCtx.location.label, lat: locationCtx.location.lat, lng: locationCtx.location.lng }
+                  ? { label: locationCtx.location.label, latitude: locationCtx.location.lat, longitude: locationCtx.location.lng }
                   : undefined;
-                const url = directionsUrl({
-                  destination: `${doctor.hospitalConnection.name}, ${doctor.hospitalConnection.location}`,
-                  origin,
-                  mode: 'driving',
-                });
+                const url = buildDirectionsUrl({
+                  name: doctor.hospitalConnection.name,
+                  address: doctor.hospitalConnection.address,
+                  locality: doctor.hospitalConnection.location,
+                }, { origin, mode: 'driving' })
+                  ?? buildPlaceSearchUrl({ name: doctor.hospitalConnection.name, address: doctor.hospitalConnection.address, locality: doctor.hospitalConnection.location });
+                if (!url) {
+                  setContactNotice('No published location is available for this facility, so directions cannot be opened.');
+                  return;
+                }
                 if (typeof window !== 'undefined') window.open(url, '_blank', 'noopener,noreferrer');
               }}
             />

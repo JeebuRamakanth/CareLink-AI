@@ -15,6 +15,7 @@
 import type {
   AgentAction,
   AgentIntent,
+  BloodCentreRecommendation,
   AgentOrchestratorRequest,
   AgentOrchestratorResponse,
   AgentResult,
@@ -23,6 +24,7 @@ import type {
   MedicalReport,
   MedicalReportValue,
   PharmacyRecommendation,
+
   UrgencyLevel,
   InformationTier,
 } from '../types';
@@ -57,6 +59,8 @@ import {
 } from './discoveryService';
 import { runAITurn, type AIEngineResult } from './ai/aiEngine';
 import { inputSafetyFloor } from './ai/safetyLayer';
+import { getBloodCentres } from '../../../services/bloodCentreService';
+import { haversineKm, estimateDriveMinutes } from '../../../lib/location';
 import {
   filterDoctorsBySpecialty,
   filterHospitalsBySpecialty,
@@ -75,6 +79,7 @@ const ROUTES = {
   hospitals: '/hospitals',
   doctors: '/doctors',
   appointments: '/appointments',
+  bloodBanks: '/blood-banks',
 } as const;
 
 /**
@@ -260,6 +265,7 @@ const emptyResult = (intent: AgentIntent, overrides: Partial<AgentResult> = {}):
   doctors: [],
   pharmacies: [],
   labs: [],
+  bloodCentres: [],
   medicines: [],
   routes: [],
   appointments: [],
@@ -420,6 +426,63 @@ function buildLabResult(context?: ConversationContext, patient?: PatientPoint | 
     isDemoData: !isAnyProviderReal(),
     sources: [isAnyProviderReal() ? 'CareLink lab network' : 'CareLink lab network (mock)'],
     suggestedReplies: ['Upload a lab report', 'Find a doctor', 'What should I do next?'],
+  });
+}
+
+/**
+ * Blood centres — REAL sourced records from the corridor directory. No stock
+ * level is ever reported: `stockSource` is 'not_integrated' until an authorised
+ * live service exists, so the user is told to confirm with the centre.
+ */
+async function buildBloodCentreResult(patient?: PatientPoint | null): Promise<AgentResult> {
+  const centres = await getBloodCentres();
+  const bloodCentres: BloodCentreRecommendation[] = centres.map((centre) => {
+    const distanceKm = patient && typeof patient.lat === 'number' && typeof patient.lng === 'number'
+      && typeof centre.latitude === 'number' && typeof centre.longitude === 'number'
+      ? haversineKm({ lat: patient.lat, lng: patient.lng }, { lat: centre.latitude, lng: centre.longitude })
+      : null;
+    return {
+      id: centre.id,
+      name: centre.name,
+      address: centre.address,
+      locality: centre.locality,
+      ...(centre.phone ? { phone: centre.phone } : {}),
+      ...(centre.website ? { website: centre.website } : {}),
+      ...(centre.ownership ? { ownership: centre.ownership } : {}),
+      ...(centre.hospital_id ? { hospitalId: centre.hospital_id } : {}),
+      stockSource: centre.stock_source ?? 'not_integrated',
+      ...(distanceKm != null ? {
+        route: {
+          destinationName: centre.name,
+          destinationAddress: centre.address,
+          distanceKm,
+          estimatedTravelTimeMin: estimateDriveMinutes(distanceKm) ?? 0,
+          transportMode: 'driving' as const,
+        },
+      } : {}),
+      rank: { score: 0, reasons: ['Sourced corridor blood centre'] },
+      evidence: 'Directory listing — confirm current availability with the centre.',
+      limitations: ['Live blood-group stock is not integrated.'],
+    } as BloodCentreRecommendation;
+  });
+
+  return emptyResult('blood', {
+    summary: 'Blood centres along the corridor',
+    explanation: 'Sourced blood centres in the Machilipatnam–Vijayawada corridor with their published contact details. Live blood-group stock is not connected, so confirm current availability and donor eligibility directly with the centre.',
+    urgency: 'routine',
+    meta: {
+      confidence: 'medium', urgency: 'routine', tier: 'next-action',
+      disclaimer: 'Blood-group stock is not live. Confirm availability with the centre (or e-RaktKosh) before travelling.',
+    },
+    recommendedNextSteps: ['Call the blood centre to confirm the required group is available.', 'Check e-RaktKosh for the official national stock service.'],
+    bloodCentres,
+    dataSource: 'real',
+    isDemoData: false,
+    sources: ['Indian Red Cross Society blood centre directory', 'CareLink corridor directory'],
+    suggestedReplies: ['Open the blood banks page', 'Find a hospital near me', 'Book an appointment'],
+    actions: [
+      { type: 'view-lab', label: 'Open blood banks page', href: ROUTES.bloodBanks, icon: 'view-lab' },
+    ],
   });
 }
 
@@ -800,6 +863,9 @@ export function createAgentOrchestrator(adapters: AgentAdapters = resolvedAdapte
         break;
       case 'lab':
         result = buildLabResult(priorContext, patient);
+        break;
+      case 'blood':
+        result = await buildBloodCentreResult(patient);
         break;
       case 'medicine':
         result = await buildMedicineResult(request.text, adapters, priorContext, patient);

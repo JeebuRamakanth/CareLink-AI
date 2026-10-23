@@ -64,6 +64,7 @@ export type AgentIntent =
   | 'pharmacy'
   | 'medicine'
   | 'lab'
+  | 'blood'
   | 'report'
   | 'appointment'
   | 'emergency'
@@ -354,6 +355,26 @@ export interface LabRecommendation extends Explainable<{
   rank?: RankedRecommendation;
 }> {}
 
+/**
+ * A real, sourced blood centre from the corridor directory. Live stock is NOT
+ * represented: `stockSource` states whether a live integration exists, so the UI
+ * can never imply a stock level that was not fetched.
+ */
+export interface BloodCentreRecommendation extends Explainable<{
+  id: string;
+  name: string;
+  address: string;
+  locality: string;
+  phone?: string;
+  website?: string;
+  ownership?: string;
+  /** 'live' only when an authorised stock service is wired up. */
+  stockSource: 'live' | 'not_integrated';
+  /** Associated hospital id, when a source states the association. */
+  hospitalId?: string;
+  route?: RouteRecommendation;
+}> {}
+
 /* ----------------------------------------------------------------------------
  * Medicine + medical report models (mock, clearly labelled)
  * ------------------------------------------------------------------------- */
@@ -563,6 +584,7 @@ export interface AgentResult {
   doctors: DoctorRecommendation[];
   pharmacies: PharmacyRecommendation[];
   labs: LabRecommendation[];
+  bloodCentres: BloodCentreRecommendation[];
   medicines: MedicineResult[];
   routes: RouteRecommendation[];
   appointments: AppointmentRecommendation[];

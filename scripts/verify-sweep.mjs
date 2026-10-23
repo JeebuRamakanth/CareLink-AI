@@ -16,7 +16,7 @@ import { resolveChrome } from './chromium.mjs';
 const BASE = process.env.BASE_URL || 'http://localhost:12000';
 const PORT = Number(process.env.CDP_PORT || 9334);
 
-const ROUTES = ['/', '/hospitals', '/doctors', '/reviews', '/appointments', '/documents', '/pharmacies', '/labs', '/ai', '/agent', '/about', '/help', '/contact', '/login', '/register'];
+const ROUTES = ['/', '/hospitals', '/hospitals/7f100007-0000-0000-0000-000000000007', '/doctors', '/doctors/doc-sandeep-vemu', '/blood-banks', '/reviews', '/appointments', '/documents', '/pharmacies', '/labs', '/ai', '/agent', '/about', '/help', '/contact', '/login', '/register'];
 const WIDTHS = [320, 375, 768, 1024, 1440];
 
 async function getJson(url) {

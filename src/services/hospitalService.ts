@@ -2,13 +2,30 @@ import { fetchRealHospitalDetail, fetchRealHospitals } from './health-data';
 import { discoverMachilipatnamHospitals, fetchGooglePlaceHospital } from './maps/googlePlacesService';
 import { isSupabaseConfigured } from './supabase/client';
 import { hospitalsData } from '../data/hospitals';
-import { classifyCoverage } from '../data/coverage';
+import { geocodedLocalities } from '../data/geocodedLocalities';
+import { classifyCoverage, type LocalityLookup } from '../data/coverage';
 import type { Hospital, HospitalFilters } from '../types';
 import { env } from '../config';
 import { matchesHospitalSearch } from './hospitalDirectorySearch';
+import { enrichHospital, enrichHospitals } from './providerDirectoryService';
 
 const normalizeText = (value: string): string => value.trim().toLowerCase();
 let directoryNotice: string | null = null;
+
+/**
+ * Locality centres resolved by `scripts/directory/geocode-localities.mjs`, so a
+ * live registry record in a village the allow-list does not name is still
+ * classified against the corridor rather than silently dropped.
+ */
+const geocodedLocalityIndex: ReadonlyMap<string, { latitude: number; longitude: number; inCoverage: boolean }> =
+  new Map(geocodedLocalities.map((entry) => [
+    entry.locality.toLowerCase(),
+    { latitude: entry.latitude, longitude: entry.longitude, inCoverage: entry.inCoverage },
+  ]));
+
+const lookupLocality: LocalityLookup | undefined = geocodedLocalityIndex.size
+  ? (name) => geocodedLocalityIndex.get(name.trim().toLowerCase()) ?? null
+  : undefined;
 
 const sortHospitals = (items: Hospital[], sortBy?: HospitalFilters['sort_by']): Hospital[] => {
   if (!sortBy) {
@@ -48,7 +65,7 @@ function isInCoverage(hospital: Hospital): boolean {
     address: hospital.address,
     district: hospital.district ?? null,
     pincode: hospital.pincode ?? null,
-  }).inCoverage;
+  }, lookupLocality).inCoverage;
 }
 
 /**
@@ -58,7 +75,7 @@ function isInCoverage(hospital: Hospital): boolean {
  * configured.
  */
 export function getBundledHospitals(): Hospital[] {
-  return [...hospitalsData];
+  return enrichHospitals(hospitalsData);
 }
 
 export async function getHospitals(): Promise<Hospital[]> {
@@ -99,17 +116,17 @@ export async function getHospitals(): Promise<Hospital[]> {
   for (const bundled of getBundledHospitals()) {
     if (!byId.has(bundled.id)) byId.set(bundled.id, bundled);
   }
-  return sortHospitals([...byId.values()], 'recommended');
+  return sortHospitals(enrichHospitals([...byId.values()]), 'recommended');
 }
 
 export async function getHospitalById(id: string): Promise<Hospital | null> {
   if (id.startsWith('google-')) return fetchGooglePlaceHospital(id);
   const real = await fetchRealHospitalDetail(id);
-  if (real && isInCoverage(real)) return real;
+  if (real && isInCoverage(real)) return enrichHospital(real);
   // Fall back to the bundled directory so every listed facility has a detail
   // page that resolves (id OR public slug).
   const bundled = hospitalsData.find((h) => h.id === id || h.slug === id);
-  return bundled ?? null;
+  return bundled ? enrichHospital(bundled) : null;
 }
 
 export function getHospitalDirectoryNotice(): string | null {

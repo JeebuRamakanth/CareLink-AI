@@ -12,6 +12,7 @@ const navItems = [
   { label: 'Home', href: ROUTES.home },
   { label: 'Hospitals', href: ROUTES.hospitals },
   { label: 'Doctors', href: ROUTES.doctors },
+  { label: 'Blood Banks', href: ROUTES.bloodBanks },
   { label: 'Reviews', href: ROUTES.reviews },
   { label: 'Appointments', href: ROUTES.appointments },
   { label: 'Documents', href: ROUTES.documents }
@@ -25,6 +26,7 @@ const footerGroups: { heading: string; links: { label: string; href: string }[] 
       { label: 'Doctors', href: ROUTES.doctors },
       { label: 'Pharmacies', href: ROUTES.pharmacies },
       { label: 'Laboratories', href: ROUTES.labs },
+      { label: 'Blood Banks', href: ROUTES.bloodBanks },
       { label: 'Reviews', href: ROUTES.reviews },
       { label: 'Appointments', href: ROUTES.appointments },
       { label: 'Ask CareLink AI', href: ROUTES.ai }

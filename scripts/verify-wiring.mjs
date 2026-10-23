@@ -17,7 +17,7 @@
  * Exits non-zero on any failure. Run: node scripts/verify-wiring.mjs
  */
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -386,6 +386,85 @@ check(
   has('src/main.tsx', 'getConfigNotices()') &&
     has('src/config/diagnostics.ts', 'service_role'),
   'misconfiguration must be surfaced with variable NAMES only'
+);
+
+// 13. Step 25 — departments, doctor affiliations, blood centres, directions.
+check(
+  'step25: departments/affiliations/blood centres migration exists',
+  existsSync(join(root, 'supabase/migrations/0035_step25_departments_affiliations_blood_centres.sql')),
+  'the DB must carry the department/affiliation/blood-centre tables'
+);
+{
+  // Extract the blood_centres DDL and assert it declares NO stock-amount column.
+  // `stock_source` (a state flag) is expected; a `stock`/`units` column is not.
+  const sql = readFileSync(join(root, 'supabase/migrations/0035_step25_departments_affiliations_blood_centres.sql'), 'utf8');
+  const ddl = sql.match(/create table if not exists public\.blood_centres[\s\S]*?\n\);/i)?.[0] ?? '';
+  const hasStockAmountColumn = ddl
+    .split('\n')
+    .some((line) => /^\s*(stock|units|available_units|blood_stock)\s+(text|integer|int|bigint|numeric|jsonb|smallint)/i.test(line));
+  check(
+    'step25: blood_centres has no stock-amount column (stock is never invented)',
+    ddl.length > 0 && !hasStockAmountColumn,
+    'a stock-amount column would let a fabricated stock level be stored'
+  );
+}
+check(
+  'step25: doctor affiliation is its own table (not a doctor.hospital_id)',
+  has('supabase/migrations/0035_step25_departments_affiliations_blood_centres.sql', 'create table if not exists public.doctor_department_affiliations') &&
+    has('src/services/providerDirectoryService.ts', 'getAllAffiliations'),
+  'one doctor may work at several hospitals'
+);
+check(
+  'step25: department UI is wired into the hospital detail page',
+  has('src/pages/Hospitals/HospitalDetailsPage.tsx', '<HospitalDepartments') &&
+    has('src/pages/Hospitals/components/HospitalDepartments.tsx', 'Department information is not available in the current sources'),
+  'a facility with no published roster must say so, not invent departments'
+);
+check(
+  'step25: per-department doctor counts derive from affiliation records',
+  has('src/services/providerDirectoryService.ts', 'getDepartmentDoctorCount') &&
+    has('src/services/providerDirectoryService.ts', 'no_roster_published'),
+  'counts must never be hardcoded in the frontend'
+);
+check(
+  'step25: blood banks page, route and nav link exist',
+  has('src/pages/BloodBanks/BloodBanksPage.tsx', 'BloodBanksPage') &&
+    has('src/routes/routeConstants.ts', "bloodBanks: '/blood-banks'") &&
+    has('src/components/layout/GlobalLayout.tsx', 'ROUTES.bloodBanks'),
+  'the blood centre directory must be reachable'
+);
+check(
+  'step25: live stock is never fabricated',
+  has('src/services/bloodCentreService.ts', 'isBloodStockLive') &&
+    has('src/pages/BloodBanks/BloodBanksPage.tsx', 'e-RaktKosh'),
+  'the UI must point at the official stock service instead of inventing stock'
+);
+check(
+  'step25: every directions action uses the single tested helper',
+  has('src/pages/Hospitals/components/HospitalCard.tsx', 'buildDirectionsUrl') &&
+    has('src/pages/Hospitals/HospitalDetailsPage.tsx', 'buildDirectionsUrl') &&
+    has('src/pages/Doctors/DoctorProfilePage.tsx', 'buildDirectionsUrl') &&
+    has('src/pages/BloodBanks/components/BloodCentreCard.tsx', 'buildDirectionsUrl'),
+  'a card must never route to an unrelated destination'
+);
+check(
+  'step25: directions helper refuses a record with no location evidence',
+  has('src/services/maps/directionsService.ts', 'directionsAvailability') &&
+    has('src/services/maps/directionsService.ts', 'destination_place_id'),
+  'Place ID > coordinates > address > locality, else unavailable'
+);
+check(
+  'step25: geocoded corridor localities are used as coverage evidence',
+  has('src/data/geocodedLocalities.ts', 'geocodedLocalities') &&
+    has('src/data/coverage.ts', 'geocoded_locality') &&
+    has('scripts/directory/geocode-localities.mjs', 'Nominatim'),
+  'an unresolved village locality must be placed from real geocoded evidence'
+);
+check(
+  'step25: chatbot can answer blood-centre questions from real records',
+  has('src/features/health-agent/services/agentOrchestrator.ts', 'buildBloodCentreResult') &&
+    has('src/features/health-agent/services/agentOrchestrator.ts', 'getBloodCentres'),
+  'the chatbot must use the same directory data as the app'
 );
 
 console.log(`\nCareLink wiring audit — ${checks.length} checks`);
