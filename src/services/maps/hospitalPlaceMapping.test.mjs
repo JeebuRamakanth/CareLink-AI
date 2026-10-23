@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import {
   deduplicateGooglePlaces,
   hospitalDetailsPath,
-  hospitalDirectionsUrl,
   mapGooglePlaceToHospital,
 } from './hospitalPlaceMapping.ts';
+import { hospitalDirectionsUrl } from './directionsService.ts';
 
 const machilipatnamPlace = (overrides = {}) => ({
   id: 'ChIJ-machi-001',

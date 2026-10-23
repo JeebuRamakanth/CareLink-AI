@@ -427,6 +427,23 @@ async function main() {
   const { classifyCoverage, CORRIDOR_LOCALITIES } = await import(join(ROOT, 'src', 'data', 'coverage.ts'))
     .catch(() => ({ classifyCoverage: null, CORRIDOR_LOCALITIES: null }));
 
+  // Locality centres resolved by `geocode-localities.mjs`. A locality the
+  // allow-list does not name can still be placed on the map when its REAL
+  // geocoded centre falls inside the corridor buffer.
+  let geocodedIndex = new Map();
+  try {
+    const geoModule = await import(join(ROOT, 'src', 'data', 'geocodedLocalities.ts'));
+    geocodedIndex = new Map(
+      (geoModule.geocodedLocalities ?? []).map((entry) => [
+        entry.locality.toLowerCase(),
+        { latitude: entry.latitude, longitude: entry.longitude, inCoverage: entry.inCoverage },
+      ]),
+    );
+  } catch {
+    // No geocoded evidence yet — the pincode/locality rules still apply.
+  }
+  const lookupLocality = geocodedIndex.size ? (name) => geocodedIndex.get(String(name).toLowerCase()) ?? null : undefined;
+
   const CORRIDOR_LIST = CORRIDOR_LOCALITIES ?? [
     'machilipatnam', 'vijayawada', 'gudivada', 'pedana', 'chilakalapudi', 'vuyyuru', 'kankipadu',
     'penamaluru', 'gannavaram', 'pamidimukkala', 'pamarru', 'tadigadapa', 'poranki', 'kanuru',
@@ -461,7 +478,7 @@ async function main() {
       address: raw.address,
       district: raw.district,
       pincode: raw.pincode,
-    });
+    }, lookupLocality);
     const hospital = buildHospital({
       ...raw,
       id: stableId(raw.sourceId, raw.name, raw.address),

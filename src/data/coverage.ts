@@ -157,7 +157,7 @@ export function distanceToCorridorKm(point: GeoPoint): number {
   return best;
 }
 
-export type CoverageMethod = 'coordinates' | 'pincode' | 'locality' | 'district' | 'outside';
+export type CoverageMethod = 'coordinates' | 'pincode' | 'locality' | 'geocoded_locality' | 'district' | 'outside';
 
 export interface CoverageResult {
   inCoverage: boolean;
@@ -171,19 +171,31 @@ export interface CoverageResult {
 const normalise = (value: string) => value.trim().toLowerCase();
 
 /**
+ * Coordinates resolved by the geocoder for a locality the allow-list does not
+ * name (see src/data/geocodedLocalities.ts). Injected by the caller so this
+ * module stays free of generated-file imports in tests. The lookup returns null
+ * when the locality was never geocoded or geocoded outside the corridor.
+ */
+export type LocalityLookup = (locality: string) => { latitude: number; longitude: number; inCoverage: boolean } | null;
+
+/**
  * Classify a facility against the corridor boundary. Evidence is used in
  * descending order of reliability: coordinates, then a published pincode inside
- * an anchor city, then corridor locality text. District alone is never enough to
- * claim coverage — it only queues the record for manual review.
+ * an anchor city, then corridor locality text, then a geocoded locality centre.
+ * District alone is never enough to claim coverage — it only queues the record
+ * for manual review.
  */
-export function classifyCoverage(input: {
-  latitude?: number | null;
-  longitude?: number | null;
-  locality?: string | null;
-  address?: string | null;
-  district?: string | null;
-  pincode?: string | null;
-}): CoverageResult {
+export function classifyCoverage(
+  input: {
+    latitude?: number | null;
+    longitude?: number | null;
+    locality?: string | null;
+    address?: string | null;
+    district?: string | null;
+    pincode?: string | null;
+  },
+  lookupLocality?: LocalityLookup,
+): CoverageResult {
   const { latitude, longitude } = input;
 
   if (typeof latitude === 'number' && typeof longitude === 'number'
@@ -226,6 +238,33 @@ export function classifyCoverage(input: {
     };
   }
 
+  // A locality the allow-list does not name, but whose REAL geocoded centre was
+  // resolved inside the corridor buffer, is admissible evidence — the locality
+  // is a real place on the route, not a text match.
+  if (lookupLocality) {
+    for (const candidate of candidateLocalities(input)) {
+      const hit = lookupLocality(candidate);
+      if (hit && hit.inCoverage) {
+        return {
+          inCoverage: true,
+          method: 'geocoded_locality',
+          matchedLocality: candidate,
+          corridorDistanceKm: Number(distanceToCorridorKm({ latitude: hit.latitude, longitude: hit.longitude }).toFixed(2)),
+          reason: `locality "${candidate}" geocodes inside the corridor (${hit.latitude}, ${hit.longitude})`,
+        };
+      }
+      if (hit && !hit.inCoverage) {
+        return {
+          inCoverage: false,
+          method: 'outside',
+          matchedLocality: candidate,
+          corridorDistanceKm: Number(distanceToCorridorKm({ latitude: hit.latitude, longitude: hit.longitude }).toFixed(2)),
+          reason: `locality "${candidate}" geocodes ${distanceToCorridorKm({ latitude: hit.latitude, longitude: hit.longitude }).toFixed(1)} km from the corridor`,
+        };
+      }
+    }
+  }
+
   const district = normalise(input.district ?? '');
   if (district && COVERAGE_DISTRICTS.some((d) => normalise(d) === district)) {
     return {
@@ -236,6 +275,28 @@ export function classifyCoverage(input: {
   }
 
   return { inCoverage: false, method: 'outside', reason: 'no coordinate, pincode or corridor locality match' };
+}
+
+/**
+ * Locality names to try against the geocoded index, most specific first. The
+ * locality field is preferred; the trailing components of an address are tried
+ * because a government record often puts the village there.
+ */
+function candidateLocalities(input: { locality?: string | null; address?: string | null }): string[] {
+  const candidates: string[] = [];
+  const push = (value?: string | null) => {
+    const trimmed = (value ?? '').trim();
+    if (trimmed.length >= 3 && !candidates.some((c) => c.toLowerCase() === trimmed.toLowerCase())) {
+      candidates.push(trimmed);
+    }
+  };
+  push(input.locality);
+  for (const part of (input.address ?? '').split(',')) {
+    const trimmed = part.trim();
+    if (/^(krishna|ntr|guntur|andhra pradesh|india|district|mandal)$/i.test(trimmed)) continue;
+    push(trimmed);
+  }
+  return candidates;
 }
 
 /** Human-readable description of the boundary, for docs and the admin report. */

@@ -6,6 +6,7 @@ export const ROUTES = {
   hospitalDetail: '/hospitals/:hospitalId',
   pharmacies: '/pharmacies',
   labs: '/labs',
+  bloodBanks: '/blood-banks',
   doctors: '/doctors',
   doctorDetail: '/doctors/:doctorId',
   appointments: '/appointments',

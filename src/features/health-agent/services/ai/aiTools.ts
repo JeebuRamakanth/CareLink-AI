@@ -21,6 +21,7 @@ import { resolveAuthorizedFamilyProfile } from '../../../../services/health-data
 import { isSupabaseConfigured } from '../../../../services/supabase/client';
 import { recordAIActivity } from '../../../../services/auth/authorization';
 import { directionsUrl } from '../../../../services/maps/mapsService';
+import { getBloodCentres } from '../../../../services/bloodCentreService';
 
 /** A family profile the current user is authorized to reference. */
 export interface AuthorizedFamilyProfile {
@@ -34,6 +35,7 @@ export type AIToolKind =
   | 'searchDoctors'
   | 'searchPharmacies'
   | 'searchLabs'
+  | 'searchBloodCentres'
   | 'getMyAppointments'
   | 'getAppointmentAvailability'
   | 'getDirections'
@@ -62,6 +64,7 @@ const ALLOWED_ARGS: Record<string, string[]> = {
   searchDoctors: ['query', 'specialty', 'city'],
   searchPharmacies: ['query', 'city'],
   searchLabs: ['query', 'city'],
+  searchBloodCentres: ['query', 'city'],
   getMyAppointments: ['status', 'limit'],
   getAppointmentAvailability: ['doctorSlug'],
   getDirections: ['destination', 'originLabel', 'lat', 'lng', 'mode'],
@@ -150,6 +153,16 @@ export async function runReadTool(kind: AIToolKind, args: Record<string, unknown
       const q = typeof safe.query === 'string' ? safe.query.toLowerCase() : '';
       const filtered = q ? rows.filter((r) => (r.name ?? '').toLowerCase().includes(q)) : rows;
       return { ok: true, message: `Found ${filtered.length} lab(s).`, data: filtered.slice(0, 5) };
+    }
+    case 'searchBloodCentres': {
+      // Real sourced blood centres from the corridor directory. No stock figure
+      // is ever returned — the caller must confirm availability with the centre.
+      const centres = await getBloodCentres();
+      const q = typeof safe.query === 'string' ? safe.query.toLowerCase() : '';
+      const filtered = q
+        ? centres.filter((c) => `${c.name} ${c.locality} ${c.address}`.toLowerCase().includes(q))
+        : centres;
+      return { ok: true, message: `Found ${filtered.length} blood centre(s).`, data: filtered.slice(0, 5) };
     }
     case 'getMyAppointments': {
       const rows = await listAppointments();

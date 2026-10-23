@@ -99,6 +99,12 @@ const COPY: Record<AgentIntent, IntentCopy> = {
     nextActions: ['Pick a lab and book a test slot.'],
     followUps: ['Book a blood test near me'],
   },
+  blood: {
+    summary: 'Blood centres near you',
+    explanation: 'These are sourced blood centres in the corridor with their published contact details. Live blood-group stock is not connected — confirm availability with the centre before travelling.',
+    nextActions: ['Call the blood centre to confirm the required group is available.'],
+    followUps: ['Which blood centres are near me?'],
+  },
   report: {
     summary: 'Understanding your report',
     explanation:

@@ -1,4 +1,5 @@
 import { hospitalsData } from '../../../data/hospitals';
+import { getDirectoryDoctorById } from '../../../services/providerDirectoryService';
 
 export type DoctorReviewFilterOption =
   | 'All'
@@ -102,6 +103,10 @@ export interface DoctorProfile {
   consultationFee: string;
   location: string;
   languages: string[];
+  /** Published affiliations (real hospital↔doctor relationships), when sourced. */
+  affiliations?: Array<{ hospitalId: string; hospitalName: string; departmentName?: string; role?: string; scheduleNote?: string }>;
+  /** Published qualifications exactly as the source states them. */
+  qualificationsPublished?: string[];
   profileMatch?: DoctorMatchInfo;
   patientsTreated?: number;
   treatmentRate?: string;
@@ -552,6 +557,19 @@ export function buildDoctorProfileFromDirectory(doctor: import('../../../types')
   const primaryHospital = linkedHospitals[0];
   const hospitalName = primaryHospital?.name ?? doctor.city ?? '';
 
+  // Real, sourced affiliations (department, role, published timing) when the
+  // doctor is part of the reviewed evidence set; empty otherwise so nothing is
+  // invented for a live registry row.
+  const evidence = getDirectoryDoctorById(doctor.id);
+  const affiliations = (evidence?.affiliations ?? []).map((affiliation) => ({
+    hospitalId: affiliation.hospital_id,
+    hospitalName: hospitalById.get(affiliation.hospital_id)?.name ?? '',
+    ...(affiliation.department_name ? { departmentName: affiliation.department_name } : {}),
+    ...(affiliation.role ? { role: affiliation.role } : {}),
+    ...(affiliation.schedule_note ? { scheduleNote: affiliation.schedule_note } : {}),
+  }));
+  const primaryAffiliation = affiliations[0];
+
   return {
     id: doctor.id,
     name: doctor.full_name,
@@ -565,11 +583,13 @@ export function buildDoctorProfileFromDirectory(doctor: import('../../../types')
     imageUrl: doctor.image_url,
     hospitalAffiliation: hospitalName,
     hospitalId: primaryHospitalId,
-    availabilityStatus: 'Availability unlisted',
+    availabilityStatus: primaryAffiliation?.scheduleNote ? 'Published visiting hours' : 'Availability unlisted',
     nextAvailable: '',
     consultationFee: 'Fee unlisted',
     location: doctor.location,
     languages: doctor.languages ?? [],
+    ...(affiliations.length ? { affiliations } : {}),
+    ...((doctor.education ?? []).length ? { qualificationsPublished: doctor.education } : {}),
     profileMatch: doctor.is_verified
       ? undefined
       : {
@@ -612,8 +632,10 @@ export function buildDoctorProfileFromDirectory(doctor: import('../../../types')
       specialties: primaryHospital?.specialties ?? doctor.sub_specialties ?? [],
       distance: '',
       address: primaryHospital ? [primaryHospital.address, primaryHospital.city, primaryHospital.state].filter(Boolean).join(', ') : '',
-      role: 'Associated hospital',
-      hours: primaryHospital?.facilities?.twenty_four_hours ? 'Open 24x7' : '',
+      role: primaryAffiliation?.departmentName
+        ? `${primaryAffiliation.role ?? 'Consultant'} · ${primaryAffiliation.departmentName}`
+        : 'Associated hospital',
+      hours: primaryAffiliation?.scheduleNote ?? (primaryHospital?.facilities?.twenty_four_hours ? 'Open 24x7' : ''),
       verified: Boolean(primaryHospital?.is_verified),
     },
     relatedDoctors: [],

@@ -211,6 +211,41 @@ async function main() {
       check('hospital actions are absent without a sourced hospital card', !hasHospitalCard);
     }
 
+    // 6b — Chatbot blood-centre intent uses REAL sourced centres (no stock).
+    await goto('/ai');
+    await evaluate(`
+      (() => {
+        const btn = [...document.querySelectorAll('button')].find((b) => /blood bank|blood centre/i.test(b.innerText));
+        if (btn) btn.click();
+      })()
+    `);
+    await delay(1200);
+    if (!(await evaluate('document.body.innerText.includes("Blood centre") || document.body.innerText.includes("blood centre")'))) {
+      // No quick-action chip: type the query instead.
+      await evaluate(`
+        (() => {
+          const ta = document.querySelector('textarea');
+          if (!ta) return;
+          const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+          setter.call(ta, 'blood banks near me');
+          ta.dispatchEvent(new Event('input', { bubbles: true }));
+          ta.closest('form')?.requestSubmit();
+        })()
+      `);
+      await delay(2200);
+    }
+    const bloodText = await text();
+    check(
+      'chatbot blood intent returns a real sourced blood centre',
+      /IRCS|Red Cross/i.test(bloodText),
+      bloodText.slice(-240)
+    );
+    check(
+      'chatbot never reports a fabricated blood stock level',
+      !/\b\d+\s+units\b/i.test(bloodText) && /not integrated|confirm/i.test(bloodText),
+      bloodText.slice(-240)
+    );
+
     // 7 — Header/footer nav resolve.
     await goto('/');
     const navTargets = await evaluate(`

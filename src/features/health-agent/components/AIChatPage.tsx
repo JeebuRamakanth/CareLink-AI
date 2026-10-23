@@ -53,6 +53,7 @@ import { AgentDocumentAnalysisPanel } from './AgentDocumentAnalysisPanel';
 import { useOptionalLocationContext } from '../../../contexts/LocationContext';
 import { useOptionalNavigationContext } from '../../../contexts/NavigationContext';
 import { directionsUrl } from '../../../services/maps/mapsService';
+import { buildDirectionsUrl, buildPlaceSearchUrl } from '../../../services/maps/directionsService';
 import {
   ACCEPT_ATTR,
   LANGUAGE_LABELS,
@@ -395,6 +396,35 @@ function ResultCard({ result, onReply, focusTopic, patientOrigin }: ResultCardPr
                 <div className="mt-3 flex flex-wrap gap-2">
                   <a href={directionsUrl({ destination: `${l.name}, ${l.address}`, origin: patientOrigin && typeof patientOrigin.lat === 'number' ? { label: patientOrigin.label, lat: patientOrigin.lat, lng: patientOrigin.lng } : undefined, mode: 'driving' })} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">Directions</a>
                   <Link to={`${ROUTES.appointments}?lab=${l.id}`} className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-3 py-1.5 text-[0.78rem] font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">Book Test</Link>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : null}
+
+        {/* Blood centres — real sourced records, no invented stock */}
+        {result.bloodCentres.length > 0 ? (
+          <div className="space-y-2">
+            {result.bloodCentres.map((b) => (
+              <article key={b.id} className="rounded-[1rem] border border-white/10 bg-slate-950/45 p-3.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <h4 className="break-words text-sm font-semibold text-white">{b.name}</h4>
+                    <p className="break-words text-xs text-ink-400">{b.address}</p>
+                  </div>
+                  <span className="shrink-0 rounded-full border border-rose-400/25 bg-rose-500/12 px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.16em] text-rose-100">Blood centre</span>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-300">
+                  {b.ownership ? <span>{b.ownership}</span> : null}
+                  {b.phone ? <span>Phone: {b.phone}</span> : null}
+                  {b.route ? <span className="inline-flex items-center gap-1"><IconRoute width={12} height={12} aria-hidden /> {b.route.distanceKm.toFixed(1)} km</span> : null}
+                </div>
+                <p className="mt-1.5 text-[0.7rem] text-ink-400">
+                  {b.stockSource === 'live' ? 'Live stock available' : 'Live stock not integrated — confirm current availability with the centre.'}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {b.phone ? <a href={`tel:${b.phone.replace(/[^\d+]/g, '')}`} className="inline-flex items-center gap-1.5 rounded-full bg-brand-500 px-3 py-1.5 text-[0.78rem] font-semibold text-white transition hover:opacity-90">Call centre</a> : null}
+                  <a href={buildDirectionsUrl({ name: b.name, address: b.address, locality: b.locality }) ?? buildPlaceSearchUrl({ name: b.name, address: b.address, locality: b.locality }) ?? '#'} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15">Directions</a>
                 </div>
               </article>
             ))}

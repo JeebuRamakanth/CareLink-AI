@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ROUTES } from '../../../routes/routeConstants';
 import type { Hospital } from '../../../types';
-import { hospitalDetailsPath, hospitalDirectionsUrl } from '../../../services/maps/hospitalPlaceMapping';
+import { hospitalDetailsPath } from '../../../services/maps/hospitalPlaceMapping';
+import { buildDirectionsUrl, buildPlaceSearchUrl } from '../../../services/maps/directionsService';
+import { getListedDoctorCount } from '../../../services/providerDirectoryService';
 import { hospitalImageSource } from '../hospitalPresentation';
 
 type HospitalCardProps = {
@@ -14,12 +16,20 @@ export function HospitalCard({ hospital, className = '' }: HospitalCardProps) {
   const [isFavorite, setIsFavorite] = useState(false);
   const detailHref = hospitalDetailsPath(hospital.id);
   const imageUrl = hospitalImageSource(hospital.image_url);
-  const directionsUrl = hospitalDirectionsUrl(hospital);
+  const directionsUrl = buildDirectionsUrl({
+    name: hospital.name,
+    address: [hospital.address, hospital.city, hospital.pincode].filter(Boolean).join(', '),
+    locality: hospital.city,
+    district: hospital.district,
+    state: hospital.state,
+    latitude: hospital.latitude,
+    longitude: hospital.longitude,
+    placeId: hospital.id.startsWith('google-') ? hospital.id.slice('google-'.length) : null,
+  }) ?? buildPlaceSearchUrl({ name: hospital.name, address: hospital.address, locality: hospital.city, district: hospital.district, state: hospital.state });
   const {
     facilities,
     departments,
     insurance_partners,
-    doctor_count,
   } = hospital;
 
   const emergencyAvailable = facilities.emergency;
@@ -27,9 +37,14 @@ export function HospitalCard({ hospital, className = '' }: HospitalCardProps) {
   const insuranceAccepted = (insurance_partners?.length ?? 0) > 0;
   const bloodBankAvailable = facilities.blood_bank;
   const ambulanceAvailable = facilities.ambulance;
-  const doctorsCount = doctor_count && doctor_count > 0 ? `${doctor_count} available` : 'Unlisted';
-  // Never fabricate a doctor count: show the real linked-doctor count when the
-  // backend provides it, otherwise state that it is unlisted.
+  // Never fabricate a doctor count: the number is the REAL listed-affiliation
+  // count from the directory, and it is labelled as a listing, not staffing.
+  const listedDoctors = getListedDoctorCount(hospital.id);
+  const doctorsCount = hospital.doctor_count && hospital.doctor_count > 0
+    ? `${hospital.doctor_count} listed`
+    : listedDoctors > 0
+      ? `${listedDoctors} listed`
+      : 'Not published';
 
   return (
     <article className={`group overflow-hidden rounded-[1.6rem] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] p-3 shadow-[0_16px_70px_rgba(0,0,0,0.2)] transition hover:-translate-y-1 hover:border-brand-400/30 ${className}`}>
@@ -107,11 +122,13 @@ export function HospitalCard({ hospital, className = '' }: HospitalCardProps) {
 
         <div className="rounded-[1rem] border border-white/10 bg-slate-950/60 p-3">
           <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-ink-300">
-            <div>
+            <div className="min-w-0">
               <p className="text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-ink-400">Departments</p>
-              <p className="mt-1 text-white">{departments.slice(0, 3).join(' • ')}</p>
+              <p className="mt-1 break-words text-white">
+                {departments.length > 0 ? departments.slice(0, 3).join(' • ') : 'Not published'}
+              </p>
             </div>
-            <div className="text-right">
+            <div className="shrink-0 text-right">
               <p className="text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-ink-400">Doctors</p>
               <p className="mt-1 font-semibold text-white">{doctorsCount}</p>
             </div>
@@ -145,7 +162,7 @@ export function HospitalCard({ hospital, className = '' }: HospitalCardProps) {
             Book appointment
           </Link>
           <a
-            href={directionsUrl}
+            href={directionsUrl ?? undefined}
             target="_blank"
             rel="noreferrer noopener"
             className="flex-1 rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-center text-sm font-semibold text-ink-200 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/50"

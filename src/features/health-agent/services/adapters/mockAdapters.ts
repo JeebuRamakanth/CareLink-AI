@@ -68,6 +68,7 @@ const INTENT_PATTERNS: Record<AgentIntent, string[]> = {
   route: ['directions', 'route to', 'how do i get', 'how to reach', 'distance', 'travel time', 'get directions'],
   pharmacy: ['pharmacy', 'pharmacies', 'medicine near', 'chemist', 'drug store', 'where can i get this medicine', 'where can i buy'],
   lab: ['lab', 'laboratory', 'diagnostic', 'diagnostics', 'blood test', 'scan', 'mri', 'ct scan', 'ultrasound', 'x-ray', 'imaging'],
+  blood: ['blood bank', 'blood banks', 'blood centre', 'blood center', 'blood centres', 'blood centers', 'donate blood', 'blood donation', 'platelets', 'plasma', 'transfusion'],
   medicine: ['medicine', 'medicines', 'tablet', 'tablets', 'pill', 'pills', 'drug', 'prescription', 'metformin', 'paracetamol', 'amoxicillin', 'capsule', 'syrup', 'enti', 'ee tablet'],
   doctor: ['doctor', 'doctors', 'specialist', 'physician', 'cardiologist', 'neurologist', 'pediatrician', 'dermatologist', 'orthopedic'],
   hospital: ['hospital', 'hospitals', 'medical center', 'emergency room', 'er near', 'clinic near'],
@@ -142,7 +143,10 @@ export const mockAIProvider: AgentAdapters['ai'] = {
       return { intent: 'emergency', confidence: 'high', entities: extractEntities(text), rawInput: input, detectedLanguage: detectLanguage(input) };
     }
 
-    const order: AgentIntent[] = ['report', 'appointment', 'route', 'pharmacy', 'lab', 'medicine', 'vaccination', 'child-care', 'elder-care', 'mental-health', 'family', 'recovery', 'doctor', 'hospital', 'disease', 'symptom', 'location'];
+    // Order matters: a more specific intent must be tested before a broader one
+    // ('report' catches "blood report" before 'blood'; 'blood' catches
+    // "blood bank" before 'lab'/'location' can claim it).
+    const order: AgentIntent[] = ['report', 'blood', 'appointment', 'route', 'pharmacy', 'lab', 'medicine', 'vaccination', 'child-care', 'elder-care', 'mental-health', 'family', 'recovery', 'doctor', 'hospital', 'disease', 'symptom', 'location'];
     for (const intent of order) {
       if (hasAny(text, INTENT_PATTERNS[intent])) {
         const confidence: ConfidenceLevel = 'medium';

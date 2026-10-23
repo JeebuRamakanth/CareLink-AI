@@ -23,6 +23,12 @@ export function DoctorAvailability({ slots, selectedSlot, onSlotSelect }: Doctor
           <h2 className="mt-3 text-2xl font-semibold text-white">Select a consultation slot</h2>
         </div>
 
+        {slots.length === 0 ? (
+          <div role="status" className="rounded-[1.5rem] border border-white/10 bg-slate-950/80 p-4 text-sm leading-6 text-ink-300">
+            This provider has not published any bookable slots. Use “Book Appointment” to send a date-and-time request — the facility confirms it directly.
+          </div>
+        ) : null}
+
         <div className="grid gap-3">
           {slots.map((slot) => {
             const isSelected = slot.id === selectedSlot;
@@ -49,7 +55,7 @@ export function DoctorAvailability({ slots, selectedSlot, onSlotSelect }: Doctor
           })}
         </div>
 
-        {selectedSlot ? (
+        {slots.length === 0 ? null : selectedSlot ? (
           <div className="rounded-[1.5rem] border border-brand-400/20 bg-brand-500/10 p-4 text-sm text-brand-100">
             Selected — {slots.find((slot) => slot.id === selectedSlot)?.day}, {slots.find((slot) => slot.id === selectedSlot)?.time}
           </div>
