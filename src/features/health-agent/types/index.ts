@@ -334,10 +334,20 @@ export interface PharmacyRecommendation extends Explainable<{
   distanceKm: number;
   estimatedTravelTimeMin: number;
   isOpen: boolean;
-  /** Mock placeholder only — never claim real-time stock. */
+  /** Honest stock state — never a fabricated level. */
   availabilityPlaceholder: string;
+  /** Price is set ONLY when a source publishes one (none do today). */
   estimatedPrice?: string;
   address: string;
+  /** False when the record has no coordinates or the patient has no location. */
+  distanceAvailable?: boolean;
+  /** Verbatim published opening hours, or null when the source published none. */
+  hoursLabel?: string | null;
+  /** Source attribution shown on the card. */
+  sourceLabel?: string | null;
+  sourceUrl?: string | null;
+  latitude?: number;
+  longitude?: number;
   route?: RouteRecommendation;
   rank?: RankedRecommendation;
 }> {}
@@ -351,6 +361,12 @@ export interface LabRecommendation extends Explainable<{
   isOpen: boolean;
   homeCollectionAvailable: boolean;
   address: string;
+  distanceAvailable?: boolean;
+  hoursLabel?: string | null;
+  sourceLabel?: string | null;
+  sourceUrl?: string | null;
+  latitude?: number;
+  longitude?: number;
   route?: RouteRecommendation;
   rank?: RankedRecommendation;
 }> {}

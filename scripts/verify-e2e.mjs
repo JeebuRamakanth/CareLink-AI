@@ -271,6 +271,185 @@ async function main() {
     await goto('/definitely-not-a-route');
     check('unknown route falls back to home', (await currentPath()) === '/', await currentPath());
 
+    /* ---------------------------------------------------------------------
+     * Step 27 acceptance checks
+     * ------------------------------------------------------------------- */
+
+    // 11 — Hamburger opens the navigation overlay with every destination, the
+    // page behind is dimmed/blocked, Escape closes, and scroll is restored.
+    await goto('/');
+    const openedDrawer = await evaluate(`
+      (() => {
+        const btn = [...document.querySelectorAll('header button')]
+          .find((b) => (b.getAttribute('aria-label') || '') === 'Open navigation menu');
+        if (!btn) return false;
+        btn.click();
+        return true;
+      })()
+    `);
+    await delay(500);
+    const drawerState = await evaluate(`
+      (() => {
+        const dialog = document.querySelector('[role="dialog"][aria-label="Site navigation"]');
+        if (!dialog) return { present: false };
+        const links = [...dialog.querySelectorAll('a[href]')].map((a) => a.getAttribute('href'));
+        return {
+          present: true,
+          modal: dialog.getAttribute('aria-modal') === 'true',
+          links,
+          bodyLocked: getComputedStyle(document.body).overflow === 'hidden',
+        };
+      })()
+    `);
+    // Anonymous visitors see the public destinations; account-only entries
+    // (Profile, Admin) are intentionally filtered out for them.
+    const requiredTargets = ['/hospitals', '/doctors', '/pharmacies', '/labs', '/blood-banks', '/reviews', '/appointments', '/documents', '/ai', '/agent', '/about', '/help', '/contact'];
+    check(
+      'hamburger opens the navigation overlay',
+      openedDrawer && drawerState.present === true && drawerState.modal === true,
+      JSON.stringify(drawerState).slice(0, 200)
+    );
+    check(
+      'overlay exposes every public navigation destination',
+      Array.isArray(drawerState.links) && requiredTargets.every((t) => drawerState.links.includes(t)),
+      JSON.stringify(drawerState.links ?? []).slice(0, 240)
+    );
+    check(
+      'overlay hides account-only destinations from anonymous visitors',
+      Array.isArray(drawerState.links) && !drawerState.links.includes('/profile'),
+      JSON.stringify(drawerState.links ?? []).slice(0, 200)
+    );
+    check('overlay locks background scrolling', drawerState.bodyLocked === true);
+
+    await evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+    await delay(500);
+    const closedState = await evaluate(`
+      (() => {
+        const dialog = document.querySelector('[role="dialog"][aria-label="Site navigation"]');
+        const visible = dialog ? dialog.getBoundingClientRect().left > -1 : false;
+        return { visible, bodyOverflow: getComputedStyle(document.body).overflow };
+      })()
+    `);
+    check('Escape closes the overlay', closedState.visible === false);
+    check('background scrolling is restored after closing', closedState.bodyOverflow !== 'hidden', closedState.bodyOverflow);
+
+    // 12 — Doctors hero has no right-side search card and the real search still works.
+    await goto('/doctors');
+    const doctorsHero = await evaluate(`
+      (() => {
+        const body = document.body.innerText;
+        return {
+          hasSearchInput: Boolean(document.getElementById('doctor-search-input')),
+          heroHasPlaceholderCard: /Doctor Name[\\s\\S]{0,80}Specialty/.test(body),
+        };
+      })()
+    `);
+    check('doctors hero no longer renders the right-side search card', doctorsHero.heroHasPlaceholderCard === false);
+    check('doctor search control still exists below the hero', doctorsHero.hasSearchInput === true);
+
+    const doctorFilterWorks = await evaluate(`
+      (() => {
+        const input = document.getElementById('doctor-search-input');
+        if (!input) return false;
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+        setter.call(input, 'zzzz-no-such-doctor');
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        return true;
+      })()
+    `);
+    await delay(600);
+    const doctorEmptyText = await text();
+    check(
+      'doctor search filters to an honest empty state',
+      doctorFilterWorks && /No doctors matched/i.test(doctorEmptyText),
+      doctorEmptyText.slice(0, 200)
+    );
+
+    // 13 — Three-dot chatbot menu executes a prompt through the real pipeline.
+    await goto('/ai');
+    const menuOpened = await evaluate(`
+      (() => {
+        const btn = [...document.querySelectorAll('button')]
+          .find((b) => (b.getAttribute('aria-label') || '') === 'Open quick prompts');
+        if (!btn) return false;
+        btn.click();
+        return true;
+      })()
+    `);
+    await delay(400);
+    const menuPrompts = await evaluate(`
+      [...document.querySelectorAll('[role="menu"][aria-label="Quick prompts"] [role="menuitem"]')]
+        .map((b) => (b.innerText || '').trim())
+    `);
+    check('three-dot menu opens with prompts', menuOpened && Array.isArray(menuPrompts) && menuPrompts.length >= 10, JSON.stringify(menuPrompts).slice(0, 200));
+
+    const pickedPrompt = await evaluate(`
+      (() => {
+        const items = [...document.querySelectorAll('[role="menu"][aria-label="Quick prompts"] [role="menuitem"]')];
+        const el = items.find((b) => (b.innerText || '').includes('Find pharmacies near me'));
+        if (!el) return false;
+        el.click();
+        return true;
+      })()
+    `);
+    await delay(3000);
+    const afterPrompt = await evaluate(`
+      (() => {
+        const main = document.querySelector('#ai-chat-main') || document.body;
+        return {
+          path: location.pathname,
+          conversation: main.innerText,
+          inputValue: (document.querySelector('textarea[aria-label="Ask CareLink AI"]') || {}).value || '',
+        };
+      })()
+    `);
+    check(
+      'prompt selection submits through the real pipeline (result rendered)',
+      pickedPrompt && /Apollo|MedPlus|Grace Pharmacy|pharmac/i.test(afterPrompt.conversation)
+        && !/^\\s*$/.test(afterPrompt.conversation),
+      afterPrompt.conversation.slice(0, 240)
+    );
+    check(
+      'prompt is executed, not merely inserted into the composer',
+      afterPrompt.inputValue.trim() === '',
+      `input="${afterPrompt.inputValue}"`
+    );
+    check(
+      'pharmacy result never fabricates a stock level',
+      // No numeric quantity/units claim, and the honest "not connected" state is present.
+      !/\\b\\d+\\s*(units|packs|tablets available|in stock)\\b/i.test(afterPrompt.conversation)
+        && /stock is not connected|not connected/i.test(afterPrompt.conversation),
+      afterPrompt.conversation.slice(-240)
+    );
+
+    // 14 — Enter submits and Shift+Enter inserts a newline (same submit path).
+    await goto('/ai');
+    const enterSubmitted = await evaluate(`
+      (() => {
+        const ta = document.querySelector('textarea[aria-label="Ask CareLink AI"]');
+        if (!ta) return false;
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+        setter.call(ta, 'Find a blood centre');
+        ta.dispatchEvent(new Event('input', { bubbles: true }));
+        ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+        return true;
+      })()
+    `);
+    await delay(2500);
+    const enterBody = await text();
+    check('Enter submits the composer message', enterSubmitted && /IRCS|Red Cross|blood/i.test(enterBody), enterBody.slice(-200));
+
+    // 15 — Pharmacy page: real records, corridor-wide, no location required.
+    await goto('/pharmacies');
+    const pharmacyText = await text();
+    check('pharmacies page renders sourced records without location permission', /Apollo|MedPlus|pharmac/i.test(pharmacyText), pharmacyText.slice(0, 200));
+    check('pharmacy page states stock is not connected', /stock is not connected|not connected/i.test(pharmacyText));
+    check(
+      'pharmacy list is not restricted to one city (corridor-wide)',
+      /Machilipatnam/i.test(pharmacyText) && /Vijayawada/i.test(pharmacyText),
+      pharmacyText.slice(0, 260)
+    );
+
     ws.close();
   } finally {
     chrome.kill('SIGTERM');

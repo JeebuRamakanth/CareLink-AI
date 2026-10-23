@@ -1,7 +1,9 @@
 /**
- * Step 7 — Pharmacy recommendation card.
- * Mock-only: availability is a PLACEHOLDER, never claimed as real-time stock.
- * "View pharmacy" and "Get Directions" deep-link to real app routes / maps.
+ * Step 7 / 27 — Pharmacy recommendation card.
+ * REAL sourced records: medicine stock is NOT connected, so the card says so
+ * instead of showing a placeholder level. Distance is shown only when real
+ * coordinates exist. "View pharmacy" and "Get Directions" deep-link to real app
+ * routes / maps.
  */
 
 import { useNavigate } from 'react-router-dom';
@@ -9,6 +11,7 @@ import { ResponseCardShell, CardActionButton, NextStepRow, SuggestedReplies } fr
 import { IconPharmacy, IconLocation, IconRoute } from '../AgentIcons';
 import { ROUTES } from '../../../routes/routeConstants';
 import { directionsUrl } from '../../../services/maps/mapsService';
+import { buildDirectionsUrl } from '../../../services/maps/directionsService';
 import type { PharmacyRecommendation } from '../../../services/agent/agentTypes';
 
 interface Props {
@@ -28,8 +31,15 @@ export function PharmacyResponseCard({ data, title, explanation, suggestedReplie
       onGetDirections(pharmacy);
       return;
     }
-    // Real maps deep-link — never a mock alert.
-    window.open(directionsUrl({ destination: `${pharmacy.name}, ${pharmacy.address}`, mode: 'driving' }), '_blank', 'noopener,noreferrer');
+    // Prefer the shared resolver (coordinates → address), then fall back to a
+    // name+address query. Never a mock alert, never a default coordinate.
+    const resolved = buildDirectionsUrl({
+      name: pharmacy.name,
+      address: pharmacy.address,
+      latitude: pharmacy.latitude,
+      longitude: pharmacy.longitude,
+    }) ?? directionsUrl({ destination: `${pharmacy.name}, ${pharmacy.address}`, mode: 'driving' });
+    window.open(resolved, '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -41,7 +51,7 @@ export function PharmacyResponseCard({ data, title, explanation, suggestedReplie
       meta={{
         confidence: 'medium',
         urgency: 'routine',
-        disclaimer: 'Stock availability shown is a placeholder — confirm directly with the pharmacy before visiting.',
+        disclaimer: 'Medicine stock is not connected — confirm availability directly with the pharmacy before visiting.',
       }}
     >
       <div className="space-y-3">
@@ -58,27 +68,30 @@ export function PharmacyResponseCard({ data, title, explanation, suggestedReplie
                   <span className="truncate">{pharmacy.address}</span>
                 </p>
               </div>
-              <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[0.66rem] font-semibold uppercase tracking-[0.18em] ${pharmacy.isOpen ? 'border-emerald-400/25 bg-emerald-500/12 text-emerald-200' : 'border-white/10 bg-white/5 text-ink-300'}`}>
-                {pharmacy.isOpen ? 'Open now' : 'Closed'}
-              </span>
+              {pharmacy.distanceAvailable && pharmacy.distanceKm > 0 ? (
+                <span className="shrink-0 rounded-full border border-brand-400/25 bg-brand-400/10 px-2.5 py-1 text-[0.66rem] font-semibold text-brand-100">
+                  {pharmacy.distanceKm.toFixed(1)} km
+                </span>
+              ) : (
+                <span className="shrink-0 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[0.66rem] font-semibold text-ink-300">
+                  Distance unavailable
+                </span>
+              )}
             </div>
 
             <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-ink-300">
-              <span className="inline-flex items-center gap-1">
-                <IconRoute width={14} height={14} aria-hidden />
-                <span>{pharmacy.distanceKm.toFixed(1)} km · ~{pharmacy.estimatedTravelTimeMin} min</span>
-              </span>
-              {pharmacy.estimatedPrice ? (
-                <span>
-                  <span className="text-ink-400">Est. price: </span>
-                  <span className="font-semibold text-white">{pharmacy.estimatedPrice}</span>
-                </span>
-              ) : null}
+              <span>{pharmacy.hoursLabel ? `Hours: ${pharmacy.hoursLabel}` : 'Opening hours not published'}</span>
             </div>
 
-            <p className="mt-3 rounded-[0.7rem] border border-white/10 bg-white/5 px-3 py-2 text-[0.78rem] italic text-ink-300">
+            <p className="mt-3 rounded-[0.7rem] border border-white/10 bg-white/5 px-3 py-2 text-[0.78rem] text-ink-300">
               {pharmacy.availabilityPlaceholder}
             </p>
+
+            {pharmacy.sourceLabel ? (
+              <p className="mt-2 text-[0.7rem] text-ink-500">
+                Source: {pharmacy.sourceUrl ? <a href={pharmacy.sourceUrl} target="_blank" rel="noopener noreferrer" className="underline">{pharmacy.sourceLabel}</a> : pharmacy.sourceLabel}
+              </p>
+            ) : null}
 
             <div className="mt-4 flex flex-wrap gap-2">
               <CardActionButton variant="secondary" onClick={() => navigate(ROUTES.pharmacies)} ariaLabel={`View pharmacy ${pharmacy.name}`}>

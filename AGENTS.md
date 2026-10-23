@@ -1157,3 +1157,105 @@ xAI key exist in this environment. Consequently: the live schema cannot be appli
 cannot run DDL), the real owner Auth E2E and live AI/Places calls cannot be exercised,
 and live blood stock (e-RaktKosh) is not integrated. All of those paths are verified at
 repo/adapter/SQL-suite level only and runtime stays an honest, clearly-labelled demo.
+
+## Step 27 — Global nav overlay + doctors hero + assistant prompts + real pharmacy directory (VERIFIED)
+
+### Global navigation (hamburger overlay)
+- NEW `src/components/layout/navigationData.ts` — the single source of truth for
+  destinations: `primaryNavItems` (wide-screen rail) + `navGroups` (drawer),
+  plus `visibleNavGroups()` (auth/admin filtering) and `isNavItemActive()`.
+- NEW `src/components/layout/NavDrawer.tsx` — a real `role="dialog"
+  aria-modal="true"` panel (NOT an ARIA `menu`; these are ordinary links). It
+  renders at `z-[60]` (above the `z-50` sticky header), dims/blocks the page with
+  a backdrop, locks `document.body.style.overflow` while open and restores the
+  previous value on close, closes on close-button / backdrop / Escape / link
+  selection, moves focus into the panel and returns it to the trigger, and traps
+  Tab focus. Panel content scrolls (`agent-scroll`) when taller than the viewport.
+- `GlobalLayout.tsx` header rewritten: brand + 8-item rail (xl+) + "Ask CareLink
+  AI" (sm+) + account controls (xl only) + hamburger (always). Account controls
+  collapse below xl so the bar cannot overlap at 768–1279 px.
+
+### Doctors hero
+- `src/pages/Doctors/components/Hero.tsx` — the right-side placeholder search card
+  is GONE; the hero is a single centered column. Both CTAs call
+  `focusDoctorSearch()` → scrolls to + focuses `#doctor-search-input` in the real
+  `FilterBar` (the only search that actually filters). No empty column, no
+  duplicate search state.
+
+### Assistant quick-prompt menu
+- NEW `QuickPromptMenu` in `AIChatPage.tsx` — the three-dot button near the
+  composer (`aria-label="Open quick prompts"`), a `role="menu"` with 14
+  `role="menuitem"` prompts, closing on outside click / Escape / selection.
+- **BUG FOUND + FIXED:** the menu was gated on the composer's `disabled` (true
+  whenever the draft was empty), so prompts could never run. It is now gated on a
+  separate `busy` prop (`conv.isThinking`). Prompt selection calls the SAME
+  `handlePickPrompt` → `conv.sendMessage(...)` pipeline as Send/Enter — the prompt
+  is executed, never merely inserted into the composer.
+
+### Real pharmacy + laboratory directory (corridor-wide)
+- SOURCE: OpenStreetMap (ODbL 1.0) via Nominatim/Overpass — the only openly
+  licensed source publishing pharmacy POIs across the whole corridor. Snapshots
+  committed at `scripts/directory/source-snapshots/osm-{pharmacies,laboratories}.json`.
+  Overpass mirrors are frequently at capacity; `overpass.osm.ch`,
+  `overpass.openstreetmap.ru` and `maps.mail.ru/osm/tools/overpass` worked when
+  `overpass-api.de`/`kumi.systems` returned 502.
+- NEW `scripts/directory/import-pharmacies.mjs` (`npm run directory:pharmacies`)
+  generates `src/data/pharmacies.ts` (28 records), `src/data/laboratories.ts`
+  (14), `last-pharmacy-import-report.json` AND
+  `supabase/migrations/0036_step27_pharmacy_lab_directory.sql` — app and DB cannot
+  drift. Coverage reuses the shared corridor boundary.
+- **Branch-aware dedupe:** a match requires identical name AND an identical address
+  or a <30 m coordinate gap. A name+locality match would have merged separate
+  Apollo Pharmacy branches (forbidden); an earlier draft did exactly that and was
+  corrected.
+- NEW `src/services/pharmacyService.ts` — the read boundary: merges live registry
+  rows (Supabase) with the bundled directory, dedupes by identity, computes
+  distance ONLY when both the record and the patient have real coordinates
+  (`distanceKm: null` otherwise), ranks proximity-first (never on a rating), and
+  derives filter options from the actual dataset. `pharmacyStockState()` is
+  hardcoded `'not_integrated'`.
+- NEW `src/pages/Pharmacies/PharmaciesPage.tsx` + `components/PharmacyCard.tsx`;
+  `src/pages/Labs/LabsPage.tsx` + `components/LaboratoryCard.tsx`. Both centered,
+  location-aware (manual search works when permission is denied), URL-reflected
+  filters. Pharmacy/lab cards show "Distance unavailable" / "Opening hours not
+  published" / "Medicine stock is not connected" rather than invented values.
+- NEW `src/features/health-agent/services/pharmacyRecommendations.ts` — the agent
+  now renders the SAME records (the legacy fabricated "Greenline Pharmacy" /
+  "$12.40" / "Precision Diagnostics Lab" set is no longer the primary path).
+  `agentOrchestrator.buildPharmacyResult` / `buildLabResult` were rewired (and
+  `buildLabResult` is now `async` — its call site needed `await`).
+- `directoryBridge.ts` now primes `pharmacies` + `labs` too, so the legacy
+  `/agent` command center also reads real records; `mockAgentService`'s
+  pharmacy/lab builders read the bridge (empty list = honest loading state).
+
+### Migrations
+- `0036_step27_pharmacy_lab_directory.sql` is ADDITIVE + IDEMPOTENT: it only
+  `add column if not exists` on the existing `pharmacies`/`labs` tables from 0005
+  and upserts by stable id (`on conflict (id) do nothing`). No stock-amount column
+  exists anywhere. RLS: public read, `revoke insert/update/delete` from
+  anon/authenticated.
+
+### Tests / verification
+- `verify:e2e` 15 → **32 checks** (hamburger dialog + destinations + scroll lock +
+  Escape/restore, doctors hero card absent + search still filters, three-dot menu
+  opens + prompt executes + not-just-inserted + no fabricated stock, Enter submit,
+  pharmacies sourced + corridor-wide). `verify:navigation` 7 → 10.
+  `verify:directory` 12 → 21. `verify:wiring` 57 → 68. `test:focused` 53 → 62
+  (NEW `src/services/pharmacyService.test.mjs`, 9 tests).
+- SQL suite: NEW `supabase/tests/280_step27_pharmacy_lab_directory.sql`;
+  **637 PASS / 0 FAIL** from a clean replay (29 suites). Local Postgres 16 in
+  Docker: `sudo dockerd &` then `sudo docker run -d --name carelink-pg -e
+  POSTGRES_PASSWORD=postgres -e POSTGRES_USER=openhands -p 55432:5432 -v
+  /workspace/project/CareLink-AI:/repo:ro postgres:16`, then
+  `sudo docker exec -i carelink-pg bash -s < /tmp/replay.sh`.
+- build green; lint 0 errors (15 pre-existing warnings); `verify:sweep` 18 routes
+  × 5 widths = 0 console errors / 0 overflow; `verify:auth` 11/11;
+  `verify:workflow` 39/39.
+
+### BLOCKED (external credentials — unchanged)
+No Supabase URL/anon key, DB password, service_role, Cloudinary, Google Places,
+Maps or xAI key exist here. Migration 0036 is verified by the local replay only;
+live pharmacy discovery, live medicine stock and live AI remain unconfigured.
+Pharmacy/lab coverage reflects what OpenStreetMap has surveyed — dense in
+Vijayawada, sparse in corridor villages. Absence in the source is a coverage
+limitation, never a claim that no pharmacy exists.

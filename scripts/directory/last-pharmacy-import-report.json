@@ -1,0 +1,47 @@
+{
+  "generated_at": "2026-10-23T17:34:26.163Z",
+  "coverage_boundary": {
+    "corridor": "Machilipatnam → Vijayawada, Andhra Pradesh, India",
+    "buffer_km": 25,
+    "interpretation": "A pharmacy/lab is in coverage exactly when a hospital would be: within the corridor buffer, or in a documented corridor locality."
+  },
+  "sources": [
+    {
+      "id": "openstreetmap",
+      "name": "OpenStreetMap contributors",
+      "licence": "ODbL 1.0",
+      "url": "https://www.openstreetmap.org/",
+      "present": true,
+      "note": "Community-surveyed POIs. Coverage is dense in Vijayawada and sparse in corridor villages; absence is NOT evidence a pharmacy does not exist."
+    }
+  ],
+  "pharmacies": {
+    "source_records": 51,
+    "in_coverage": 40,
+    "duplicates_removed": 1,
+    "written": 28,
+    "with_coordinates": 28,
+    "with_phone": 1,
+    "with_opening_hours": 4,
+    "generic_name_listings": 1,
+    "by_locality": {
+      "Vijayawada": 17,
+      "Gosala": 2,
+      "Tadigadapa": 4,
+      "Machilipatnam": 1,
+      "Nidamanuru": 2,
+      "Kunchanapalli": 1,
+      "Gannavaram": 1
+    }
+  },
+  "laboratories": {
+    "source_records": 14,
+    "in_coverage": 14,
+    "duplicates_removed": 0,
+    "written": 14
+  },
+  "generated_files": {
+    "pharmacies": "src/data/pharmacies.ts",
+    "laboratories": "src/data/laboratories.ts"
+  }
+}

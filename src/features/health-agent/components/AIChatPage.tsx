@@ -79,6 +79,29 @@ import type {
  * Small presentational pieces
  * ------------------------------------------------------------------------- */
 
+/**
+ * Quick prompts offered by the three-dot menu. Each label is a real instruction
+ * the orchestrator already understands (intent router + adapters), so selecting
+ * one performs the same work as typing it and pressing Send. `hint` explains the
+ * outcome so the menu is not a list of mystery buttons.
+ */
+const QUICK_PROMPT_ACTIONS: { label: string; hint: string }[] = [
+  { label: 'Find hospitals near me', hint: 'Sourced facilities on the corridor' },
+  { label: 'Find a cardiologist', hint: 'Doctors by specialty' },
+  { label: 'Find pharmacies near me', hint: 'Sourced pharmacy directory' },
+  { label: 'Find pharmacies along Machilipatnam–Vijayawada', hint: 'Corridor-wide pharmacy search' },
+  { label: 'Find a laboratory', hint: 'Diagnostics from the directory' },
+  { label: 'Find a blood centre', hint: 'Blood banks and contact details' },
+  { label: 'Check my appointment requests', hint: 'Reads your saved requests' },
+  { label: 'Upload and review a report', hint: 'Attach a file in the composer' },
+  { label: 'Upload a prescription', hint: 'Attach a prescription file' },
+  { label: 'Help me understand a blood report', hint: 'Explains values, not a diagnosis' },
+  { label: 'Explain a medicine label', hint: 'Reads a label you attach' },
+  { label: 'Help with symptom navigation', hint: 'Safety-aware next steps' },
+  { label: 'Find hospitals for diabetes care', hint: 'Facilities for a condition' },
+  { label: 'Get directions to a facility', hint: 'Opens Google Maps directions' },
+];
+
 function formatTime(iso: string): string {
   try {
     return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -372,22 +395,35 @@ function ResultCard({ result, onReply, focusTopic, patientOrigin }: ResultCardPr
                     <h4 className="truncate text-sm font-semibold text-white">{p.name}</h4>
                     <p className="truncate text-xs text-ink-400">{p.address}</p>
                   </div>
-                  <span className={cn('shrink-0 rounded-full border px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.16em]', p.isOpen ? 'border-emerald-400/25 bg-emerald-500/12 text-emerald-200' : 'border-white/10 bg-white/5 text-ink-300')}>{p.isOpen ? 'Open' : 'Closed'}</span>
+                  {p.distanceAvailable && p.distanceKm > 0 ? (
+                    <span className="shrink-0 rounded-full border border-brand-400/25 bg-brand-400/10 px-2 py-0.5 text-[0.6rem] font-semibold text-brand-100">{p.distanceKm.toFixed(1)} km</span>
+                  ) : (
+                    <span className="shrink-0 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[0.6rem] font-semibold text-ink-300">Distance unavailable</span>
+                  )}
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-300">
-                  {p.route ? <span className="inline-flex items-center gap-1"><IconRoute width={12} height={12} aria-hidden /> {p.distanceKm.toFixed(1)} km</span> : null}
-                  {p.estimatedPrice ? <span className="text-brand-200">{p.estimatedPrice}</span> : null}
+                  <span>{p.hoursLabel ? `Hours: ${p.hoursLabel}` : 'Opening hours not published'}</span>
                 </div>
                 <p className="mt-1.5 text-[0.7rem] text-ink-400">{p.availabilityPlaceholder}</p>
+                {p.sourceLabel ? (
+                  <p className="mt-1 text-[0.68rem] text-ink-500">
+                    Source: {p.sourceUrl ? <a href={p.sourceUrl} target="_blank" rel="noopener noreferrer" className="underline">{p.sourceLabel}</a> : p.sourceLabel}
+                  </p>
+                ) : null}
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <a href={directionsUrl({ destination: `${p.name}, ${p.address}`, origin: patientOrigin && typeof patientOrigin.lat === 'number' ? { label: patientOrigin.label, lat: patientOrigin.lat, lng: patientOrigin.lng } : undefined, mode: 'driving' })} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">Directions</a>
+                  {p.route ? (
+                    <a href={directionsUrl({ destination: p.address || p.name, origin: patientOrigin && typeof patientOrigin.lat === 'number' ? { label: patientOrigin.label, lat: patientOrigin.lat, lng: patientOrigin.lng } : undefined, mode: 'driving' })} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">Directions</a>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 px-3 py-1.5 text-[0.78rem] text-ink-400">Directions unavailable</span>
+                  )}
+                  <Link to={ROUTES.pharmacies} className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">Browse pharmacies</Link>
                 </div>
               </article>
             ))}
           </div>
         ) : null}
 
-        {/* Labs */}
+        {/* Labs — real sourced records, no invented tests */}
         {result.labs.length > 0 ? (
           <div className="space-y-2">
             {result.labs.map((l) => (
@@ -397,20 +433,37 @@ function ResultCard({ result, onReply, focusTopic, patientOrigin }: ResultCardPr
                     <h4 className="truncate text-sm font-semibold text-white">{l.name}</h4>
                     <p className="truncate text-xs text-ink-400">{l.address}</p>
                   </div>
-                  <span className={cn('shrink-0 rounded-full border px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.16em]', l.isOpen ? 'border-emerald-400/25 bg-emerald-500/12 text-emerald-200' : 'border-white/10 bg-white/5 text-ink-300')}>{l.isOpen ? 'Open' : 'Closed'}</span>
+                  {l.distanceAvailable && l.distanceKm > 0 ? (
+                    <span className="shrink-0 rounded-full border border-brand-400/25 bg-brand-400/10 px-2 py-0.5 text-[0.6rem] font-semibold text-brand-100">{l.distanceKm.toFixed(1)} km</span>
+                  ) : (
+                    <span className="shrink-0 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[0.6rem] font-semibold text-ink-300">Distance unavailable</span>
+                  )}
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-300">
-                  {l.route ? <span className="inline-flex items-center gap-1"><IconRoute width={12} height={12} aria-hidden /> {l.distanceKm <= 0 ? 'Home collection' : `${l.distanceKm.toFixed(1)} km`}</span> : null}
+                  <span>{l.hoursLabel ? `Hours: ${l.hoursLabel}` : 'Opening hours not published'}</span>
                   {l.homeCollectionAvailable ? <span className="text-brand-200">Home collection</span> : null}
                 </div>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {l.testsOffered.slice(0, 4).map((t) => (
-                    <span key={t} className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[0.66rem] text-ink-300">{t}</span>
-                  ))}
-                </div>
+                {l.testsOffered.length > 0 ? (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {l.testsOffered.slice(0, 4).map((t) => (
+                      <span key={t} className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[0.66rem] text-ink-300">{t}</span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-1.5 text-[0.7rem] text-ink-400">Test menu and home collection are not published for this facility.</p>
+                )}
+                {l.sourceLabel ? (
+                  <p className="mt-1 text-[0.68rem] text-ink-500">
+                    Source: {l.sourceUrl ? <a href={l.sourceUrl} target="_blank" rel="noopener noreferrer" className="underline">{l.sourceLabel}</a> : l.sourceLabel}
+                  </p>
+                ) : null}
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <a href={directionsUrl({ destination: `${l.name}, ${l.address}`, origin: patientOrigin && typeof patientOrigin.lat === 'number' ? { label: patientOrigin.label, lat: patientOrigin.lat, lng: patientOrigin.lng } : undefined, mode: 'driving' })} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">Directions</a>
-                  <Link to={`${ROUTES.appointments}?lab=${l.id}`} className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-3 py-1.5 text-[0.78rem] font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">Book Test</Link>
+                  {l.route ? (
+                    <a href={directionsUrl({ destination: l.address || l.name, origin: patientOrigin && typeof patientOrigin.lat === 'number' ? { label: patientOrigin.label, lat: patientOrigin.lat, lng: patientOrigin.lng } : undefined, mode: 'driving' })} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">Directions</a>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 px-3 py-1.5 text-[0.78rem] text-ink-400">Directions unavailable</span>
+                  )}
+                  <Link to={ROUTES.labs} className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">Browse labs</Link>
                 </div>
               </article>
             ))}
@@ -622,13 +675,16 @@ function WelcomeState({ prompts, onPick }: { prompts: { label: string }[]; onPic
  * ------------------------------------------------------------------------- */
 
 function ChatComposer({
-  value, onChange, onSubmit, disabled, documents, onFiles, onRemoveDoc, recoveryCheckIn,
-  locationLabel, locationState, onUseLocation, onClearLocation,
+  value, onChange, onSubmit, disabled, busy, documents, onFiles, onRemoveDoc, recoveryCheckIn,
+  locationLabel, locationState, onUseLocation, onClearLocation, onPickPrompt,
 }: {
   value: string;
   onChange: (v: string) => void;
   onSubmit: () => void;
+  /** Disables the Send button (empty/invalid draft). */
   disabled: boolean;
+  /** True only while a request is in flight — the real gate for the prompt menu. */
+  busy: boolean;
   documents: HealthDocument[];
   onFiles: (files: FileList | null) => void;
   onRemoveDoc: (id: string) => void;
@@ -637,6 +693,8 @@ function ChatComposer({
   locationState: { permission: string; isResolving: boolean; hasCoordinates: boolean };
   onUseLocation: () => void;
   onClearLocation: () => void;
+  /** Runs the SAME submit pipeline as Send/Enter — a prompt is executed, not just inserted. */
+  onPickPrompt: (prompt: string) => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -685,6 +743,7 @@ function ChatComposer({
           <button type="button" disabled aria-label="Voice input (not yet available)" title="Voice input is not yet available" className="flex size-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 text-ink-200 disabled:cursor-not-allowed disabled:opacity-40">
             <IconMic width={16} height={16} aria-hidden />
           </button>
+          <QuickPromptMenu onPick={onPickPrompt} disabled={busy} />
           <button type="submit" disabled={disabled} aria-label="Send" className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-brand-500 to-accent-500 text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/50 disabled:cursor-not-allowed disabled:opacity-40">
             <IconSend width={16} height={16} />
           </button>
@@ -776,6 +835,97 @@ function ToolSuggestions({
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ----------------------------------------------------------------------------
+ * Quick-prompt (three-dot) menu
+ * ------------------------------------------------------------------------- */
+
+/**
+ * The chatbot quick-prompt menu, opened from the three-dot button near the
+ * composer. Separate from the global navigation hamburger.
+ *
+ * Accessibility: it is a real `menu` with `menuitem` children (each one performs
+ * an action rather than navigating), closes on outside click / Escape /
+ * selection, and keeps focus on the trigger when dismissed.
+ *
+ * Selecting a prompt runs the SAME submission pipeline as the composer — the
+ * parent hands `onPick` straight to `sendMessage`, so the user never has to press
+ * Send again and a request is never sent twice.
+ */
+function QuickPromptMenu({ onPick, disabled }: { onPick: (prompt: string) => void; disabled?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: globalThis.MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) setOpen(false);
+    };
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+        buttonRef.current?.focus();
+      }
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Open quick prompts"
+        title="Quick prompts"
+        className="flex size-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 text-ink-200 transition hover:border-brand-400/40 hover:bg-brand-400/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40"
+      >
+        <span className="flex flex-col gap-[3px]" aria-hidden>
+          <span className="size-1 rounded-full bg-current" />
+          <span className="size-1 rounded-full bg-current" />
+          <span className="size-1 rounded-full bg-current" />
+        </span>
+      </button>
+
+      {open ? (
+        <div
+          role="menu"
+          aria-label="Quick prompts"
+          className="absolute bottom-full right-0 z-50 mb-2 max-h-[60vh] w-[min(20rem,calc(100vw-2rem))] overflow-y-auto overscroll-contain rounded-[1rem] border border-white/12 bg-slate-950/95 p-1.5 shadow-[0_24px_60px_-20px_rgba(2,6,23,0.8)] backdrop-blur-2xl"
+        >
+          <p className="px-2.5 pb-1.5 pt-1 text-[0.66rem] font-semibold uppercase tracking-[0.24em] text-ink-400">Quick prompts</p>
+          {QUICK_PROMPT_ACTIONS.map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              role="menuitem"
+              disabled={disabled}
+              onClick={() => {
+                setOpen(false);
+                onPick(item.label);
+              }}
+              className="flex w-full items-start gap-2.5 rounded-[0.7rem] px-2.5 py-2 text-left text-[0.82rem] text-ink-200 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <IconArrowRight width={13} height={13} className="mt-0.5 shrink-0 text-brand-300" aria-hidden />
+              <span className="min-w-0">
+                <span className="block font-medium">{item.label}</span>
+                <span className="mt-0.5 block text-[0.7rem] text-ink-400">{item.hint}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1038,10 +1188,12 @@ export function AIChatPage() {
         onChange={setText}
         onSubmit={handleSubmit}
         disabled={conv.isThinking || (!text.trim() && conv.documents.length === 0)}
+        busy={conv.isThinking}
         documents={conv.documents}
         onFiles={handleFiles}
         onRemoveDoc={conv.removeDocument}
         recoveryCheckIn={conv.recoveryCheckIn}
+        onPickPrompt={handlePickPrompt}
         locationLabel={locationCtx?.location?.label ?? 'Set your location'}
         locationState={{
           permission: locationCtx?.permission ?? 'unknown',

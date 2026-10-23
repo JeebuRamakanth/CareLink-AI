@@ -1,0 +1,266 @@
+[
+ {
+  "osm_type": "way",
+  "osm_id": 403238197,
+  "name": "Sri Sai Diagnostic Centre",
+  "lat": 16.4927155,
+  "lon": 80.6749248,
+  "display_name": "Sri Sai Diagnostic Centre, sri sai diagnosist, Panta Kaluva Road, Vijayawada Urban, Patamata, Vijayawada, Penamaluru Mandal, Krishna district, Andhra Pradesh, 520001, India",
+  "road": "Panta Kaluva Road",
+  "suburb": "Patamata",
+  "city": "Vijayawada",
+  "county": "Penamaluru Mandal",
+  "state_district": "Krishna district",
+  "postcode": "520001",
+  "state": "Andhra Pradesh",
+  "extratags": {
+   "building:levels": "1"
+  }
+ },
+ {
+  "osm_type": "node",
+  "osm_id": 12171280224,
+  "name": "Navya Laboratory",
+  "lat": 16.1759715,
+  "lon": 81.12821,
+  "display_name": "Navya Laboratory, Machilipatnam Main Road, Police Quarters, Bhardapuram, Machilipatnam (M), Machilipatnam, Machilipatnam Mandal, Krishna district, Andhra Pradesh, 521001, India",
+  "road": "Machilipatnam Main Road",
+  "suburb": "Bhardapuram",
+  "city": "Machilipatnam",
+  "county": "Machilipatnam Mandal",
+  "state_district": "Krishna district",
+  "postcode": "521001",
+  "state": "Andhra Pradesh",
+  "extratags": {}
+ },
+ {
+  "osm_type": "way",
+  "osm_id": 1321699179,
+  "name": "Lakshmi Gayatri Clinical Laboratory",
+  "lat": 16.5001784,
+  "lon": 80.6912637,
+  "display_name": "Lakshmi Gayatri Clinical Laboratory, lakshmi gayathri clinical laboratory, MDR0164, Vijayawada Urban, Kanuru, Penamaluru Mandal, Krishna district, Andhra Pradesh, 520007, India",
+  "road": "MDR0164",
+  "suburb": null,
+  "city": "Kanuru",
+  "county": "Penamaluru Mandal",
+  "state_district": "Krishna district",
+  "postcode": "520007",
+  "state": "Andhra Pradesh",
+  "extratags": {
+   "building:levels": "2"
+  }
+ },
+ {
+  "osm_type": "node",
+  "osm_id": 11573018969,
+  "name": "Tenet Diagnostics",
+  "lat": 16.5068876,
+  "lon": 80.6440303,
+  "display_name": "Tenet Diagnostics, AS Rama Rao Road, Vijayawada Urban, Patamata Lanka, Vijayawada, Vijayawada Urban Mandal, NTR District, Andhra Pradesh, 520001, India",
+  "road": "AS Rama Rao Road",
+  "suburb": "Patamata Lanka",
+  "city": "Vijayawada",
+  "county": "Vijayawada Urban Mandal",
+  "state_district": "NTR District",
+  "postcode": "520001",
+  "state": "Andhra Pradesh",
+  "extratags": {
+   "check_date": "2024-01-31",
+   "healthcare": "hospital"
+  }
+ },
+ {
+  "osm_type": "node",
+  "osm_id": 12852932857,
+  "name": "Orange Imaging And Diagnostics",
+  "lat": 16.5114502,
+  "lon": 80.6385783,
+  "display_name": "Orange Imaging And Diagnostics, AS Rama Rao Road, Vijayawada Urban, Patamata Lanka, Vijayawada, Vijayawada Urban Mandal, NTR District, Andhra Pradesh, 520001, India",
+  "road": "AS Rama Rao Road",
+  "suburb": "Patamata Lanka",
+  "city": "Vijayawada",
+  "county": "Vijayawada Urban Mandal",
+  "state_district": "NTR District",
+  "postcode": "520001",
+  "state": "Andhra Pradesh",
+  "extratags": {
+   "check_date": "2025-05-21"
+  }
+ },
+ {
+  "osm_type": "node",
+  "osm_id": 13001406930,
+  "name": "Sentini Diagnostics",
+  "lat": 16.5116114,
+  "lon": 80.6329247,
+  "display_name": "Sentini Diagnostics, Kaleswara Rao Road, Vijayawada Urban, Krishna Lanka, Vijayawada, Vijayawada Urban Mandal, NTR District, Andhra Pradesh, 520001, India",
+  "road": "Kaleswara Rao Road",
+  "suburb": "Krishna Lanka",
+  "city": "Vijayawada",
+  "county": "Vijayawada Urban Mandal",
+  "state_district": "NTR District",
+  "postcode": "520001",
+  "state": "Andhra Pradesh",
+  "extratags": {}
+ },
+ {
+  "osm_type": "node",
+  "osm_id": 11570555686,
+  "name": "Accura Diagnostics",
+  "lat": 16.5156518,
+  "lon": 80.6395845,
+  "display_name": "Accura Diagnostics, Karl Marx Road, Vijayawada Urban, Krishna Lanka, Vijayawada, Vijayawada Urban Mandal, NTR District, Andhra Pradesh, 520001, India",
+  "road": "Karl Marx Road",
+  "suburb": "Krishna Lanka",
+  "city": "Vijayawada",
+  "county": "Vijayawada Urban Mandal",
+  "state_district": "NTR District",
+  "postcode": "520001",
+  "state": "Andhra Pradesh",
+  "extratags": {
+   "check_date": "2025-07-11",
+   "healthcare": "hospital"
+  }
+ },
+ {
+  "osm_type": "node",
+  "osm_id": 12852604266,
+  "name": "Srestha Diagnostics",
+  "lat": 16.5070226,
+  "lon": 80.6498926,
+  "display_name": "Srestha Diagnostics, Siddartha College Road, Vijayawada Urban, Patamata Lanka, Vijayawada, Vijayawada Urban Mandal, NTR District, Andhra Pradesh, 520001, India",
+  "road": "Siddartha College Road",
+  "suburb": "Patamata Lanka",
+  "city": "Vijayawada",
+  "county": "Vijayawada Urban Mandal",
+  "state_district": "NTR District",
+  "postcode": "520001",
+  "state": "Andhra Pradesh",
+  "extratags": {
+   "check_date": "2025-05-21"
+  }
+ },
+ {
+  "osm_type": "node",
+  "osm_id": 12993581996,
+  "name": "Karishma Fancy,airtel Recharge Available,near Sri Sai Diagnostics",
+  "lat": 16.4928964,
+  "lon": 80.6748352,
+  "display_name": "Karishma Fancy,airtel Recharge Available,near Sri Sai Diagnostics, Panta Kaluva Road, Vijayawada Urban, Patamata, Vijayawada, Vijayawada Urban Mandal, NTR District, Andhra Pradesh, 520001, India",
+  "road": "Panta Kaluva Road",
+  "suburb": "Patamata",
+  "city": "Vijayawada",
+  "county": "Vijayawada Urban Mandal",
+  "state_district": "NTR District",
+  "postcode": "520001",
+  "state": "Andhra Pradesh",
+  "extratags": {
+   "check_date": "2025-07-11",
+   "description": "Airtel recharge available",
+   "internet_access": "wlan",
+   "internet_access:fee": "no"
+  }
+ },
+ {
+  "osm_type": "node",
+  "osm_id": 12993290962,
+  "name": "Apollo Diagnostics",
+  "lat": 16.4871611,
+  "lon": 80.6780373,
+  "display_name": "Apollo Diagnostics, Vijayawada - Machilipatnam Road, Vijayawada Urban, Patamata, Vijayawada, Vijayawada Urban Mandal, NTR District, Andhra Pradesh, 520001, India",
+  "road": "Vijayawada - Machilipatnam Road",
+  "suburb": "Patamata",
+  "city": "Vijayawada",
+  "county": "Vijayawada Urban Mandal",
+  "state_district": "NTR District",
+  "postcode": "520001",
+  "state": "Andhra Pradesh",
+  "extratags": {
+   "check_date": "2025-07-11",
+   "brand:wikidata": "Q134885714"
+  }
+ },
+ {
+  "osm_type": "node",
+  "osm_id": 12993640981,
+  "name": "Vaishnavi Diagnostics",
+  "lat": 16.4772731,
+  "lon": 80.7043003,
+  "display_name": "Vaishnavi Diagnostics, Vijayawada - Machilipatnam Road, Srinivasanagar, Tadigadapa, Penamaluru Mandal, Krishna district, Andhra Pradesh, 521137, India",
+  "road": "Vijayawada - Machilipatnam Road",
+  "suburb": "Srinivasanagar",
+  "city": "Tadigadapa",
+  "county": "Penamaluru Mandal",
+  "state_district": "Krishna district",
+  "postcode": "521137",
+  "state": "Andhra Pradesh",
+  "extratags": {
+   "phone": "+91 97007 67993",
+   "check_date": "2025-07-11",
+   "healthcare": "dialysis",
+   "healthcare:speciality": "nephrology"
+  }
+ },
+ {
+  "osm_type": "node",
+  "osm_id": 12991109588,
+  "name": "Iris Imaging And Diagnostics",
+  "lat": 16.4756897,
+  "lon": 80.7074901,
+  "display_name": "Iris Imaging And Diagnostics, Vijayawada - Machilipatnam Road, Kankipadu Urban, Gosala, Penamaluru Mandal, Krishna district, Andhra Pradesh, 521139, India",
+  "road": "Vijayawada - Machilipatnam Road",
+  "suburb": null,
+  "city": "Gosala",
+  "county": "Penamaluru Mandal",
+  "state_district": "Krishna district",
+  "postcode": "521139",
+  "state": "Andhra Pradesh",
+  "extratags": {
+   "check_date": "2025-07-10",
+   "building:levels": "2"
+  }
+ },
+ {
+  "osm_type": "node",
+  "osm_id": 12993613963,
+  "name": "Lupan Diagnostics",
+  "lat": 16.4761207,
+  "lon": 80.7075648,
+  "display_name": "Lupan Diagnostics, Vijayawada - Machilipatnam Road, Srinivasanagar, Tadigadapa, Penamaluru Mandal, Krishna district, Andhra Pradesh, 521137, India",
+  "road": "Vijayawada - Machilipatnam Road",
+  "suburb": "Srinivasanagar",
+  "city": "Tadigadapa",
+  "county": "Penamaluru Mandal",
+  "state_district": "Krishna district",
+  "postcode": "521137",
+  "state": "Andhra Pradesh",
+  "extratags": {
+   "check_date": "2025-07-11",
+   "fixme:type": "diagnostics",
+   "opening_hours": "Mo-Sa 10:00-23:00"
+  }
+ },
+ {
+  "osm_type": "node",
+  "osm_id": 12993602450,
+  "name": "Apollo Diagnostics",
+  "lat": 16.4765704,
+  "lon": 80.705186,
+  "display_name": "Apollo Diagnostics, Vijayawada - Machilipatnam Road, Kankipadu Urban, Gosala, Penamaluru Mandal, Krishna district, Andhra Pradesh, 521139, India",
+  "road": "Vijayawada - Machilipatnam Road",
+  "suburb": null,
+  "city": "Gosala",
+  "county": "Penamaluru Mandal",
+  "state_district": "Krishna district",
+  "postcode": "521139",
+  "state": "Andhra Pradesh",
+  "extratags": {
+   "phone": "+91 92469 84546",
+   "operator": "Prakash",
+   "check_date": "2025-07-11",
+   "description": "Blood test available",
+   "opening_hours": "06:00-19:00"
+  }
+ }
+]
