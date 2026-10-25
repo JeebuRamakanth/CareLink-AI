@@ -17,6 +17,7 @@
 
 import type { SafetyLevel, UrgencyLevel } from '../../types';
 import type { AIChatResponse } from './aiTypes';
+import { assessRedFlags } from './redFlags';
 
 /* ----------------------------------------------------------------------------
  * Unsafe-medical-certainty patterns (case-insensitive)
@@ -40,16 +41,12 @@ const SAFE_REPLACEMENT =
 
 /* ----------------------------------------------------------------------------
  * Emergency escalation patterns (user input side, independent of the AI)
- * ------------------------------------------------------------------------- */
-
-const EMERGENCY_INPUT = [
-  'severe chest pain', 'chest pain', "can't breathe", 'cant breathe', 'cannot breathe',
-  'difficulty breathing', 'breathing problem', 'stroke', 'face drooping', 'slurred speech',
-  'unconscious', 'not breathing', 'severe bleeding', 'heavy bleeding', 'suicidal',
-  'suicide', 'overdose', 'severe allergic', 'anaphylaxis', 'seizure', 'heart attack',
-  'cardiac arrest', 'choking', 'severe burn', 'lost consciousness', 'fainted',
-  'fainting', 'passed out', 'severe head injury',
-];
+ * ----------------------------------------------------------------------------
+ * The phrase lists live in `redFlags.ts` (Phase 7) so native-script,
+ * Romanized and misspelled forms in Telugu/Hindi/Kannada/Tamil are all covered
+ * and context (negation, educational framing) is respected. This module keeps
+ * only the escalation contract.
+ */
 
 const URGENT_INPUT = [
   'high fever', 'blood in', 'severe pain', 'worst headache', 'dehydrated',
@@ -58,9 +55,11 @@ const URGENT_INPUT = [
 
 /** Deterministic floor for the safety level given the raw user input. */
 export function inputSafetyFloor(input: string): SafetyLevel | null {
+  const assessment = assessRedFlags(input);
+  if (assessment.isEmergency) return 'emergency';
   const t = input.toLowerCase();
-  if (EMERGENCY_INPUT.some((p) => t.includes(p))) return 'emergency';
   if (URGENT_INPUT.some((p) => t.includes(p))) return 'urgent';
+  if (assessment.isUrgent) return 'urgent';
   return null;
 }
 

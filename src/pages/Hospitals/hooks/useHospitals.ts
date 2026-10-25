@@ -9,6 +9,8 @@ import type { Hospital } from '../../../types';
 export type HospitalFilterState = {
   hospital: string;
   city: string;
+  district: string;
+  pincode: string;
   department: string;
   specialty: string;
   facilityType: string;
@@ -28,6 +30,8 @@ export type HospitalFilterState = {
 const initialFilters: HospitalFilterState = {
   hospital: '',
   city: '',
+  district: '',
+  pincode: '',
   department: '',
   specialty: '',
   facilityType: '',
@@ -73,14 +77,14 @@ const getDistanceThreshold = (distanceValue: string): number | null => {
   }
 };
 
-export function useHospitals(initialSearchTerm = '') {
+export function useHospitals(initialSearchTerm = '', initialOverrides: Partial<HospitalFilterState> = {}) {
   const locationCtx = useOptionalLocationContext();
   const [hospitals, setHospitals] = useState<Hospital[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
-  const [filters, setFilters] = useState<HospitalFilterState>(() => ({ ...initialFilters, hospital: initialSearchTerm }));
+  const [filters, setFilters] = useState<HospitalFilterState>(() => ({ ...initialFilters, hospital: initialSearchTerm, ...initialOverrides }));
   const [page, setPage] = useState(1);
 
   // Recomputed distance from the LIVE patient location when coordinates exist.
@@ -147,6 +151,14 @@ export function useHospitals(initialSearchTerm = '') {
 
     if (filters.city) {
       labels.push('City');
+    }
+
+    if (filters.district) {
+      labels.push('District');
+    }
+
+    if (filters.pincode) {
+      labels.push('PIN code');
     }
 
     if (filters.department) {
@@ -219,11 +231,10 @@ export function useHospitals(initialSearchTerm = '') {
         locality: filters.city,
         facilityType: filters.facilityType,
         specialty: filters.specialty,
+        district: filters.district,
+        pincode: filters.pincode,
+        ownership: filters.ownership,
       });
-      const matchesOwnership = !filters.ownership
-        || (filters.ownership === 'Government'
-          ? hospital.ownership === 'Government'
-          : hospital.ownership === 'Private');
       const matchesDepartment = !filters.department || hospital.departments.some((department) => normalizeText(department).includes(normalizeText(filters.department)));
       const matchesEmergency = !filters.emergency || hospital.facilities.emergency;
       const matchesHours24 = !filters.hours24 || hospital.facilities.twenty_four_hours;
@@ -235,7 +246,7 @@ export function useHospitals(initialSearchTerm = '') {
       const matchesRating = minimumRating === null || hospital.rating >= minimumRating;
       const matchesDistance = maximumDistance === null || (hospital.distance_km ?? Number.POSITIVE_INFINITY) <= maximumDistance;
 
-      return matchesSearch && matchesDirectory && matchesOwnership && matchesDepartment && matchesEmergency && matchesHours24 && matchesIcu && matchesAmbulance && matchesBloodBank && matchesParking && matchesInsurance && matchesRating && matchesDistance;
+      return matchesSearch && matchesDirectory && matchesDepartment && matchesEmergency && matchesHours24 && matchesIcu && matchesAmbulance && matchesBloodBank && matchesParking && matchesInsurance && matchesRating && matchesDistance;
     });
 
     switch (filters.sortBy) {

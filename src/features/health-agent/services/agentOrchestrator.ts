@@ -15,6 +15,7 @@
 import type {
   AgentAction,
   AgentIntent,
+  AgentLanguage,
   BloodCentreRecommendation,
   AgentOrchestratorRequest,
   AgentOrchestratorResponse,
@@ -59,6 +60,15 @@ import {
 } from './discoveryService';
 import { runAITurn, type AIEngineResult } from './ai/aiEngine';
 import { inputSafetyFloor } from './ai/safetyLayer';
+import { detectLanguage, resolveResponseLanguage } from './ai/languageDetector';
+import {
+  localized,
+  EMERGENCY_TITLE,
+  EMERGENCY_GO_NOW,
+  EMERGENCY_CALL_LABEL,
+  EMERGENCY_OPERATOR_HINT,
+  MEDICATION_CONSULT_NOTICE,
+} from './ai/messages';
 import { getBloodCentres } from '../../../services/bloodCentreService';
 import { primaryEmergencyContact } from '../../documents/services/clinical/emergencyConfig';
 import { getPharmacyRecommendations, getLaboratoryRecommendations } from './pharmacyRecommendations';
@@ -555,19 +565,27 @@ async function buildBloodCentreResult(patient?: PatientPoint | null): Promise<Ag
   });
 }
 
-async function buildMedicineResult(rawInput: string, adapters: AgentAdapters, context?: ConversationContext, patient?: PatientPoint | null): Promise<AgentResult> {
+async function buildMedicineResult(
+  rawInput: string,
+  adapters: AgentAdapters,
+  context?: ConversationContext,
+  patient?: PatientPoint | null,
+  language: AgentLanguage = 'en'
+): Promise<AgentResult> {
   const medicine = await adapters.medicines.recognize({ text: rawInput });
+  // §8.4 — the mandatory professional-consultation notice, in the user's language.
+  const consultNotice = localized(MEDICATION_CONSULT_NOTICE, language);
 
   // §9: never invent a medicine. When recognition fails or is uncertain, say
   // so plainly and route to verification instead of substituting a guess.
   if (!medicine) {
     return emptyResult('medicine', {
       summary: 'Medicine not confidently identified',
-      explanation: 'Medicine identification is uncertain. Please verify the name and strength with the label or a pharmacist before taking any action.',
+      explanation: `Medicine identification is uncertain. Please verify the name and strength with the label or a pharmacist before taking any action. ${consultNotice}`,
       urgency: 'routine',
       meta: {
         confidence: 'low', urgency: 'routine', tier: 'professional',
-        disclaimer: 'Never change your dosage or stop a prescribed medicine without consulting your doctor. Confirm interactions with a pharmacist using your full medication list.',
+        disclaimer: consultNotice,
       },
       recommendedNextSteps: ['Check the exact name and strength printed on the strip/label.', 'Ask a pharmacist to confirm the medicine before purchase or use.'],
       warnings: ['Medicine identification is uncertain. Please verify the name and strength with the label/pharmacist.'],
@@ -588,11 +606,11 @@ async function buildMedicineResult(rawInput: string, adapters: AgentAdapters, co
   const uncertain = med.uncertain === true || (typeof med.recognitionConfidence === 'number' && med.recognitionConfidence < 0.6);
   return emptyResult('medicine', {
     summary: `Medicine info — ${med.name}`,
-    explanation: 'General medicine information for navigation only. This is not a prescription or dosage recommendation.',
+    explanation: `General medicine information for navigation only. This is not a prescription or dosage recommendation. ${consultNotice}`,
     urgency: 'routine',
     meta: {
       confidence: uncertain ? 'low' : 'medium', urgency: 'routine', tier: 'educational',
-      disclaimer: 'Never change your dosage or stop a prescribed medicine without consulting your doctor. Confirm interactions with a pharmacist using your full medication list.',
+      disclaimer: consultNotice,
     },
     recommendedNextSteps: [med.prescriptionRequired ? 'This medicine needs a prescription — consult your doctor.' : 'Available over the counter; follow label directions.'],
     medicines: [med],
@@ -844,7 +862,13 @@ function buildGeneralResult(): AgentResult {
   });
 }
 
-async function buildEmergencyResult(adapters: AgentAdapters, input: string, context?: ConversationContext, patient?: PatientPoint | null): Promise<AgentResult> {
+async function buildEmergencyResult(
+  adapters: AgentAdapters,
+  input: string,
+  context?: ConversationContext,
+  patient?: PatientPoint | null,
+  language: AgentLanguage = 'en'
+): Promise<AgentResult> {
   const assessment = await adapters.emergency.assess(input, { activeProfileId: 'self', profile: { id: 'self', label: 'Self', relation: 'self', contextSummary: '', contextTags: [] }, location: patient ? { label: patient.label ?? '', lat: patient.lat, lng: patient.lng } : undefined });
   const input2 = rankInput('emergency', undefined, context);
   const facilityHospitals = assessment.nearbyFacilities.map((f) => ({
@@ -855,9 +879,12 @@ async function buildEmergencyResult(adapters: AgentAdapters, input: string, cont
   }));
   // Emergency relevance overrides normal ranking: nearest emergency-capable facility first.
   const facilities = rankHospitals(facilityHospitals, input2);
+  const emergencyContact = primaryEmergencyContact('in');
+  // Safety-critical emergency copy is DETERMINISTIC and localized — it never
+  // depends on the AI provider being reachable (Phase 7 §7.2).
   return emptyResult('emergency', {
-    summary: 'This may need urgent attention',
-    explanation: 'Based on what you described, this could be serious. Please treat this as urgent and consider immediate professional care.',
+    summary: localized(EMERGENCY_TITLE, language),
+    explanation: `${localized(EMERGENCY_GO_NOW, language)} ${localized(EMERGENCY_OPERATOR_HINT, language)}`,
     urgency: 'emergency',
     meta: { confidence: 'high', urgency: 'emergency', tier: 'emergency', disclaimer: DISCLAIMER_EMERGENCY },
     recommendedNextSteps: [assessment.recommendedNextAction],
@@ -868,7 +895,7 @@ async function buildEmergencyResult(adapters: AgentAdapters, input: string, cont
     isDemoData: false,
     sources: [isAnyProviderReal() ? 'CareLink emergency navigation' : 'CareLink emergency navigation (mock)'],
     actions: [
-      { type: 'call-emergency', label: `Call emergency services (${primaryEmergencyContact('in').phone})`, href: primaryEmergencyContact('in').href, icon: 'call-emergency' },
+      { type: 'call-emergency', label: `${localized(EMERGENCY_CALL_LABEL, language)} (${emergencyContact.phone})`, href: emergencyContact.href, icon: 'call-emergency' },
       ...facilities.flatMap((f) => f.detailSlug ? [{ type: 'view-hospital' as const, label: `View ${f.name}`, href: `${ROUTES.hospitals}/${f.detailSlug}`, icon: 'view-hospital' as const }] : []),
     ],
     suggestedReplies: ['Call emergency services', 'Find an emergency hospital', 'Get directions'],
@@ -889,6 +916,12 @@ export function createAgentOrchestrator(adapters: AgentAdapters = resolvedAdapte
     const classification = await adapters.ai.classify(request.text, request.patientContext);
     const patient = patientPoint(request);
 
+    // Phase 2 — detect the user's language BEFORE any branch, so the emergency
+    // path is language-aware too and detection can never delay escalation.
+    const detection = detectLanguage(request.text);
+    const hasPriorTurns = (request.history?.length ?? 0) > 1;
+    const responseLanguage = resolveResponseLanguage(detection, request.language, hasPriorTurns);
+
     // Emergency short-circuits everything — always escalate. Severity is never
     // "remembered away"; each emergency-pattern input is re-evaluated fresh.
     // The deterministic safety floor also forces emergency handling even if a
@@ -897,7 +930,7 @@ export function createAgentOrchestrator(adapters: AgentAdapters = resolvedAdapte
       const emergencyClassification = classification.intent === 'emergency'
         ? classification
         : { ...classification, intent: 'emergency' as const, confidence: 'high' as const };
-      const result = await buildEmergencyResult(adapters, request.text, priorContext, patient);
+      const result = await buildEmergencyResult(adapters, request.text, priorContext, patient, responseLanguage);
       result.safetyLevel = 'emergency';
       result.provenance = {
         mode: 'mock',
@@ -910,7 +943,7 @@ export function createAgentOrchestrator(adapters: AgentAdapters = resolvedAdapte
         { id: 'u', role: 'user', content: request.text, createdAt: new Date().toISOString(), documents: request.documents, contextTags: [], patientProfileId: request.patientContext.activeProfileId },
         'emergency'
       );
-      return { result, classification: emergencyClassification, context };
+      return { result, classification: emergencyClassification, context, language: responseLanguage, detection };
     }
 
     let result: AgentResult;
@@ -937,7 +970,7 @@ export function createAgentOrchestrator(adapters: AgentAdapters = resolvedAdapte
         result = await buildBloodCentreResult(patient);
         break;
       case 'medicine':
-        result = await buildMedicineResult(request.text, adapters, priorContext, patient);
+        result = await buildMedicineResult(request.text, adapters, priorContext, patient, responseLanguage);
         break;
       case 'report':
         result = buildReportResult(request.documents);
@@ -996,7 +1029,7 @@ export function createAgentOrchestrator(adapters: AgentAdapters = resolvedAdapte
       classification.intent
     );
 
-    return { result, classification, context };
+    return { result, classification, context, language: ai.responseLanguage, detection: ai.detection };
   };
 
   return { handle };

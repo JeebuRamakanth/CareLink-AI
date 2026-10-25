@@ -27,6 +27,13 @@ const languageOptions: { value: AgentLanguage; label: string }[] = [
   { value: 'en', label: 'English' },
   { value: 'te', label: 'తెలుగు (Telugu)' },
   { value: 'hi', label: 'हिन्दी / Hinglish' },
+  { value: 'kn', label: 'ಕನ್ನಡ (Kannada)' },
+  { value: 'ta', label: 'தமிழ் (Tamil)' },
+  { value: 'ml', label: 'മലയാളം (Malayalam)' },
+  { value: 'bn', label: 'বাংলা (Bengali)' },
+  { value: 'gu', label: 'ગુજરાતી (Gujarati)' },
+  { value: 'mr', label: 'मराठी (Marathi)' },
+  { value: 'ur', label: 'اردو (Urdu)' },
 ];
 
 export function ContextPanel({ open, onClose }: Props) {

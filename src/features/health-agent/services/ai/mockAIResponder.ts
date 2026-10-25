@@ -15,6 +15,7 @@ import type { AIChatResponse } from './aiTypes';
 import type { AIEngineInput } from './aiEngine';
 import { mockAIProvider } from '../adapters/mockAdapters';
 import { inputSafetyFloor } from './safetyLayer';
+import { localized, EMERGENCY_TITLE, EMERGENCY_GO_NOW } from './messages';
 
 const safetyForIntent = (intent: AgentIntent, input: string): SafetyLevel => {
   const floor = inputSafetyFloor(input);
@@ -184,8 +185,35 @@ const COPY: Record<AgentIntent, IntentCopy> = {
 };
 
 const LANGUAGE_PREFIX: Record<string, string> = {
-  te: 'Meeru telugulo adigaru — I’ll keep it simple. ',
-  hi: 'Aapne Hinglish mein poocha — I’ll keep it simple. ',
+  te: 'Meeru telugulo adigaru — Telugu-English lo simple ga cheptanu. ',
+  hi: 'Aapne Hinglish mein poocha — main simple bhasha mein batata hoon. ',
+  kn: 'ನೀವು ಕನ್ನಡದಲ್ಲಿ ಕೇಳಿದ್ದೀರಿ — ಸರಳವಾಗಿ ಹೇಳುತ್ತೇನೆ. ',
+  ta: 'நீங்கள் தமிழில் கேட்டீர்கள் — எளிமையாகச் சொல்கிறேன். ',
+  ml: 'നിങ്ങൾ മലയാളത്തിൽ ചോദിച്ചു — ലളിതമായി പറയാം. ',
+  bn: 'আপনি বাংলায় জিজ্ঞাসা করেছেন — সহজভাবে বলছি। ',
+  gu: 'તમે ગુજરાતીમાં પૂછ્યું — સરળ રીતે કહું છું. ',
+  mr: 'तुम्ही मराठीत विचारले — सोप्या भाषेत सांगतो. ',
+  ur: 'آپ نے اردو میں پوچھا — آسان زبان میں بتاتا ہوں۔ ',
+};
+
+/**
+ * Language-aware demo copy. The demo responder can only localize a small set of
+ * safety-critical strings (it has no model), so for the languages where a
+ * reviewed translation exists it prepends a native-script line AND keeps the
+ * English body — never a broken machine translation. The important guarantee is
+ * that the payload is truth-tagged `mock`, the language code is honest, and the
+ * safety layer still escalates emergencies deterministically.
+ */
+const DEMO_LANGUAGE_NOTE: Record<string, string> = {
+  te: 'Demo response — live Telugu answers need the configured AI backend.',
+  hi: 'Demo response — live Hindi answers need the configured AI backend.',
+  kn: 'ಡೆಮೊ ಪ್ರತಿಕ್ರಿಯೆ — ನಿಜವಾದ ಕನ್ನಡ ಉತ್ತರಗಳಿಗೆ AI ಬ್ಯಾಕೆಂಡ್ ಅಗತ್ಯ.',
+  ta: 'டெமோ பதில் — உண்மையான தமிழ் பதில்களுக்கு AI பின்தளம் தேவை.',
+  ml: 'ഡെമോ പ്രതികരണം — യഥാർത്ഥ മലയാളം ഉത്തരങ്ങൾക്ക് AI ബാക്കെൻഡ് ആവശ്യമാണ്.',
+  bn: 'ডেমো প্রতিক্রিয়া — প্রকৃত বাংলা উত্তরের জন্য AI ব্যাকএন্ড প্রয়োজন।',
+  gu: 'ડેમો પ્રતિસાદ — સાચા ગુજરાતી જવાબો માટે AI બેકએન્ડ જરૂરી છે.',
+  mr: 'डेमो प्रतिसाद — खऱ्या मराठी उत्तरांसाठी AI बॅकएंड आवश्यक आहे.',
+  ur: 'ڈیمو جواب — حقیقی اردو جوابات کے لیے AI بیک اینڈ درکار ہے۔',
 };
 
 /**
@@ -222,14 +250,20 @@ export function mockAIRespond(input: AIEngineInput, reason?: string): AIChatResp
   const copy = COPY[intent];
   const safetyLevel = safetyForIntent(intent, input.text);
   const langPrefix = LANGUAGE_PREFIX[input.language] ?? '';
+  const demoNote = DEMO_LANGUAGE_NOTE[input.language] ?? '';
+
+  const summary = intent === 'emergency' ? localized(EMERGENCY_TITLE, input.language) : copy.summary;
+  const explanationParts = [langPrefix, copy.explanation];
+  if (intent === 'emergency') explanationParts.push(localized(EMERGENCY_GO_NOW, input.language));
+  if (demoNote) explanationParts.push(demoNote);
 
   return {
-    summary: copy.summary,
+    summary,
     intent,
     confidence: intent === 'general' ? 'low' : 'medium',
     urgency: urgencyFor(safetyLevel),
     safetyLevel,
-    explanation: `${langPrefix}${copy.explanation}`,
+    explanation: explanationParts.filter(Boolean).join(' '),
     nextActions: copy.nextActions,
     followUpQuestions: copy.followUps,
     warnings: [],

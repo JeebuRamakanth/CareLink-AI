@@ -52,16 +52,19 @@ import {
 } from '../directoryRecommendations';
 import { buildMapsDirectionsUrl, buildMapsPlaceUrl } from '../../../../lib';
 import { emergencyContacts, EMERGENCY_DISCLAIMER } from '../../../documents/services/clinical/emergencyConfig';
+import { assessRedFlags } from '../ai/redFlags';
+import { detectLanguage as detectInputLanguage } from '../ai/languageDetector';
 
 const wait = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
 
-const EMERGENCY_PATTERNS = [
-  'severe chest pain', 'chest pain', "can't breathe", 'cannot breathe', 'difficulty breathing',
-  'stroke', 'unconscious', 'not breathing', 'severe bleeding', 'heavy bleeding', 'suicidal',
-  'suicide', 'overdose', 'severe allergic', 'anaphylaxis', 'seizure', 'fitting', 'heart attack',
-  'cardiac arrest', 'choking', 'severe burn', 'lost consciousness', 'fainted', 'fainting',
-  'passed out', 'severe head injury', 'emergency',
-];
+/**
+ * `emergency` is intentionally EMPTY: the emergency intent is decided by the
+ * context-aware `assessRedFlags()` above, which understands negation and
+ * educational framing. Keeping a keyword list here would reintroduce the
+ * bypass that misrouted questions like "what are the symptoms of a heart
+ * attack?" to the emergency path.
+ */
+const EMERGENCY_PATTERNS: string[] = [];
 
 const INTENT_PATTERNS: Record<AgentIntent, string[]> = {
   report: ['report', 'reports', 'explain this', 'explain my', 'blood report', 'lab report', 'upload report', 'analyze report', 'medical report', 'pdf', 'document'],
@@ -121,13 +124,17 @@ const extractEntities = (text: string): string[] => {
   return entities;
 };
 
+/**
+ * Language hint for the input.
+ *
+ * Delegates to the shared multilingual detector so the legacy classifier, the
+ * orchestrator and the AI engine can never disagree about the user's language.
+ * Returns the detected language, or null when nothing non-English was found.
+ */
 const detectLanguage = (rawInput: string): AgentLanguage | undefined => {
-  const text = normalize(rawInput);
-  if (/[\u0C00-\u0C7F]/.test(text)) return 'te';
-  if (/[\u0900-\u097F]/.test(text)) return 'hi';
-  const hinglish = ['kya', 'kaise', 'mera', 'meri', 'muje', 'mujhe', 'hai', 'dard', 'bimari', 'ilaaj', 'naaku', 'undi'];
-  if (hinglish.some((w) => text.includes(w))) return text.includes('naaku') || text.includes('undi') ? 'te' : 'hi';
-  return undefined;
+  const detection = detectInputLanguage(rawInput);
+  if (detection.language === 'en' && detection.confidence === 'low') return undefined;
+  return detection.language === 'en' && !detection.transliterated ? undefined : detection.language;
 };
 
 /* ----------------------------------------------------------------------------
@@ -140,7 +147,19 @@ export const mockAIProvider: AgentAdapters['ai'] = {
     const text = normalize(input);
     if (!text) return { intent: 'general', confidence: 'low', entities: [], rawInput: input, detectedLanguage: detectLanguage(input) };
 
-    if (hasAny(text, EMERGENCY_PATTERNS)) {
+    // Emergency classification delegates to the SAME context-aware red-flag
+    // assessor the deterministic safety floor uses. There is deliberately NO
+    // separate English keyword shortcut here: a shortcut would bypass the
+    // negation/educational context checks and misroute a question such as
+    // "what are the symptoms of a heart attack?" to the emergency path.
+    const redFlags = assessRedFlags(input);
+    if (redFlags.isEmergency) {
+      return { intent: 'emergency', confidence: 'high', entities: extractEntities(text), rawInput: input, detectedLanguage: detectLanguage(input) };
+    }
+    // A present (non-negated, non-educational) report of a red-flag symptom —
+    // including Telugu/Hindi/Kannada/Tamil script and transliteration — is also
+    // the emergency intent.
+    if (redFlags.matches.length > 0 && redFlags.basis === 'present-report') {
       return { intent: 'emergency', confidence: 'high', entities: extractEntities(text), rawInput: input, detectedLanguage: detectLanguage(input) };
     }
 

@@ -28,6 +28,28 @@ import { dirname, join } from 'node:path';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const RECORDS_SOURCE = join(ROOT, 'scripts', 'directory', 'imported-facilities.json');
 const OUT = join(ROOT, 'supabase', 'migrations', '0034_corridor_directory_import.sql');
+const IMPORT_REPORT = join(ROOT, 'scripts', 'directory', 'last-import-report.json');
+
+/**
+ * The date the sources were actually last re-checked. Read from the import
+ * report written by the importer — NOT from the clock — because regenerating
+ * the migration is not a source re-check, and stamping today's date on
+ * un-rechecked data would misstate the provenance.
+ */
+function latestSourceCheck() {
+  try {
+    const report = JSON.parse(readFileSync(IMPORT_REPORT, 'utf8'));
+    const stamps = (report.sources ?? [])
+      .map((s) => s.last_successful_sync)
+      .filter(Boolean)
+      .sort();
+    const newest = stamps[stamps.length - 1];
+    if (newest) return String(newest).slice(0, 10);
+  } catch {
+    // fall through
+  }
+  return 'see last-import-report.json';
+}
 
 /**
  * The canonical record set written by `ingest.mjs`. Reading the JSON (rather
@@ -73,7 +95,7 @@ const header = `-- =============================================================
 -- buffer + documented corridor localities). See src/data/coverage.ts and
 -- scripts/directory/last-import-report.json for the achieved-coverage report.
 --
--- SOURCES (checked ${new Date().toISOString().slice(0, 10)}):
+-- SOURCES (last source re-check ${latestSourceCheck()}):
 --   https://krishna.ap.gov.in/public-utility-category/hospitals/
 --   https://ntr.ap.gov.in/public-utility-category/hospitals/
 -- ===========================================================================

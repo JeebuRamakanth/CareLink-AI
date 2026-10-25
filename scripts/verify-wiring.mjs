@@ -587,6 +587,108 @@ check(
   'a missing coordinate must yield null distance, not a fabricated number'
 );
 
+/* ---------------------------------------------------------------------------
+ * Step 30 — multilingual assistant, hospital discovery and emergency safety.
+ * ------------------------------------------------------------------------- */
+
+check(
+  'step30: one shared language detector is used by every entry point',
+  has('src/features/health-agent/services/ai/languageDetector.ts', 'SUPPORTED_LANGUAGES') &&
+    has('src/features/health-agent/services/ai/aiEngine.ts', 'resolveResponseLanguage') &&
+    has('src/features/health-agent/services/agentOrchestrator.ts', 'resolveResponseLanguage') &&
+    has('src/features/health-agent/services/adapters/mockAdapters.ts', 'detectInputLanguage') &&
+    has('src/features/health-agent/services/contextManager.ts', 'detectInputLanguage') &&
+    has('src/services/agent/agentIntentRouter.ts', 'detectInputLanguage'),
+  'the assistant must not keep divergent language heuristics'
+);
+check(
+  'step30: the assistant auto-detects the user language (no manual selection required)',
+  has('src/features/health-agent/hooks/useAgentConversation.ts', 'response.language') &&
+    has('src/features/health-agent/services/ai/aiEngine.ts', 'detectLanguage(input.text)'),
+  'the detected language must be adopted by the conversation'
+);
+check(
+  'step30: emergency red flags are multilingual and context-aware',
+  has('src/features/health-agent/services/ai/redFlags.ts', 'EMERGENCY_GROUPS') &&
+    has('src/features/health-agent/services/ai/redFlags.ts', 'NEGATION_AFTER') &&
+    has('src/features/health-agent/services/ai/redFlags.ts', 'EDUCATIONAL_MARKERS') &&
+    has('src/features/health-agent/services/ai/safetyLayer.ts', 'assessRedFlags'),
+  'a bare keyword match would miss localised reports and over-trigger on questions'
+);
+check(
+  'step30: the emergency intent cannot bypass the context-aware assessor',
+  has('src/features/health-agent/services/adapters/mockAdapters.ts', 'assessRedFlags(input)') &&
+    has('src/features/health-agent/services/adapters/mockAdapters.ts', 'const EMERGENCY_PATTERNS: string[] = []'),
+  'a keyword shortcut would misroute educational questions to the emergency path'
+);
+check(
+  'step30: safety-critical copy is localized and available without the AI provider',
+  has('src/features/health-agent/services/ai/messages.ts', 'EMERGENCY_GO_NOW') &&
+    has('src/features/health-agent/services/ai/messages.ts', 'MEDICATION_CONSULT_NOTICE') &&
+    has('src/features/health-agent/services/agentOrchestrator.ts', 'localized(EMERGENCY_GO_NOW') &&
+    has('src/features/health-agent/services/agentOrchestrator.ts', 'localized(MEDICATION_CONSULT_NOTICE'),
+  'emergency guidance must not depend on a model being reachable'
+);
+check(
+  'step30: the AI gateway accepts every supported language and re-derives script server-side',
+  has('supabase/functions/ai-gateway/logic.ts', 'SUPPORTED_GATEWAY_LANGUAGES') &&
+    has('supabase/functions/ai-gateway/logic.ts', 'detectScriptLanguage') &&
+    has('supabase/functions/ai-gateway/index.ts', 'detectScriptLanguage(payload.input)'),
+  'the client language value must not be trusted over the typed script'
+);
+check(
+  'step30: the AI gateway system prompt is language-aware',
+  has('supabase/functions/ai-gateway/index.ts', 'TARGET LANGUAGE') &&
+    has('supabase/functions/ai-gateway/index.ts', 'code-switching'),
+  'the model must be told to answer in the user language and style'
+);
+check(
+  'step30: hospital search covers name, city, district, PIN code, type and ownership',
+  has('src/services/hospitalDirectorySearch.ts', 'hospital.district') &&
+    has('src/services/hospitalDirectorySearch.ts', 'hospital.pincode') &&
+    has('src/services/hospitalDirectorySearch.ts', 'hospital.category_label') &&
+    has('src/services/hospitalDirectorySearch.ts', 'hospital.ownership') &&
+    has('src/services/hospitalDirectorySearch.ts', 'matchesPincode'),
+  'a single search value must be enough'
+);
+check(
+  'step30: search does not match generated description/source noise',
+  has('src/services/hospitalDirectorySearch.ts', 'source_label` is deliberately EXCLUDED') ||
+    has('src/services/hospitalDirectorySearch.ts', 'deliberately EXCLUDED'),
+  'a generated description names both anchor cities and would match everything'
+);
+check(
+  'step30: an empty hospital search returns the whole eligible directory',
+  has('src/services/hospitalService.ts', 'isEligibleForDirectory') &&
+    has('src/services/hospitalDirectorySearch.ts', 'isEligibleForDirectory'),
+  'a blank search must not be silently limited to a small sample'
+);
+check(
+  'step30: the hospital filter UI exposes district and PIN code',
+  has('src/pages/Hospitals/components/FilterBar.tsx', 'PIN code') &&
+    has('src/pages/Hospitals/components/FilterBar.tsx', "updateFilter('district'") &&
+    has('src/pages/Hospitals/hooks/useHospitals.ts', 'district: filters.district'),
+  'the new search fields must be reachable from the UI'
+);
+check(
+  'step30: government ownership is derived from name/type evidence, not the source domain',
+  has('scripts/directory/ingest.mjs', 'PUBLIC_NAME_MARKER') &&
+    !has('scripts/directory/ingest.mjs', 'source = \'\'') ,
+  'a district directory also lists private institutions, so a domain match would mislabel them'
+);
+check(
+  'step30: the importer refuses to silently shrink the directory',
+  has('scripts/directory/ingest.mjs', 'REFUSING TO WRITE') &&
+    has('scripts/directory/ingest.mjs', '--allow-shrink'),
+  'an offline run must never erase real sourced facilities'
+);
+check(
+  'step30: the language vocabulary is enforced at the database boundary',
+  has('supabase/migrations/0038_step30_supported_languages.sql', 'conversations_language_check') &&
+    has('supabase/migrations/0038_step30_supported_languages.sql', "'en','te','hi','kn','ta','ml','bn','gu','mr','ur'"),
+  'a client must not be able to persist an unsupported language code'
+);
+
 console.log(`\nCareLink wiring audit — ${checks.length} checks`);
 for (const c of checks) {
   console.log(`  ${c.ok ? 'PASS' : 'FAIL'}  ${c.name}`);

@@ -153,6 +153,12 @@ const actionSources = [
 const badHrefs = [];
 for (const f of actionSources) {
   const src = read(f);
+  // Local aliases of the validated emergency-contact helper (e.g.
+  // `const emergencyContact = primaryEmergencyContact('in')`) are just as safe
+  // as calling the helper inline, so resolve them before judging an href.
+  const contactAliases = new Set(
+    [...src.matchAll(/const\s+(\w+)\s*=\s*primaryEmergencyContact\(/g)].map((m) => m[1])
+  );
   for (const m of src.matchAll(/href:\s*([^,\n]+)/g)) {
     const expr = m[1].trim();
     const ok =
@@ -167,7 +173,8 @@ for (const f of actionSources) {
       // The emergency-contact helper returns a `tel:` href by construction
       // (asserted in medicineIdentification.test.mjs: every contact href is a
       // dialable tel: link), so it is a validated scheme source.
-      expr.includes('primaryEmergencyContact(');
+      expr.includes('primaryEmergencyContact(') ||
+      [...contactAliases].some((alias) => expr.includes(`${alias}.href`));
     if (!ok) badHrefs.push(`${relative(root, f)}: ${expr}`);
   }
 }

@@ -14,7 +14,25 @@
  * Shared primitives
  * ------------------------------------------------------------------------- */
 
-export type AgentLanguage = 'en' | 'te' | 'hi';
+/**
+ * Languages the assistant can answer in (Phase 2).
+ *
+ * `en` is the guaranteed floor; the additional languages are handled by the
+ * deterministic detector (native script + Romanized transliteration) and the
+ * language-aware model instructions. Adding a language here is the ONLY change
+ * needed for the selector, the schema validator and the gateway to accept it.
+ */
+export type AgentLanguage =
+  | 'en' // English
+  | 'te' // Telugu (script + Telugu-English transliteration)
+  | 'hi' // Hindi (Devanagari + Hinglish)
+  | 'kn' // Kannada
+  | 'ta' // Tamil
+  | 'ml' // Malayalam
+  | 'bn' // Bengali
+  | 'gu' // Gujarati
+  | 'mr' // Marathi
+  | 'ur'; // Urdu
 
 export type UrgencyLevel = 'routine' | 'attention' | 'urgent' | 'emergency';
 
@@ -673,4 +691,19 @@ export interface AgentOrchestratorResponse {
   classification: IntentClassification;
   /** Updated conversation context to carry into the next turn. */
   context: ConversationContext;
+  /**
+   * The language the response was actually produced in (Phase 2). Equals the
+   * requested language when detection was inconclusive, or the detected
+   * language when the user changed language mid-conversation.
+   */
+  language?: AgentLanguage;
+  /** The full language detection for this turn (script, code-switching, …). */
+  detection?: {
+    language: AgentLanguage;
+    confidence: 'high' | 'medium' | 'low';
+    script: string;
+    codeSwitched: boolean;
+    transliterated: boolean;
+    reason: string;
+  };
 }

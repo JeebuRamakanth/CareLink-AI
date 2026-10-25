@@ -31,10 +31,13 @@ export function FilterBar({ searchValue, filters, onSearchChange, onFilterChange
   const localityOptions = options?.localities ?? [];
   const categoryOptions = options?.categories ?? [];
   const ownershipOptions = options?.ownerships ?? [];
+  const districtOptions = options?.districts ?? [];
   const activeFilters = useMemo(() => {
     const entries = [
       searchValue && 'Search',
       filters.city && 'City',
+      filters.district && 'District',
+      filters.pincode && 'PIN code',
       filters.department && 'Department',
       filters.specialty && 'Specialty',
       filters.emergency && 'Emergency',
@@ -149,6 +152,32 @@ export function FilterBar({ searchValue, filters, onSearchChange, onFilterChange
                   <option key={option} value={option}>{option}</option>
                 ))}
               </select>
+            </FilterField>
+
+            <FilterField label="District" hint="Krishna, NTR…">
+              <select
+                value={filters.district}
+                onChange={(event) => updateFilter('district', event.target.value)}
+                aria-label="Filter hospitals by district"
+                className="w-full min-w-0 rounded-[0.8rem] border border-white/10 bg-slate-950/70 px-3 py-2.5 text-sm text-white outline-none transition focus:border-brand-400/40 focus:ring-2 focus:ring-brand-400/20"
+              >
+                <option value="">All districts</option>
+                {districtOptions.map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
+            </FilterField>
+
+            <FilterField label="PIN code" hint="6-digit postal code">
+              <input
+                inputMode="numeric"
+                maxLength={6}
+                value={filters.pincode}
+                onChange={(event) => updateFilter('pincode', event.target.value.replace(/[^\d]/g, ''))}
+                placeholder="e.g. 521001"
+                aria-label="Filter by 6-digit PIN code"
+                className="w-full min-w-0 rounded-[0.8rem] border border-white/10 bg-slate-950/70 px-3 py-2.5 text-sm text-white outline-none transition focus:border-brand-400/40 focus:ring-2 focus:ring-brand-400/20"
+              />
             </FilterField>
 
           </div>

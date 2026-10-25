@@ -66,6 +66,7 @@ ORDER=(
   0035_step25_departments_affiliations_blood_centres.sql
   0036_step27_pharmacy_lab_directory.sql
   0037_step28_public_reviews.sql
+  0038_step30_supported_languages.sql
 )
 
 {

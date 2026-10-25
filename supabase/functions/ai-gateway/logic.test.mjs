@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   MAX_BODY_BYTES,
+  SUPPORTED_GATEWAY_LANGUAGES,
+  detectScriptLanguage,
   missingConfiguration,
   parseGatewayPayload,
   parseProviderCompletion,
@@ -80,4 +82,39 @@ test('maps provider failures to safe public errors', () => {
   assert.equal(safeProviderFailure(429).status, 429);
   assert.equal(safeProviderFailure(404).category, 'model-unavailable');
   assert.equal(safeProviderFailure(500).error, 'provider-unavailable');
+});
+
+test('accepts every supported language and rejects an unsupported one', () => {
+  for (const language of SUPPORTED_GATEWAY_LANGUAGES) {
+    assert.ok(parseGatewayPayload({ ...validRequest, language }), `${language} must be accepted`);
+  }
+  assert.equal(parseGatewayPayload({ ...validRequest, language: 'xx' }), null);
+  assert.equal(parseGatewayPayload({ ...validRequest, language: 42 }), null);
+});
+
+test('re-derives a native-script language server-side (client value is not trusted)', () => {
+  assert.equal(detectScriptLanguage('నాకు జ్వరం ఉంది'), 'te');
+  assert.equal(detectScriptLanguage('ನನಗೆ ಜ್ವರ ಇದೆ'), 'kn');
+  assert.equal(detectScriptLanguage('எனக்கு காய்ச்சல் உள்ளது'), 'ta');
+  assert.equal(detectScriptLanguage('मुझे बुखार है'), 'hi');
+  // Latin-script input has no script evidence, so the client's detection wins.
+  assert.equal(detectScriptLanguage('Naaku fever vastundi'), null);
+  assert.equal(detectScriptLanguage('I have fever'), null);
+});
+
+test('a provider response may declare any supported language', () => {
+  const completionFor = (language) => ({
+    choices: [{
+      message: {
+        content: JSON.stringify({
+          summary: 'ok', intent: 'symptom', confidence: 'low', urgency: 'routine',
+          safetyLevel: 'educational', explanation: 'ok', language,
+        }),
+      },
+    }],
+  });
+  assert.equal(parseProviderCompletion(completionFor('ta'), 'en')?.language, 'ta');
+  // An unsupported/absent language falls back to the requested language.
+  assert.equal(parseProviderCompletion(completionFor('zz'), 'hi')?.language, 'hi');
+  assert.equal(parseProviderCompletion(completionFor(undefined), 'kn')?.language, 'kn');
 });

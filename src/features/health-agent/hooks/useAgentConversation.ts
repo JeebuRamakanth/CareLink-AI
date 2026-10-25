@@ -355,6 +355,13 @@ export function useAgentConversation(): UseAgentConversation {
 
         if (abort.signal.aborted) return;
 
+        // Phase 2 — the orchestrator detected the language the user actually
+        // wrote in. Adopt it so follow-up turns and safety copy stay in the
+        // user's language without them having to pick one.
+        if (response.language && response.language !== language) {
+          setLanguage(response.language);
+        }
+
         const assistantMessage: AgentMessage = {
           id: createId('a'),
           role: 'assistant',
