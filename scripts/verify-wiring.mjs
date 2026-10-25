@@ -24,6 +24,8 @@ import { dirname, join } from 'node:path';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => readFileSync(join(root, p), 'utf8');
 const has = (p, needle) => read(p).includes(needle);
+/** True when the file exists AND contains the needle (safe for deleted files). */
+const hasIfExists = (p, needle) => existsSync(join(root, p)) && has(p, needle);
 
 const failures = [];
 const checks = [];
@@ -471,11 +473,47 @@ check(
  * Step 27 — global navigation, doctors hero, assistant prompts, pharmacy.
  * ------------------------------------------------------------------------- */
 check(
-  'step27: the header renders a hamburger that opens a real navigation dialog',
-  has('src/components/layout/GlobalLayout.tsx', 'NavDrawer') &&
-    has('src/components/layout/GlobalLayout.tsx', 'Open navigation menu') &&
+  'step28: the header renders a hamburger that opens a real navigation dialog',
+  has('src/components/layout/GlobalNavigation.tsx', 'NavDrawer') &&
+    has('src/components/layout/GlobalNavigation.tsx', 'Open navigation menu') &&
     has('src/components/layout/NavDrawer.tsx', 'aria-modal'),
   'the hamburger must drive an accessible dialog, not a decorative icon'
+);
+check(
+  'step28: every header uses the SAME shared navigation component',
+  has('src/components/layout/GlobalLayout.tsx', 'GlobalNavigation') &&
+    has('src/features/health-agent/components/AIChatPage.tsx', 'GlobalNavigation') &&
+    has('src/components/agent/AgentHeader.tsx', 'GlobalNavigation'),
+  'the marketing, /ai and /agent headers must share one drawer implementation'
+);
+check(
+  'step28: the global header renders no horizontal navigation rail',
+  !has('src/components/layout/GlobalLayout.tsx', 'primaryNavItems') &&
+    !has('src/components/layout/GlobalLayout.tsx', 'Primary navigation') &&
+    !has('src/components/layout/navigationData.ts', 'primaryNavItems'),
+  'the header must be brand + hamburger; destinations live in the drawer'
+);
+check(
+  'step28: the drawer exposes the full destination list including Home',
+  has('src/components/layout/navigationData.ts', 'ROUTES.home') &&
+    has('src/components/layout/navigationData.ts', 'Symptoms') &&
+    has('src/components/layout/navigationData.ts', 'Recovery Tracker'),
+  'the drawer is the only navigation surface, so it must be complete'
+);
+check(
+  'step28: reviews page reads real published reviews (public RPC), not mock data',
+  has('src/pages/Reviews/hooks/usePublicReviews.ts', 'listPublicReviewsCursor') &&
+    has('src/pages/Reviews/hooks/usePublicReviews.ts', 'getPublicReviewFacets') &&
+    !hasIfExists('src/pages/Reviews/data/reviewDiscoveryData.ts', 'sampleHospitalReviews') &&
+    !hasIfExists('src/pages/Reviews/data/reviewData.ts', 'sampleReviews'),
+  'the reviews page must never render fabricated testimonials'
+);
+check(
+  'step28: the public reviews RPC is published-only and anon-readable',
+  has('supabase/migrations/0037_step28_public_reviews.sql', 'carelink_public_reviews_cursor') &&
+    has('supabase/migrations/0037_step28_public_reviews.sql', "r.status = 'published'") &&
+    has('supabase/migrations/0037_step28_public_reviews.sql', 'carelink_public_review_facets'),
+  'a guest must be able to read published reviews, and nothing else'
 );
 check(
   'step27: the navigation overlay locks scrolling and restores it',

@@ -62,6 +62,10 @@ ORDER=(
   0031_step21_machilipatnam_directory.sql
   0032_step21_review_eligibility.sql
   0033_step22_appointment_request_workflow.sql
+  0034_corridor_directory_import.sql
+  0035_step25_departments_affiliations_blood_centres.sql
+  0036_step27_pharmacy_lab_directory.sql
+  0037_step28_public_reviews.sql
 )
 
 {

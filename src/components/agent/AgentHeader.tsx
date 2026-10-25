@@ -9,6 +9,7 @@ import { cn } from '../common/cn';
 import { ROUTES } from '../../routes/routeConstants';
 import { useAgent } from '../../contexts/AgentContext';
 import { IconFamily, IconEmergency, IconPlus } from './AgentIcons';
+import { GlobalNavigation } from '../layout/GlobalNavigation';
 
 interface Props {
   onToggleSidebar: () => void;
@@ -27,6 +28,8 @@ export function AgentHeader({ onToggleSidebar, onToggleContext }: Props) {
       )}
     >
       <div className="flex min-w-0 items-center gap-3">
+        <GlobalNavigation />
+
         <button
           type="button"
           onClick={onToggleSidebar}

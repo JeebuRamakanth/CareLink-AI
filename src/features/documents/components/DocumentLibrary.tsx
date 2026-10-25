@@ -10,7 +10,7 @@
  * tokens; never renders document contents.
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { cn } from '../../../components/common/cn';
 import {
@@ -25,8 +25,7 @@ import {
 } from '../../../components/agent/AgentIcons';
 import { formatFileSize } from '../services/fileValidation';
 import type { DocumentAnalysisResult, HealthDocument } from '../types';
-
-type LibraryFilter = 'all' | 'reports' | 'lab-results' | 'prescriptions' | 'medicines' | 'other';
+import type { LibraryFilter } from './documentLibraryFilters';
 
 const FILTERS: { id: LibraryFilter; label: string }[] = [
   { id: 'all', label: 'All' },
@@ -84,13 +83,21 @@ const pipelineTone: Record<HealthDocument['pipelineState'], string> = {
 interface Props {
   documents: HealthDocument[];
   activeProfileLabel: string;
+  /** Filter applied on first render, e.g. from a `/documents?filter=` deep-link. */
+  initialFilter?: LibraryFilter;
   onView: (doc: HealthDocument) => void;
   onAnalyze: (doc: HealthDocument) => void;
   onDelete: (doc: HealthDocument) => void;
 }
 
-export function DocumentLibrary({ documents, activeProfileLabel, onView, onAnalyze, onDelete }: Props) {
-  const [filter, setFilter] = useState<LibraryFilter>('all');
+export function DocumentLibrary({ documents, activeProfileLabel, initialFilter = 'all', onView, onAnalyze, onDelete }: Props) {
+  const [filter, setFilter] = useState<LibraryFilter>(initialFilter);
+
+  // Keep in step with an externally-driven filter (deep-link navigation to the
+  // same mounted page), without fighting the user's own chip selection.
+  useEffect(() => {
+    setFilter(initialFilter);
+  }, [initialFilter]);
 
   const filtered = useMemo(
     () => documents.filter((d) => matchesFilter(d.analysis, filter)),

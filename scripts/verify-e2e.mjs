@@ -450,6 +450,213 @@ async function main() {
       pharmacyText.slice(0, 260)
     );
 
+    /* ---------------------------------------------------------------------
+     * Step 28 acceptance checks — global header + reviews page redesign
+     * ------------------------------------------------------------------- */
+
+    // 16 — The GLOBAL HEADER carries no horizontal navigation row on ANY route.
+    //      Every destination must live in the drawer instead.
+    const navRowHrefs = ['/hospitals', '/doctors', '/pharmacies', '/labs', '/blood-banks', '/reviews', '/appointments'];
+    const headerRoutes = [
+      '/', '/hospitals', '/doctors', '/reviews', '/documents', '/appointments', '/pharmacies',
+      '/labs', '/blood-banks', '/about', '/help', '/contact', '/login', '/register', '/ai', '/agent',
+    ];
+    const headerOffenders = [];
+    const headerMissingHamburger = [];
+    for (const route of headerRoutes) {
+      await goto(route);
+      const headerInfo = await evaluate(`
+        (() => {
+          const header = document.querySelector('header');
+          if (!header) return { present: false };
+          const hrefs = [...header.querySelectorAll('a')].map((a) => a.getAttribute('href') || '');
+          return {
+            present: true,
+            hrefs,
+            hasHamburger: Boolean(header.querySelector('button[aria-label="Open navigation menu"]')),
+          };
+        })()
+      `);
+      if (!headerInfo?.present || !headerInfo.hasHamburger) headerMissingHamburger.push(route);
+      const row = (headerInfo?.hrefs ?? []).filter((h) => navRowHrefs.includes(h));
+      if (row.length > 0) headerOffenders.push(`${route}: ${row.join(',')}`);
+    }
+    check(
+      'global header has no horizontal navigation row on any route',
+      headerOffenders.length === 0,
+      headerOffenders.join(' | ')
+    );
+    check(
+      'every route renders the shared hamburger in its header',
+      headerMissingHamburger.length === 0,
+      headerMissingHamburger.join(', ')
+    );
+
+    // 17 — The drawer is a real navigation surface: opening it, choosing a
+    //      destination, and having the route change.
+    await goto('/');
+    await evaluate(`
+      (() => {
+        const btn = [...document.querySelectorAll('header button')]
+          .find((b) => (b.getAttribute('aria-label') || '') === 'Open navigation menu');
+        if (btn) btn.click();
+      })()
+    `);
+    await delay(450);
+    const drawerDestinations = await evaluate(`
+      (() => {
+        const dialog = document.querySelector('[role="dialog"][aria-label="Site navigation"]');
+        if (!dialog) return null;
+        return [...dialog.querySelectorAll('a[href]')].map((a) => a.getAttribute('href'));
+      })()
+    `);
+    check(
+      'drawer lists the full destination set including Home',
+      Array.isArray(drawerDestinations) && drawerDestinations.includes('/') && drawerDestinations.includes('/reviews') && drawerDestinations.includes('/documents'),
+      JSON.stringify(drawerDestinations ?? []).slice(0, 260)
+    );
+    // Background must be non-interactive while the drawer is open: the element
+    // at a point over the page must be inside the drawer's overlay (the
+    // backdrop), not the page content underneath.
+    const backdropBlocks = await evaluate(`
+      (() => {
+        const header = document.querySelector('header');
+        if (!header) return false;
+        const target = header.querySelector('h1, a, button');
+        if (!target) return false;
+        const rect = target.getBoundingClientRect();
+        const top = document.elementFromPoint(rect.left + Math.min(rect.width / 2, 40), rect.top + rect.height / 2);
+        if (!top) return false;
+        // Anything painted above the page must belong to the navigation overlay.
+        const overlay = document.querySelector('[role="dialog"][aria-label="Site navigation"]');
+        const overlayRoot = overlay ? overlay.parentElement : null;
+        return Boolean(overlayRoot && overlayRoot.contains(top));
+      })()
+    `);
+    check('drawer dims/blocks the page behind it', backdropBlocks === true);
+
+    const navigated = await evaluate(`
+      (() => {
+        const dialog = document.querySelector('[role="dialog"][aria-label="Site navigation"]');
+        if (!dialog) return false;
+        const link = [...dialog.querySelectorAll('a[href="/reviews"]')][0];
+        if (!link) return false;
+        link.click();
+        return true;
+      })()
+    `);
+    await delay(1000);
+    check('selecting a drawer destination navigates and closes the drawer', navigated && (await currentPath()) === '/reviews', await currentPath());
+    const drawerClosedAfterNav = await evaluate(`
+      (() => {
+        const dialog = document.querySelector('[role="dialog"][aria-label="Site navigation"]');
+        const visible = dialog ? dialog.getBoundingClientRect().left > -1 : false;
+        return { visible, bodyOverflow: getComputedStyle(document.body).overflow };
+      })()
+    `);
+    check('drawer closes and restores scroll after navigation', drawerClosedAfterNav.visible === false && drawerClosedAfterNav.bodyOverflow !== 'hidden');
+
+    // 18 — Reviews page: balanced centered composition (no empty left column,
+    //      no crowded right sidebar) and working search / filters / clear all.
+    await goto('/reviews');
+    const reviewsLayout = await evaluate(`
+      (() => {
+        const header = document.querySelector('main > section');
+        if (!header) return null;
+        const rect = header.getBoundingClientRect();
+        const vw = document.documentElement.clientWidth;
+        const leftGap = rect.left;
+        const rightGap = vw - rect.right;
+        return {
+          leftGap: Math.round(leftGap),
+          rightGap: Math.round(rightGap),
+          width: Math.round(rect.width),
+          vw,
+          hasSearch: Boolean(document.getElementById('review-search-input')),
+          text: document.body.innerText.slice(0, 400),
+        };
+      })()
+    `);
+    check('reviews page renders a single centered content column', Boolean(reviewsLayout) && reviewsLayout.hasSearch, JSON.stringify(reviewsLayout).slice(0, 200));
+    check(
+      'reviews content is centered with no oversized empty left column',
+      Boolean(reviewsLayout) &&
+        Math.abs(reviewsLayout.leftGap - reviewsLayout.rightGap) <= 32 &&
+        reviewsLayout.leftGap < reviewsLayout.vw * 0.2,
+      JSON.stringify(reviewsLayout).slice(0, 200)
+    );
+    check(
+      'reviews page shows no fabricated sample testimonials',
+      Boolean(reviewsLayout) && !/Aurora Medical Center|Beacon Heart Institute|Luma Children/i.test(reviewsLayout.text),
+      (reviewsLayout?.text ?? '').slice(0, 200)
+    );
+
+    // Search filters the real records (or yields an honest empty state).
+    await evaluate(`
+      (() => {
+        const input = document.getElementById('review-search-input');
+        if (!input) return;
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+        setter.call(input, 'zzzz-no-such-provider');
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      })()
+    `);
+    await delay(900);
+    const reviewsSearchText = await text();
+    check(
+      'reviews search produces an honest empty state for an unmatched query',
+      /No reviews match|No sourced reviews|No published reviews/i.test(reviewsSearchText),
+      reviewsSearchText.slice(0, 200)
+    );
+
+    // Clear all resets every filter (including the search term).
+    const clearedAll = await evaluate(`
+      (() => {
+        const btns = [...document.querySelectorAll('button')];
+        const clear = btns.find((b) => (b.innerText || '').trim() === 'Clear all');
+        if (!clear) return false;
+        clear.click();
+        return true;
+      })()
+    `);
+    await delay(900);
+    const afterClear = await evaluate(`
+      (() => ({
+        query: (document.getElementById('review-search-input') || {}).value ?? '',
+        text: document.body.innerText.slice(0, 240),
+      }))()
+    `);
+    check(
+      'Clear all resets the search term and every filter',
+      clearedAll && afterClear.query === '',
+      `query="${afterClear.query}"`
+    );
+
+    // Near me requests location only on activation and never breaks on denial.
+    const nearMe = await evaluate(`
+      (() => {
+        const btn = [...document.querySelectorAll('button')].find((b) => (b.innerText || '').trim().startsWith('Near me'));
+        if (!btn) return { present: false };
+        btn.click();
+        return { present: true, pressed: btn.getAttribute('aria-pressed') };
+      })()
+    `);
+    await delay(600);
+    const nearMeState = await evaluate(`
+      (() => {
+        const body = document.body.innerText;
+        return {
+          hasGuidance: /permission denied|Waiting for a location|Sorted by distance|manually/i.test(body),
+          crashed: false,
+        };
+      })()
+    `);
+    check(
+      'Near me activates without breaking when location is denied',
+      nearMe.present === true && nearMeState.hasGuidance === true,
+      JSON.stringify({ nearMe, nearMeState }).slice(0, 200)
+    );
+
     ws.close();
   } finally {
     chrome.kill('SIGTERM');

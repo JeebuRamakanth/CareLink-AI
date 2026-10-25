@@ -1259,3 +1259,77 @@ live pharmacy discovery, live medicine stock and live AI remain unconfigured.
 Pharmacy/lab coverage reflects what OpenStreetMap has surveyed — dense in
 Vijayawada, sparse in corridor villages. Absence in the source is a coverage
 limitation, never a claim that no pharmacy exists.
+
+## Step 28 — Global header (brand + hamburger) + Reviews page redesign (VERIFIED)
+
+### ROOT CAUSE of the "old navigation still visible" report
+`GlobalLayout.tsx` still rendered a wide-screen `<nav aria-label="Primary
+navigation">` that mapped `primaryNavItems` (Home/Hospitals/Doctors/Pharmacies/
+Labs/Blood Banks/Reviews/Appointments), PLUS a separate "Ask CareLink AI" pill and
+xl-only Profile/Console/Login/Register links. Step 27 had ADDED the hamburger
+alongside that rail instead of replacing it. Confirmed in the rendered DOM: every
+PublicLayout route rendered one header containing all 12 links.
+Second cause: `/ai` (AIChatPage `ChatHeader`) and `/agent` (AgentHeader) render
+OUTSIDE `PublicLayout` with bespoke chrome and had no hamburger at all.
+
+### Fix — one shared navigation surface
+- NEW `src/components/layout/GlobalNavigation.tsx` — the ONLY hamburger +
+  NavDrawer implementation, used by ALL THREE headers (marketing, /ai, /agent).
+  The drawer is portalled to `<body>`: every header uses `backdrop-blur`, and a
+  backdrop-filtered ancestor becomes the containing block for `position: fixed`,
+  which would otherwise pin the drawer to the header. The portal also keeps the
+  drawer's links OUT of the header DOM, so `header` genuinely contains only the
+  brand + button (asserted by E2E).
+- `GlobalLayout.tsx` header is now brand + optional compact account indicator
+  (email chip + NotificationBell when signed in) + hamburger. The nav rail, the
+  "Ask CareLink AI" pill and the Login/Register/Profile/Console links are GONE.
+- `primaryNavItems` was DELETED from `navigationData.ts`; `navGroups` is the only
+  nav model and now includes Home, Reviews (moved to "Find care"), Symptoms and
+  Recovery Tracker.
+- `?prompt=` deep-link executed by AIChatPage through the real conversation
+  pipeline (then the param is stripped), so "Symptoms"/"Recovery Tracker" are real
+  destinations, not decoration. `?filter=` deep-link now sets the Documents
+  library filter (`libraryFilterFromParam` in `documentLibraryFilters.ts`).
+
+### Reviews page — real data, centered layout
+- The page previously rendered 100% FABRICATED samples (`reviewDiscoveryData.ts`
+  `sampleHospitalReviews`: Aurora/Beacon/Luma hospitals, invented ratings/review
+  counts/"verified" reviewers) presented as "premium review highlights", and the
+  hero used a `lg:grid-cols-[1.1fr_0.9fr]` two-column split → the big empty left
+  column + crowded right sidebar in the screenshot. All of it is DELETED.
+- NEW `src/pages/Reviews/hooks/usePublicReviews.ts` + `ReviewsSearchHeader`,
+  `ReviewsFilterBar`, `ReviewsResults`, `ReviewsSummary` — one centered
+  `max-w-5xl` column: compact heading, full-width search with source-backed
+  suggestions, a compact filter/sort row with Clear all beside it, an honest
+  published-only rating summary, and real results with loading/empty/error states.
+- NEW migration `0037_step28_public_reviews.sql`: `carelink_public_reviews_cursor`
+  (anon+authenticated, PUBLISHED-ONLY, provider-name search, rating/kind/verified
+  filters, keyset pagination, `p_sort` newest/highest/lowest) and
+  `carelink_public_review_facets()` (real published-only counts). The old
+  `carelink_reviews_cursor` is EXECUTE-revoked from anon, so before this a guest
+  could never load a single real review.
+- Honest "Near me": sorts by REAL published coordinates only
+  (`data/providerLocationIndex.ts`); providers without coordinates keep their
+  order at the end. Location is requested ONLY on activation; a denied prompt
+  shows the manual-entry banner. No fabricated distance.
+- New real suggestions `data/reviewSearchSuggestions.ts` (hospitals + listed
+  doctors from the sourced directory) — no invented rating/review count.
+
+### Verification
+build green (752 modules); lint 0 errors (15 pre-existing warnings, none new);
+`verify:e2e` **44/44** (16 routes × header-has-no-nav-row + shared hamburger,
+drawer destinations/backdrop/scroll-lock/Escape/navigate-and-close, reviews
+centered + no fabricated samples + search empty state + Clear all + Near me);
+`verify:sweep` **18 routes × 8 widths (320/360/390/430/768/1024/1280/1440) = 0
+console errors / 0 overflow**; `verify:wiring` 68 → 74; `verify:navigation` 10/10;
+`verify:directory` 21/21; `verify:workflow` 39/39; `test:focused` 62/62;
+`verify:auth` 11/11. SQL replay **662 PASS / 0 FAIL** incl. NEW
+`supabase/tests/290_step28_public_reviews.sql` (published-only, provider-name
+search, filters, sort order, facets, anon read granted + anon write denied).
+
+### Gotchas
+- `scripts/build-migration-bundle.sh` was missing 0034–0036; now 0034→0037.
+- Under `set role anon` RLS filters `count(*) from public.reviews` to published
+  rows — assert raw counts as the harness owner, not as anon.
+- Adding a route to `verify-sweep.mjs` / `verify-e2e.mjs` is how a new surface gets
+  overflow/console coverage; keep the header-route list in sync.

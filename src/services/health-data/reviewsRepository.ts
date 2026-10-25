@@ -68,6 +68,72 @@ export async function listReviewsCursor(opts: ReviewsCursorOptions = {}): Promis
   return { rows: data ?? [], error: error?.message ?? null };
 }
 
+export interface PublicReviewFacets {
+  total: number;
+  verified: number;
+  hospitals: number;
+  doctors: number;
+  pharmacies: number;
+  labs: number;
+  ratings: Array<{ rating: number; count: number }>;
+  providers: Array<{ kind: ReviewCursorRow['provider_kind']; name: string; slug: string; count: number }>;
+}
+
+export interface PublicReviewsCursorOptions {
+  query?: string;
+  rating?: number | null;
+  kind?: string | null;
+  verifiedOnly?: boolean;
+  sort?: 'newest' | 'highest' | 'lowest';
+  beforeCreated?: string | null;
+  beforeId?: string | null;
+  beforeRating?: number | null;
+  limit?: number;
+}
+
+/**
+ * PUBLIC published-reviews keyset page. Rides `carelink_public_reviews_cursor`,
+ * which is granted to `anon` too — so the Reviews page can show real published
+ * reviews (and a real "no reviews yet" state) without requiring a session. The
+ * definer restricts the row set to `status = 'published'` only.
+ */
+export async function listPublicReviewsCursor(opts: PublicReviewsCursorOptions = {}): Promise<{
+  rows: ReviewCursorRow[];
+  error: string | null;
+}> {
+  const { data, error } = await withClient(async (client) => {
+    const res = await client.rpc('carelink_public_reviews_cursor', {
+      p_query: opts.query ?? null,
+      p_rating: opts.rating ?? null,
+      p_kind: opts.kind ?? null,
+      p_verified_only: opts.verifiedOnly ?? false,
+      p_sort: opts.sort ?? 'newest',
+      p_before_created: opts.beforeCreated ?? null,
+      p_before_id: opts.beforeId ?? null,
+      p_before_rating: opts.beforeRating ?? null,
+      p_limit: Math.min(opts.limit ?? 20, 40),
+    });
+    if (res.error) throw res.error;
+    return (res.data as ReviewCursorRow[]) ?? [];
+  });
+  return { rows: data ?? [], error: error?.message ?? null };
+}
+
+/**
+ * Real published-review facets (counts, rating distribution, reviewed providers)
+ * used to build the Reviews page filter options. Returns null when the backend
+ * is unavailable — the page then shows the honest demo state, never invented
+ * counts.
+ */
+export async function getPublicReviewFacets(): Promise<PublicReviewFacets | null> {
+  const { data } = await withClient(async (client) => {
+    const res = await client.rpc('carelink_public_review_facets');
+    if (res.error) throw res.error;
+    return (res.data as PublicReviewFacets) ?? null;
+  });
+  return data ?? null;
+}
+
 /** Published reviews for a provider target (public). */
 export async function listReviews(target: ReviewTarget): Promise<ReviewRow[]> {
   const { data } = await withClient(async (client) => {

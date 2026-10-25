@@ -28,19 +28,21 @@ export interface NavGroup {
   items: NavItem[];
 }
 
-/** High-frequency destinations kept in the header rail on wide screens. */
-export const primaryNavItems: NavItem[] = [
-  { label: 'Home', to: ROUTES.home },
-  { label: 'Hospitals', to: ROUTES.hospitals },
-  { label: 'Doctors', to: ROUTES.doctors },
-  { label: 'Pharmacies', to: ROUTES.pharmacies },
-  { label: 'Labs', to: ROUTES.labs },
-  { label: 'Blood Banks', to: ROUTES.bloodBanks },
-  { label: 'Reviews', to: ROUTES.reviews },
-  { label: 'Appointments', to: ROUTES.appointments },
-];
-
+/**
+ * Every destination the drawer offers, grouped the way the product is used.
+ *
+ * There is deliberately NO header rail: the single global header is the brand
+ * plus the hamburger, so this list is the ONLY navigation surface. Anything not
+ * declared here is unreachable from the UI, which is why the full product
+ * surface (discovery → your health → account → CareLink) lives below.
+ */
 export const navGroups: NavGroup[] = [
+  {
+    heading: 'Home',
+    items: [
+      { label: 'Home', to: ROUTES.home, hint: 'Overview and quick access' },
+    ],
+  },
   {
     heading: 'Find care',
     items: [
@@ -49,6 +51,7 @@ export const navGroups: NavGroup[] = [
       { label: 'Pharmacies', to: ROUTES.pharmacies, hint: 'Medicine shops near you' },
       { label: 'Laboratories', to: ROUTES.labs, hint: 'Diagnostics and testing' },
       { label: 'Blood Banks', to: ROUTES.bloodBanks, hint: 'Blood centres and contact' },
+      { label: 'Reviews', to: ROUTES.reviews, hint: 'Patient feedback on providers' },
     ],
   },
   {
@@ -58,7 +61,9 @@ export const navGroups: NavGroup[] = [
       { label: 'Documents & Reports', to: ROUTES.documents, hint: 'Uploads and analyses' },
       { label: 'Prescriptions', to: `${ROUTES.documents}?filter=prescriptions`, hint: 'Your prescription files' },
       { label: 'Medicines', to: `${ROUTES.documents}?filter=medicines`, hint: 'Medicine photos and labels' },
-      { label: 'Ask CareLink AI', to: ROUTES.ai, hint: 'Symptoms, guidance, discovery' },
+      { label: 'Symptoms', to: ROUTES.ai, hint: 'Describe how you feel' },
+      { label: 'Recovery Tracker', to: `${ROUTES.ai}?prompt=recovery`, hint: 'Follow-up and progress' },
+      { label: 'Ask CareLink AI', to: ROUTES.ai, hint: 'Guidance and discovery' },
       { label: 'CareLink Workspace', to: ROUTES.agent, hint: 'Full command center' },
     ],
   },
@@ -77,7 +82,6 @@ export const navGroups: NavGroup[] = [
       { label: 'About', to: ROUTES.about },
       { label: 'Help Center', to: ROUTES.help },
       { label: 'Contact', to: ROUTES.contact },
-      { label: 'Reviews', to: ROUTES.reviews, hint: 'Verified patient feedback' },
     ],
   },
 ];

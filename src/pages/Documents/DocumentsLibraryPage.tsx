@@ -13,7 +13,7 @@
 
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Container } from '../../components/ui/Container';
 import { Badge } from '../../components/ui/Badge';
 import { ROUTES } from '../../routes/routeConstants';
@@ -29,10 +29,13 @@ import { useDocumentUpload } from '../../features/documents/hooks/useDocumentUpl
 import { useDocumentLibrary } from '../../features/documents/hooks/useDocumentLibrary';
 import { DocumentUploadZone } from '../../features/documents/components/DocumentUploadZone';
 import { DocumentLibrary, ViewerCloseButton } from '../../features/documents/components/DocumentLibrary';
+import { libraryFilterFromParam } from '../../features/documents/components/documentLibraryFilters';
 import { DocumentAnalysisResultCard } from '../../features/documents/components/DocumentAnalysisResultCard';
 
 export function DocumentsLibraryPage() {
   const agent = useAgent();
+  const [searchParams] = useSearchParams();
+  const libraryFilter = libraryFilterFromParam(searchParams.get('filter'));
   const upload = useDocumentUpload();
   const library = useDocumentLibrary();
   const [showUpload, setShowUpload] = useState(true);
@@ -151,6 +154,7 @@ export function DocumentsLibraryPage() {
             <DocumentLibrary
               documents={library.documents}
               activeProfileLabel={library.activeProfileLabel}
+              initialFilter={libraryFilter}
               onView={library.onView}
               onAnalyze={(doc) => void library.onAnalyze(doc)}
               onDelete={(doc) => void library.onDelete(doc)}
