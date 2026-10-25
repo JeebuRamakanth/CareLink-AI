@@ -15,6 +15,13 @@
  */
 
 import type { DocumentKind } from '../../services/health-data/types';
+import type { DocumentExtraction } from './services/extraction/types';
+import type { DocumentClassification } from './services/extraction/classify';
+import type { AnalyteTrend } from './services/clinical/trends';
+import type { ParsedMedicine } from './services/clinical/prescriptionParser';
+import type { TriageResult } from './services/clinical/triage';
+import type { LabValueStatus, StatusBasis } from './services/clinical/labParser';
+import type { UnitStatus } from './services/clinical/units';
 
 /* ----------------------------------------------------------------------------
  * Pipeline status
@@ -132,14 +139,41 @@ export interface DocumentProcessingState {
   message: string;
 }
 
-/** A single structured value extracted from a lab report. */
+/**
+ * A single structured value extracted from a lab report.
+ *
+ * Every field is either read from the document or explicitly unknown. `status`
+ * is our computed classification; `reportFlag` is what the LAB printed. They are
+ * kept separate so the lab's judgement and ours never blur.
+ */
 export interface ExtractedMedicalValue {
   testName: string;
   measuredValue: string;
   unit: string;
+  /** The reference interval exactly as printed on the report. */
   referenceRange: string;
-  status: 'normal' | 'attention' | 'abnormal' | 'unknown';
+  status: LabValueStatus;
+  /** How the status was decided (report flag vs. report range vs. catalog). */
+  statusBasis: StatusBasis;
   collectionDate: string | null;
+  /** 1-based page the value came from, when known. */
+  page?: number;
+  /** The lab's own flag, verbatim (e.g. 'H', 'Low'), when printed. */
+  reportFlag?: string | null;
+  /** Whether the unit could be reconciled with the catalog. */
+  unitStatus?: UnitStatus;
+  /** Matched catalog analyte key, when recognised. */
+  analyteKey?: string | null;
+  /** Plain-language explanation of what the test measures. */
+  about?: string;
+  /** Why clinicians commonly order this test. */
+  whyOrdered?: string;
+  /** True when the value sits in a catalog CRITICAL band. */
+  critical?: boolean;
+  /** Reason for the critical flag. */
+  criticalReason?: string;
+  /** The raw source line, for "view source". */
+  rawLine?: string;
 }
 
 /** Structured extraction for a lab result (clearly "extracted from report"). */
@@ -151,6 +185,32 @@ export interface LabResult {
   valuesRequiringAttention: ExtractedMedicalValue[];
   /** Values within the listed reference range. */
   normalValues: ExtractedMedicalValue[];
+  /** Values the parser could not classify (unreadable unit/no interval). */
+  unknownValues?: ExtractedMedicalValue[];
+  /** Lines that looked like data rows but could not be parsed. */
+  unparsedLines?: { line: string; page: number }[];
+  /** Total pages in the source document. */
+  pageCount?: number;
+}
+
+/** One row of the derived medication schedule. */
+export interface ScheduleRow {
+  medicine: string;
+  strength: string | null;
+  form: string | null;
+  dose: string | null;
+  /** The instruction exactly as written. */
+  instruction: string;
+  frequency: string | null;
+  timing: string | null;
+  duration: string | null;
+  /** morning/afternoon/night slots, only when the source supports them. */
+  schedule: string[];
+  /** Fields that need professional confirmation. */
+  needsConfirmation: string[];
+  /** The raw source line. */
+  rawLine: string;
+  page: number;
 }
 
 /** Structured extraction for a prescription. Only fields actually extracted. */
@@ -163,6 +223,14 @@ export interface PrescriptionExtraction {
   instructions: string | null;
   /** Fields that were unclear in the source document. */
   needsVerification: string[];
+  /** The full parsed medication table. */
+  medicines?: ParsedMedicine[];
+  /** Rows rendered as the medication schedule. */
+  schedule?: ScheduleRow[];
+  /** Follow-up / advice lines found on the document. */
+  followUp?: string[];
+  /** Lines that looked like prescriptions but could not be parsed. */
+  unparsedLines?: { line: string; page: number }[];
 }
 
 /** Result of recognizing a medicine/tablet from text or image. */
@@ -180,6 +248,36 @@ export interface MedicineRecognitionResult {
   /** True when recognition is uncertain — UI must ask the user to verify. */
   isUncertain: boolean;
   source: DocumentDataSource;
+  /** True when the name was matched against a verified external database. */
+  verified?: boolean;
+  /** Generic/active ingredient, when verified. */
+  genericName?: string | null;
+  /** Verified common uses (from a label source), when available. */
+  uses?: string[];
+  /** Verified common side effects, when available. */
+  sideEffects?: string[];
+  /** Verified serious warnings, when available. */
+  seriousWarnings?: string[];
+  /** Reference/verified dosage text from the label — never a patient dose. */
+  referenceDosage?: string | null;
+  /** Why the identification is uncertain (e.g. no label text readable). */
+  uncertaintyReason?: string | null;
+  /** Provenance entries for the medicine facts shown. */
+  evidence?: EvidenceReference[];
+  /** What could not be verified. */
+  unverified?: string[];
+}
+
+/** A source citation attached to a medical claim. */
+export interface EvidenceReference {
+  /** Short human label, e.g. "openFDA drug label". */
+  label: string;
+  /** Official URL when available. */
+  url?: string;
+  /** Date the source was retrieved (ISO). */
+  retrievedAt?: string;
+  /** What the source supports. */
+  supports: string;
 }
 
 /** Schema-validated analysis result. UI renders ONLY validated fields. */
@@ -202,6 +300,21 @@ export interface DocumentAnalysisResult {
   source: DocumentDataSource;
   /** Schema-validation pass/fail flag (UI never renders unvalidated output). */
   validated: boolean;
+
+  /* --- Phase 2-5 additions: real extraction + deterministic interpretation --- */
+
+  /** The raw text extraction outcome (pages, provenance, limitations). */
+  extraction?: DocumentExtraction;
+  /** How the document was classified and why. */
+  classification?: DocumentClassification;
+  /** Deterministic urgency triage for this document. */
+  triage?: TriageResult;
+  /** Source citations for the medical claims shown. */
+  evidence?: EvidenceReference[];
+  /** What could not be read/verified, stated explicitly. */
+  limitations?: string[];
+  /** Cross-report trends, when several comparable reports were analysed. */
+  trends?: AnalyteTrend[];
 }
 
 /**
@@ -215,4 +328,6 @@ export interface DocumentSafetyAssessment {
   hasAttentionValues: boolean;
   /** Short, safe reason for the assessment (no PHI). */
   reason: string;
+  /** The full deterministic triage result, when computed. */
+  triage?: TriageResult;
 }

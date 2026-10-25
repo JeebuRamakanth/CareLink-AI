@@ -60,6 +60,7 @@ import {
 import { runAITurn, type AIEngineResult } from './ai/aiEngine';
 import { inputSafetyFloor } from './ai/safetyLayer';
 import { getBloodCentres } from '../../../services/bloodCentreService';
+import { primaryEmergencyContact } from '../../documents/services/clinical/emergencyConfig';
 import { getPharmacyRecommendations, getLaboratoryRecommendations } from './pharmacyRecommendations';
 import { haversineKm, estimateDriveMinutes } from '../../../lib/location';
 import {
@@ -789,7 +790,7 @@ async function buildMentalHealthResult(context?: ConversationContext, patient?: 
     dataSource: dataSourceFor(),
     isDemoData: false,
     sources: ['CareLink directory'],
-    actions: [{ type: 'call-emergency', label: 'Crisis helpline', href: 'tel:988', icon: 'call-emergency' }],
+    actions: [{ type: 'call-emergency', label: `Crisis helpline ${primaryEmergencyContact('in').phone}`, href: primaryEmergencyContact('in').href, icon: 'call-emergency' }],
     suggestedReplies: ['Find a counselor', 'Find a hospital', 'What should I do next?'],
   });
 }
@@ -867,7 +868,7 @@ async function buildEmergencyResult(adapters: AgentAdapters, input: string, cont
     isDemoData: false,
     sources: [isAnyProviderReal() ? 'CareLink emergency navigation' : 'CareLink emergency navigation (mock)'],
     actions: [
-      { type: 'call-emergency', label: 'Call emergency services', href: 'tel:911', icon: 'call-emergency' },
+      { type: 'call-emergency', label: `Call emergency services (${primaryEmergencyContact('in').phone})`, href: primaryEmergencyContact('in').href, icon: 'call-emergency' },
       ...facilities.flatMap((f) => f.detailSlug ? [{ type: 'view-hospital' as const, label: `View ${f.name}`, href: `${ROUTES.hospitals}/${f.detailSlug}`, icon: 'view-hospital' as const }] : []),
     ],
     suggestedReplies: ['Call emergency services', 'Find an emergency hospital', 'Get directions'],

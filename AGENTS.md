@@ -1333,3 +1333,143 @@ search, filters, sort order, facets, anon read granted + anon write denied).
   rows — assert raw counts as the harness owner, not as anon.
 - Adding a route to `verify-sweep.mjs` / `verify-e2e.mjs` is how a new surface gets
   overflow/console coverage; keep the header-route list in sync.
+
+## Step 29 — Real multimodal medical-document analysis (VERIFIED)
+
+Requirement: upload/capture a medicine photo, prescription, blood/lab report or
+other medical document and get a STRUCTURED analysis of the ACTUAL content, with
+evidence, confidence and honest limitations — never fabricated findings.
+
+### ROOT CAUSES FIXED (each was a real, user-visible defect)
+1. **Fabricated lab values presented as extracted data.**
+   `documentAnalysisService.mockLabResult()` hardcoded `Fasting glucose 132`,
+   `HbA1c 6.8%`, `Total cholesterol 212`, `LDL 138` and the UI rendered them
+   under the heading "Extracted from report". The uploaded file was never read.
+   Replaced with a real extraction pipeline (below); the function is deleted.
+2. **No extraction at all.** Classification was `filename.includes('report')`.
+   There was no OCR and no PDF text reading. Added pdfjs-dist (PDF text layer) +
+   tesseract.js (on-device OCR), dynamically imported so they never enter the
+   main bundle.
+3. **Fabricated medicine confidence.** `medicineRecognitionService` reported
+   `confidence: 92` for a filename-derived guess. Now a medicine is either
+   VERIFIED against a real database (openFDA label + RxNorm) or explicitly
+   UNCERTAIN with a reason; nothing in between is claimed.
+4. **US emergency numbers in an India-focused product.** `tel:911` (banner),
+   `tel:988` (crisis), and the mock emergency contacts. Centralised in
+   `clinical/emergencyConfig.ts` → 112 / 108 / 104 / 14416, with an explicit
+   "CareLink cannot place the call or dispatch an ambulance" disclaimer.
+5. **`assessSafety()` always returned `isEmergency: false`** with the comment
+   "Mock analysis never asserts emergency severity" — so a critical lab value
+   could never raise the emergency banner. Now a deterministic triage engine
+   drives it.
+6. **Newly added files never uploaded.** `useDocumentUpload.addFiles()` queued
+   React state, but `DocumentUploadZone` called `startUpload` synchronously; the
+   upload looked up STALE state and silently no-op'd. Fixed with a synchronous
+   `attachmentsRef` mirror (also used by cancel/remove/clear).
+7. **Uploaded documents never appeared in the library** without a manual
+   "Refresh library" click. The documents page now reloads on upload completion
+   and auto-opens the newest analysis.
+8. **A report's own interval was compared against the UNIT-CONVERTED value.**
+   The report prints its interval in the REPORTED unit, so a value in `/cumm`
+   was compared against a `10^3/µL` interval and misclassified. Now the report
+   interval uses the RAW value; only a catalog interval (canonical unit) uses the
+   converted value. Covered by a regression test.
+9. **Dead conversion-table entries.** `reconcileUnit` built the key
+   `${from}|${to}:${family ?? ''}` while family-independent entries were keyed
+   `${from}|${to}`, so `/cumm → 10^3/µL` never matched. Fixed the lookup shape
+   and added the exact count factors (`/cumm` → ×0.001, `lakh/cumm` → ×100).
+
+### Architecture (new)
+`src/features/documents/services/extraction/`
+- `types.ts` — `DocumentExtraction` / `ExtractedPage` with an explicit
+  `extracted | unreadable | unavailable | failed` status per page.
+- `pdfText.ts` — pdfjs text layer (page order + per-page provenance).
+- `ocrText.ts` — tesseract.js OCR; canvas downscale + grayscale + contrast
+  stretch; per-page engine confidence; low-confidence flag below 55.
+- `classify.ts` — weighted content scoring per category; `userCorrection` wins;
+  `CLASSIFICATION_CONFIRM_THRESHOLD = 0.35` triggers the "tell us the type" UI.
+- `extractDocument.ts` — backend chooser; a scanned PDF falls back to OCR of
+  page 1. `env.documents` (server) is still consulted when configured.
+
+`src/features/documents/services/clinical/`
+- `analyteCatalog.ts` — 17 analytes with adult intervals, critical bands,
+  aliases, units and `about`/`whyOrdered`. **`CATALOG_REVIEWED = false`** is
+  surfaced in the UI: the catalog is NOT clinician-signed-off yet.
+- `units.ts` — unit reconciliation (family-aware mass↔molar factors, count
+  units, u/µ normalisation) + interval parsing (`a-b`, `<x`, `>x`, "up to x").
+- `labParser.ts` — test/value/unit/interval/flag parsing with the report's own
+  interval taking precedence, the lab's own flag preserved separately, and
+  `statusBasis` recording HOW the status was decided.
+- `prescriptionParser.ts` — faithful medicine/strength/form/dose/frequency/
+  timing/duration extraction; `deriveSchedule` only maps a frequency to
+  morning/afternoon/night when the text supports it; `needsConfirmation` per
+  field.
+- `triage.ts` — deterministic urgency (emergency/urgent/needs-follow-up/
+  informational) from critical values, lab panic markers, unreadable units and
+  emergency symptoms (incl. Telugu + Romanized Telugu). A normal report never
+  overrides reported severe symptoms.
+- `medicineSources.ts` — keyless authoritative lookups: RxNorm (generic name +
+  RxCUI) and openFDA drug label (uses, side effects, warnings, reference dosage,
+  Rx/OTC). Bounded, timed out, no retries, name-only (no patient data).
+- `labelParser.ts` — medicine-label parsing (composition incl. next-line wrap,
+  strength, form, batch, expiry, manufacturer).
+- `emergencyConfig.ts` — the single emergency-number source + the honesty
+  disclaimer.
+- `trends.ts` — cross-report trends, only across comparable units, with an
+  explicit refusal when dates/units make comparison invalid.
+
+`src/features/documents/services/medicineIdentificationService.ts` — orchestrates
+label parsing → database verification → VERIFIED or UNCERTAIN result.
+
+`src/services/emergency/nearestEmergencyFacility.ts` — real emergency destination
+via the shared directory + `directionsService`; distance only when real coords
+exist; no fabricated destination.
+
+### UI (rebuilt `DocumentAnalysisResultCard.tsx` + `components/analysis/`)
+Hierarchy: preview/title/provenance → **urgency banner** → summary →
+medicine identification / lab findings / medication schedule → evidence +
+confidence + limitations → next actions → follow-up input. Document-type
+correction chips re-interpret the stored extraction (no re-OCR).
+`AnalysisUrgencyBanner` shows the exact triggering finding, whether extraction
+was confident, real `tel:` actions and the dispatch disclaimer.
+`MedicationSchedule` renders a table on `sm+` and stacked cards below (no
+horizontal scroll) and shows "Schedule not stated" rather than inventing one.
+
+### Tests
+- `clinicalParsers.test.mjs` (34) — lab/prescription/label parsing, units,
+  intervals, triage, trends, classification, the raw-vs-converted interval
+  regression, count-unit factors.
+- `medicineIdentification.test.mjs` (10) — emergency config (no 911/988, 112
+  primary, no dispatch claim) + medicine verification with a STUBBED fetch
+  (hermetic; real code path exercised).
+- `scripts/make-test-fixtures.mjs` → synthetic, labelled PDF fixtures
+  (`npm run fixtures`). `scripts/verify-document-analysis.mjs`
+  (`npm run verify:documents`) — **26/26** browser checks: real upload →
+  rendered values with units + the report's own range + the lab flag + the
+  critical emergency banner naming the exact finding + `tel:112` + no US number
+  + no dispatch claim + provenance + limitations + catalog-review disclosure +
+  evidence + type correction + follow-up input + 0 overflow at 7 widths.
+- `test:focused` 62 → **106**.
+
+### Verification (this environment)
+build green; lint **15 pre-existing warnings, 0 new, 0 errors**;
+`test:focused` **106/106**; `verify:documents` **26/26**; `verify:e2e` 44/44;
+`verify:sweep` 18 routes × 8 widths = 0 console errors / 0 overflow;
+`verify:wiring` / `verify:directory` / `verify:workflow` / `verify:navigation`
+all PASS; SQL replay **663 PASS / 0 FAIL** (Docker Postgres 16; the container
+mounts the repo at `/repo`, so `cd /repo/supabase/tests`).
+
+### BLOCKED (external credentials — unchanged)
+No Supabase URL/anon key, Cloudinary, Google Places/Maps or xAI key exist here.
+OCR runs on-device and needs no key; openFDA/RxNorm need no key but DO need
+network access at runtime (verified reachable here). Live AI, live Places
+discovery and live pharmacy stock remain unconfigured and are labelled as such.
+
+### Gotchas
+- `scripts/build-migration-bundle.sh` is unrelated to this step; migrations
+  unchanged (0037 remains the latest).
+- The clinical catalog MUST be reviewed by qualified clinical personnel before
+  production use. `CATALOG_REVIEWED`/`CATALOG_VERSION` make that visible in the
+  UI rather than hiding it.
+- OCR of packaging is unreliable by nature: the UI must keep asking for a
+  clearer photo instead of guessing a medicine identity.

@@ -40,8 +40,8 @@ import {
   getStorageMode,
   uploadDocumentToStorage,
 } from './storageService';
-import { analyzeDocument, assessSafety } from './documentAnalysisService';
-import type { DocumentAnalysisResult, DocumentSafetyAssessment, HealthDocument } from '../types';
+import { analyzeDocument, analyzeExtraction, assessSafety } from './documentAnalysisService';
+import type { DocumentAnalysisResult, DocumentCategory, DocumentSafetyAssessment, HealthDocument } from '../types';
 
 const LOCAL_LIBRARY_KEY = 'carelink_ai_documents_local';
 const LOCAL_ANALYSIS_KEY = 'carelink_ai_document_analysis_local';
@@ -196,7 +196,12 @@ export interface DocumentContext {
 export async function listDocumentsForContext(ctx: DocumentContext): Promise<HealthDocument[]> {
   if (isSupabaseConfigured()) {
     const rows = await listDocumentsForProfile(ctx.familyProfileId);
-    return rows.map((row) => rowToDocument(row));
+    // The analysis result (extraction text, triage, evidence) is not stored as
+    // raw content in the DB row — only a short summary + metadata. The browser
+    // caches the full validated result locally so the document viewer can still
+    // show the findings after a reload, scoped to the owner.
+    const cache = readLocalAnalysisMap();
+    return rows.map((row) => rowToDocument(row, cache[row.id]));
   }
   const records = readLocalLibrary().filter(
     (r) => r.ownerId === ctx.ownerId && (r.familyProfileId ?? null) === (ctx.familyProfileId ?? null)
@@ -209,7 +214,8 @@ export async function listDocumentsForContext(ctx: DocumentContext): Promise<Hea
 export async function getDocumentById(id: string): Promise<HealthDocument | null> {
   if (isSupabaseConfigured()) {
     const row = await getDocument(id);
-    return row ? rowToDocument(row) : null;
+    if (!row) return null;
+    return rowToDocument(row, readLocalAnalysisMap()[id]);
   }
   const rec = readLocalLibrary().find((r) => r.id === id);
   if (!rec) return null;
@@ -223,6 +229,10 @@ export interface UploadDocumentInput {
   signal?: AbortSignal;
   onUploadProgress?: (progress: number) => void;
   onProcessingProgress?: (progress: number) => void;
+  /** A user-chosen document type that overrides content classification. */
+  userCategory?: DocumentCategory;
+  /** Optional text the user typed alongside the upload (e.g. symptoms). */
+  userText?: string;
 }
 
 export interface UploadDocumentOutcome {
@@ -279,21 +289,25 @@ export async function uploadAndAnalyzeDocument(input: UploadDocumentInput): Prom
     }
     // --- analyze ---
     onProcessingProgress?.(40);
-    const analysis = await analyzeDocument({ documentId: row.id, kind, fileName: row.file_name, file });
-    const safety = assessSafety(analysis.labResult);
+    const analysis = await analyzeDocument({ documentId: row.id, kind, fileName: row.file_name, file, userCategory: input.userCategory, userText: input.userText });
+    const safety = assessSafety(analysis.labResult, analysis.triage);
     await updateAnalysisStatus(row.id, {
       processing_status: 'ready',
       extracted_text_placeholder: analysis.summary.slice(0, 240),
       provider_metadata: { ...storage.providerMetadata, category: analysis.category, isMock: String(analysis.isMock) },
     });
+    // Cache the full validated result locally so the viewer survives a reload.
+    const cachedAnalysis = readLocalAnalysisMap();
+    cachedAnalysis[row.id] = analysis;
+    writeLocalAnalysisMap(cachedAnalysis);
     const document = rowToDocument(row, analysis);
     return { ok: true, outcome: { document, analysis, safety } };
   }
 
   // --- local mock path ---
   onProcessingProgress?.(40);
-  const analysis = await analyzeDocument({ documentId, kind, fileName: sanitizeDisplayName(file.name), file });
-  const safety = assessSafety(analysis.labResult);
+  const analysis = await analyzeDocument({ documentId, kind, fileName: sanitizeDisplayName(file.name), file, userCategory: input.userCategory, userText: input.userText });
+  const safety = assessSafety(analysis.labResult, analysis.triage);
   const record: LocalDocumentRecord = {
     id: documentId,
     ownerId: ctx.ownerId,
@@ -324,21 +338,43 @@ export async function uploadAndAnalyzeDocument(input: UploadDocumentInput): Prom
 }
 
 /**
- * Re-analyze an existing document (e.g. from the library "Analyze" action).
- * Returns the (possibly new) analysis result without re-uploading.
+ * Re-analyse an existing document with an optional corrected document type.
+ *
+ * The extraction read at upload time is reused (the browser no longer holds the
+ * original file, and re-running OCR would risk a different result). When no
+ * extraction was stored, the document is honestly reported as not re-analysable
+ * rather than being guessed from its filename.
  */
-export async function analyzeExistingDocument(documentId: string): Promise<DocumentAnalysisResult | null> {
+export async function analyzeExistingDocument(
+  documentId: string,
+  userCategory?: DocumentCategory
+): Promise<DocumentAnalysisResult | null> {
   const doc = await getDocumentById(documentId);
   if (!doc) return null;
-  // For local mock documents we can re-run cheaply. For Supabase-backed docs we
-  // only have metadata (no binary) in the browser, so we re-run the mock
-  // interpretation using the stored kind + filename and persist the status.
-  const analysis = await analyzeDocument({
+
+  const storedExtraction = doc.analysis?.extraction;
+  if (!storedExtraction) {
+    return {
+      documentId,
+      category: userCategory ?? doc.analysis?.category ?? 'general-document',
+      summary: 'This document cannot be re-analysed because its extracted text is no longer available. Please upload the file again.',
+      importantObservations: [],
+      possibleConcerns: [],
+      recommendedNextAction: 'Upload the document again to run a fresh analysis.',
+      isMock: false,
+      source: 'unavailable',
+      validated: true,
+      limitations: ['The extracted text from the original analysis is no longer available in this browser session.'],
+    };
+  }
+
+  const analysis = await analyzeExtraction({
     documentId,
-    kind: doc.kind,
     fileName: doc.fileName,
-    file: new File([], doc.fileName, { type: doc.mimeType }),
+    extraction: storedExtraction,
+    userCategory: userCategory ?? doc.analysis?.category,
   });
+
   if (isSupabaseConfigured()) {
     await updateAnalysisStatus(documentId, {
       processing_status: 'ready',

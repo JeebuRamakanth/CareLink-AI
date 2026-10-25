@@ -51,6 +51,7 @@ import {
   type RecommendationOrigin,
 } from '../directoryRecommendations';
 import { buildMapsDirectionsUrl, buildMapsPlaceUrl } from '../../../../lib';
+import { emergencyContacts, EMERGENCY_DISCLAIMER } from '../../../documents/services/clinical/emergencyConfig';
 
 const wait = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
 
@@ -420,11 +421,8 @@ export const mockEmergencyService: AgentAdapters['emergency'] = {
       ],
       recommendedNextAction: 'Head to the nearest emergency facility or call emergency services immediately.',
       nearbyFacilities: facilities,
-      contacts: [
-        { label: 'Emergency services', phone: '911', href: 'tel:911' },
-        { label: 'Local emergency helpline', phone: '112', href: 'tel:112' },
-      ],
-      disclaimer: 'If this is a life-threatening emergency, call your local emergency number immediately. This guidance does not replace emergency services.',
+      contacts: emergencyContacts().map((c) => ({ label: c.label, phone: c.phone, href: c.href })),
+      disclaimer: EMERGENCY_DISCLAIMER,
     };
     return assessment;
   },

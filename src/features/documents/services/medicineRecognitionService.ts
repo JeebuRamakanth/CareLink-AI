@@ -73,11 +73,15 @@ export async function recognizeMedicine(input: MedicineRecognitionInput): Promis
     strength: strengthMatch ? strengthMatch[0] : null,
     dosageForm,
     manufacturerPlaceholder: null, // Never assert a real manufacturer.
-    confidence: env.medicine.configured ? 92 : 70,
+    // The demo catalog is tiny and exact-match only. This confidence reflects
+    // that a NAME was found in a small local list — it is NOT a verification.
+    // Callers (medicineIdentificationService) always mark such results
+    // `verified: false` + `isUncertain: true` and lower the confidence further.
+    confidence: 35,
     commonPurpose: found.commonPurpose,
     safetyWarning: found.importantSafetyInfo,
     prescriptionRequired: found.prescriptionRequired,
-    isUncertain: !env.medicine.configured,
-    source: env.medicine.configured ? 'real' : 'mock',
+    isUncertain: true,
+    source: 'mock',
   };
 }

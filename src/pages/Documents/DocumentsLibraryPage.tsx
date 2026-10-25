@@ -11,9 +11,9 @@
  * renders document contents; never exposes public medical URLs.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Container } from '../../components/ui/Container';
 import { Badge } from '../../components/ui/Badge';
 import { ROUTES } from '../../routes/routeConstants';
@@ -35,12 +35,31 @@ import { DocumentAnalysisResultCard } from '../../features/documents/components/
 export function DocumentsLibraryPage() {
   const agent = useAgent();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const libraryFilter = libraryFilterFromParam(searchParams.get('filter'));
   const upload = useDocumentUpload();
   const library = useDocumentLibrary();
   const [showUpload, setShowUpload] = useState(true);
 
   const ctx = { ownerId: library.ownerId, familyProfileId: library.activeProfileId };
+
+  // Reload the library automatically once an upload finishes, so a newly
+  // uploaded document (and its analysis) appears without a manual refresh.
+  const completedCount = upload.attachments.filter((a) => a.pipelineState === 'completed').length;
+  useEffect(() => {
+    if (completedCount > 0) void library.reload();
+    // `library.reload` is stable per profile; only re-run when the count changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [completedCount]);
+
+  // Open the most recent analysis automatically so the result is visible.
+  const latestCompleted = upload.attachments.find((a) => a.pipelineState === 'completed');
+  useEffect(() => {
+    if (!latestCompleted) return;
+    const doc = library.documents.find((d) => d.fileName === latestCompleted.fileName && d.analysis);
+    if (doc && !library.selected) library.onView(doc);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [library.documents.length, latestCompleted?.id]);
 
   return (
     <Container className="py-8 sm:py-10 lg:py-14">
@@ -194,6 +213,8 @@ export function DocumentsLibraryPage() {
                   document={library.selected}
                   analysis={library.selectedAnalysis}
                   onAnalyze={(id) => { const doc = library.documents.find((d) => d.id === id); if (doc) void library.onAnalyze(doc); }}
+                  onCorrectType={(id, category) => { const doc = library.documents.find((d) => d.id === id); if (doc) void library.onAnalyze(doc, category); }}
+                  onFollowUp={(question) => navigate(`${ROUTES.ai}?prompt=${encodeURIComponent(question)}`)}
                   onDelete={(id) => { const doc = library.documents.find((d) => d.id === id); if (doc) void library.onDelete(doc); }}
                 />
               ) : library.analyzingId === library.selected.id ? (

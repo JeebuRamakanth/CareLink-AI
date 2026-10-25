@@ -1,23 +1,32 @@
 /**
- * CareLink-AI — Step 11 document analysis result card.
+ * CareLink-AI — document analysis result card (rewritten).
  *
- * Renders a schema-validated DocumentAnalysisResult. Clearly separates:
- * - EXTRACTED FROM REPORT (structured lab values / prescription fields), and
- * - AI EXPLANATION (navigational guidance, never a diagnosis).
+ * Renders a schema-validated DocumentAnalysisResult with a clear hierarchy:
+ *   1. document preview + title + provenance
+ *   2. urgency banner (deterministic triage) — always near the top
+ *   3. overall summary
+ *   4. medicine identification / lab findings / medication schedule
+ *   5. evidence, confidence and limitations
+ *   6. next actions (deep-links into existing routes)
+ *   7. follow-up question input
  *
- * Action cards deep-link into existing routes (doctors, hospitals, labs,
- * pharmacies, appointments) — never duplicate those pages.
+ * It replaces the earlier card that showed invented lab values as if they had
+ * been extracted, and that had no extraction provenance, no limitations and no
+ * document-type correction.
  *
- * Safety: mock output is always badged; uncertain medicine recognition surfaces
- * the "verify with a pharmacist" guidance; no unsafe HTML is rendered.
+ * Safety: nothing here is presented as a diagnosis; every extracted value is
+ * separated from the plain-language explanation; mock/unavailable output is
+ * badged; no unsafe HTML is rendered.
  */
 
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { cn } from '../../../components/common/cn';
 import { ROUTES } from '../../../routes/routeConstants';
 import {
   IconArrowRight,
+  IconClose,
   IconHospital,
   IconLab,
   IconPharmacy,
@@ -26,38 +35,69 @@ import {
   IconSparkle,
 } from '../../../components/agent/AgentIcons';
 import { formatFileSize } from '../services/fileValidation';
-import type { DocumentAnalysisResult, ExtractedMedicalValue, HealthDocument, MedicineRecognitionResult, PrescriptionExtraction } from '../types';
-
-const valueStatusTone: Record<ExtractedMedicalValue['status'], string> = {
-  normal: 'border-emerald-400/25 bg-emerald-500/10 text-emerald-200',
-  attention: 'border-amber-400/25 bg-amber-500/10 text-amber-200',
-  abnormal: 'border-rose-400/25 bg-rose-500/10 text-rose-200',
-  unknown: 'border-white/12 bg-white/5 text-ink-200',
-};
-
-const valueStatusLabel: Record<ExtractedMedicalValue['status'], string> = {
-  normal: 'Normal',
-  attention: 'Attention',
-  abnormal: 'Abnormal',
-  unknown: 'Unknown',
-};
+import { emergencyContacts } from '../services/clinical/emergencyConfig';
+import { AnalysisUrgencyBanner } from './analysis/AnalysisUrgencyBanner';
+import { ExtractionEvidence } from './analysis/ExtractionEvidence';
+import { LabFindings } from './analysis/LabFindings';
+import { MedicationSchedule } from './analysis/MedicationSchedule';
+import { MedicineIdentification } from './analysis/MedicineIdentification';
+import type { DocumentAnalysisResult, DocumentCategory, HealthDocument } from '../types';
 
 const sourceBadge: Record<DocumentAnalysisResult['source'], { label: string; tone: string }> = {
-  real: { label: 'Real analysis', tone: 'border-emerald-400/30 bg-emerald-500/15 text-emerald-100' },
-  mock: { label: 'Mock interpretation', tone: 'border-amber-400/30 bg-amber-500/15 text-amber-100' },
-  unavailable: { label: 'Analysis unavailable', tone: 'border-white/15 bg-white/10 text-ink-200' },
+  real: { label: 'Read from your document', tone: 'border-emerald-400/30 bg-emerald-500/15 text-emerald-100' },
+  mock: { label: 'Demo interpretation', tone: 'border-amber-400/30 bg-amber-500/15 text-amber-100' },
+  unavailable: { label: 'No text read', tone: 'border-white/15 bg-white/10 text-ink-200' },
 };
+
+const CATEGORY_OPTIONS: { value: DocumentCategory; label: string }[] = [
+  { value: 'lab-report', label: 'Lab / blood report' },
+  { value: 'prescription', label: 'Prescription' },
+  { value: 'medicine-image', label: 'Medicine photo' },
+  { value: 'discharge-summary', label: 'Discharge summary' },
+  { value: 'imaging', label: 'Imaging / scan report' },
+  { value: 'doctor-note', label: 'Doctor note' },
+  { value: 'general-document', label: 'Other document' },
+];
 
 interface Props {
   document: HealthDocument;
   analysis: DocumentAnalysisResult;
+  /** Re-analyse with a corrected document type. */
+  onCorrectType?: (documentId: string, category: DocumentCategory) => void;
   onAnalyze?: (id: string) => void;
   onDelete?: (id: string) => void;
+  /** Send a follow-up question about this document. */
+  onFollowUp?: (question: string) => void;
+  /** A directions URL to the nearest suitable facility, when known. */
+  directionsUrl?: string | null;
+  destinationLabel?: string | null;
 }
 
-export function DocumentAnalysisResultCard({ document, analysis, onAnalyze, onDelete }: Props) {
+export function DocumentAnalysisResultCard({
+  document,
+  analysis,
+  onCorrectType,
+  onAnalyze,
+  onDelete,
+  onFollowUp,
+  directionsUrl,
+  destinationLabel,
+}: Props) {
   const navigate = useNavigate();
+  const [followUp, setFollowUp] = useState('');
   const badge = sourceBadge[analysis.source];
+  const isImage = document.kind === 'image' || document.kind === 'medicine_image';
+  const lowConfidenceType = analysis.classification && !analysis.classification.userSelected
+    && analysis.classification.confidence < 0.35
+    && analysis.classification.category === 'general-document';
+
+  const submitFollowUp = (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = followUp.trim();
+    if (!q || !onFollowUp) return;
+    onFollowUp(q);
+    setFollowUp('');
+  };
 
   return (
     <motion.div
@@ -66,106 +106,195 @@ export function DocumentAnalysisResultCard({ document, analysis, onAnalyze, onDe
       transition={{ duration: 0.3, ease: 'easeOut' }}
       className="overflow-hidden rounded-[1.25rem] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.07),rgba(255,255,255,0.02))] backdrop-blur-xl"
     >
-      {/* Header */}
+      {/* 1. Header: preview + title + provenance */}
       <div className="flex items-start justify-between gap-3 border-b border-white/8 p-4 sm:p-5">
         <div className="flex min-w-0 items-start gap-3">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-[0.85rem] border border-brand-400/25 bg-brand-500/15 text-brand-100">
-            <IconReport width={20} height={20} aria-hidden />
-          </span>
+          {isImage && document.previewReference ? (
+            <img
+              src={document.previewReference}
+              alt={`Preview of ${document.fileName}`}
+              className="size-12 shrink-0 rounded-[0.7rem] border border-white/10 object-cover"
+            />
+          ) : (
+            <span className="flex size-12 shrink-0 items-center justify-center rounded-[0.85rem] border border-brand-400/25 bg-brand-500/15 text-brand-100">
+              <IconReport width={20} height={20} aria-hidden />
+            </span>
+          )}
           <div className="min-w-0 space-y-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-base font-semibold leading-snug text-white">{document.fileName}</h3>
+              <h3 className="break-words text-base font-semibold leading-snug text-white">{document.fileName}</h3>
               <span className={cn('rounded-full border px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.16em]', badge.tone)}>{badge.label}</span>
             </div>
             <p className="text-[0.72rem] text-ink-400">
-              {analysis.category.replace('-', ' ')} · {formatFileSize(document.fileSize)} · {new Date(document.createdAt).toLocaleDateString()}
+              {analysis.category.replace(/-/g, ' ')} · {formatFileSize(document.fileSize)} · {new Date(document.createdAt).toLocaleDateString()}
             </p>
           </div>
         </div>
       </div>
 
       <div className="space-y-4 p-4 sm:p-5">
-        {/* AI explanation — clearly labelled, never a diagnosis */}
+        {/* 2. Urgency banner — always above secondary detail */}
+        {analysis.triage ? (
+          <AnalysisUrgencyBanner
+            triage={analysis.triage}
+            contacts={emergencyContacts('in')}
+            directionsUrl={directionsUrl}
+            destinationLabel={destinationLabel}
+          />
+        ) : null}
+
+        {/* 3. Overall summary */}
         <section className="space-y-2">
           <div className="flex items-center gap-1.5">
             <IconSparkle width={13} height={13} className="text-brand-200" aria-hidden />
-            <p className="text-[0.66rem] font-semibold uppercase tracking-[0.22em] text-ink-400">AI explanation</p>
+            <p className="text-[0.66rem] font-semibold uppercase tracking-[0.22em] text-ink-400">Summary</p>
           </div>
           <p className="text-sm leading-7 text-ink-200">{analysis.summary}</p>
-          {analysis.isMock ? (
-            <p className="rounded-[0.7rem] border border-amber-400/25 bg-amber-500/8 px-3 py-2 text-[0.74rem] italic text-amber-100">
-              This is a demo interpretation. CareLink.AI has not performed real medical analysis. Confirm all findings with a licensed professional.
-            </p>
-          ) : null}
         </section>
 
-        {/* Extracted lab values */}
-        {analysis.labResult ? <LabResultSection lab={analysis.labResult} /> : null}
-
-        {/* Prescription extraction */}
-        {analysis.prescription ? <PrescriptionSection rx={analysis.prescription} /> : null}
-
-        {/* Medicine recognition */}
-        {analysis.medicine ? <MedicineSection medicine={analysis.medicine} /> : null}
-
-        {/* Important observations */}
-        {analysis.importantObservations.length > 0 ? (
-          <section className="space-y-2">
-            <SectionLabel>Important observations</SectionLabel>
-            <ul className="space-y-1.5">
-              {analysis.importantObservations.map((obs) => (
-                <li key={obs} className="flex gap-2 text-sm leading-6 text-ink-200">
-                  <span className="mt-2 size-1.5 shrink-0 rounded-full bg-brand-300" aria-hidden />
-                  <span>{obs}</span>
-                </li>
+        {/* Document-type correction */}
+        {(lowConfidenceType || onCorrectType) && onCorrectType ? (
+          <div className="rounded-[0.8rem] border border-white/10 bg-white/5 px-3 py-2.5">
+            <p className="text-[0.72rem] text-ink-300">
+              {lowConfidenceType
+                ? 'We could not confidently tell what type of document this is. Tell us so we can interpret it correctly:'
+                : 'Wrong type detected? Correct it and re-analyse:'}
+            </p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {CATEGORY_OPTIONS.filter((o) => o.value !== analysis.category).map((o) => (
+                <button
+                  key={o.value}
+                  type="button"
+                  onClick={() => onCorrectType(document.id, o.value)}
+                  className="rounded-full border border-white/12 bg-white/8 px-2.5 py-1 text-[0.72rem] font-medium text-ink-200 transition hover:border-brand-400/40 hover:bg-brand-400/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40"
+                >
+                  {o.label}
+                </button>
               ))}
-            </ul>
+            </div>
+          </div>
+        ) : null}
+
+        {/* 4. Type-specific findings */}
+        {analysis.medicine ? (
+          <MedicineIdentification
+            medicine={analysis.medicine}
+            onFindPharmacy={(name) => navigate(`${ROUTES.pharmacies}?q=${encodeURIComponent(name)}`)}
+            onRequestClearerImage={onAnalyze ? () => onAnalyze(document.id) : undefined}
+          />
+        ) : null}
+
+        {analysis.labResult ? <LabFindings lab={analysis.labResult} /> : null}
+
+        {analysis.prescription ? <MedicationSchedule rx={analysis.prescription} /> : null}
+
+        {/* Trends across reports */}
+        {analysis.trends && analysis.trends.length > 0 ? (
+          <section className="space-y-2">
+            <p className="text-[0.66rem] font-semibold uppercase tracking-[0.22em] text-ink-400">Changes over time</p>
+            {analysis.trends.map((t) => (
+              <div key={t.analyteKey} className="rounded-[0.8rem] border border-white/10 bg-slate-950/45 px-3 py-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-[0.84rem] font-semibold text-white">{t.analyteName}</p>
+                  <span className={cn(
+                    'rounded-full border px-2 py-0.5 text-[0.62rem] font-semibold capitalize',
+                    t.direction === 'increased' ? 'border-amber-400/30 bg-amber-500/12 text-amber-100'
+                      : t.direction === 'decreased' ? 'border-sky-400/30 bg-sky-500/12 text-sky-100'
+                        : 'border-white/12 bg-white/8 text-ink-200'
+                  )}>
+                    {t.direction}
+                  </span>
+                </div>
+                <p className="mt-1 text-[0.74rem] text-ink-300">
+                  {t.points.map((p) => `${p.date ?? p.reportLabel}: ${p.rawValue}${p.unit ? ` ${p.unit}` : ''}`).join('  →  ')}
+                </p>
+                {t.changePercent !== null ? (
+                  <p className="text-[0.72rem] text-ink-400">
+                    {t.change !== null && t.change > 0 ? '+' : ''}{t.change} {t.canonicalUnit} ({t.changePercent > 0 ? '+' : ''}{t.changePercent}%)
+                  </p>
+                ) : null}
+                {t.note ? <p className="text-[0.72rem] italic text-amber-200">{t.note}</p> : null}
+              </div>
+            ))}
+            <p className="text-[0.72rem] italic text-ink-400">
+              Only measurements with matching units are compared. A change is a factual comparison, not a clinical judgement.
+            </p>
           </section>
         ) : null}
 
         {/* Possible concerns */}
         {analysis.possibleConcerns.length > 0 ? (
           <section className="space-y-2">
-            <SectionLabel>Possible concerns</SectionLabel>
+            <p className="text-[0.66rem] font-semibold uppercase tracking-[0.22em] text-ink-400">Worth discussing with a clinician</p>
             <ul className="space-y-1.5">
-              {analysis.possibleConcerns.map((c) => (
-                <li key={c} className="flex gap-2 text-sm leading-6 text-amber-100">
+              {analysis.possibleConcerns.map((c, i) => (
+                <li key={i} className="flex gap-2 text-sm leading-6 text-amber-100">
                   <span className="mt-2 size-1.5 shrink-0 rounded-full bg-amber-300" aria-hidden />
                   <span>{c}</span>
                 </li>
               ))}
             </ul>
-            <p className="flex items-center gap-1.5 text-[0.72rem] italic text-ink-400">
-              <IconShield width={12} height={12} aria-hidden /> These are observations, not a diagnosis. Multiple causes are possible.
-            </p>
           </section>
         ) : null}
 
-        {/* Action cards */}
+        {/* 5. Evidence + confidence + limitations */}
+        <ExtractionEvidence
+          extraction={analysis.extraction}
+          classification={analysis.classification}
+          evidence={analysis.evidence}
+          limitations={analysis.limitations}
+        />
+
+        {/* 6. Next actions */}
         <section className="space-y-2">
-          <SectionLabel>Recommended next actions</SectionLabel>
+          <p className="text-[0.66rem] font-semibold uppercase tracking-[0.22em] text-ink-400">Recommended next actions</p>
           <p className="text-sm leading-6 text-ink-200">{analysis.recommendedNextAction}</p>
           <div className="flex flex-wrap gap-2">
             <ActionChip onClick={() => navigate(ROUTES.doctors)} icon={<IconSparkle width={14} height={14} aria-hidden />}>Find a doctor</ActionChip>
             <ActionChip onClick={() => navigate(ROUTES.hospitals)} icon={<IconHospital width={14} height={14} aria-hidden />}>Find a hospital</ActionChip>
             {analysis.category === 'lab-report' ? (
-              <ActionChip onClick={() => navigate(ROUTES.hospitals)} icon={<IconLab width={14} height={14} aria-hidden />}>Find a lab</ActionChip>
+              <ActionChip onClick={() => navigate(ROUTES.labs)} icon={<IconLab width={14} height={14} aria-hidden />}>Find a lab</ActionChip>
             ) : null}
             {analysis.medicine || analysis.category === 'medicine-image' ? (
-              <ActionChip onClick={() => navigate(ROUTES.agent)} icon={<IconPharmacy width={14} height={14} aria-hidden />}>Find a pharmacy</ActionChip>
+              <ActionChip onClick={() => navigate(ROUTES.pharmacies)} icon={<IconPharmacy width={14} height={14} aria-hidden />}>Find a pharmacy</ActionChip>
             ) : null}
             <ActionChip onClick={() => navigate(ROUTES.appointments)} icon={<IconReport width={14} height={14} aria-hidden />}>Book appointment</ActionChip>
-            {onAnalyze ? <ActionChip variant="ghost" onClick={() => onAnalyze(document.id)} icon={<IconSparkle width={14} height={14} aria-hidden />}>Re-analyze</ActionChip> : null}
-            {onDelete ? <ActionChip variant="danger" onClick={() => onDelete(document.id)}>Delete document</ActionChip> : null}
+            {onAnalyze ? <ActionChip variant="ghost" onClick={() => onAnalyze(document.id)} icon={<IconSparkle width={14} height={14} aria-hidden />}>Re-analyse</ActionChip> : null}
+            {onDelete ? <ActionChip variant="danger" onClick={() => onDelete(document.id)} icon={<IconClose width={12} height={12} aria-hidden />}>Delete document</ActionChip> : null}
           </div>
         </section>
+
+        {/* 7. Follow-up question */}
+        {onFollowUp ? (
+          <form onSubmit={submitFollowUp} className="space-y-2">
+            <label htmlFor={`followup-${document.id}`} className="text-[0.66rem] font-semibold uppercase tracking-[0.22em] text-ink-400">
+              Ask about this document
+            </label>
+            <div className="flex gap-2">
+              <input
+                id={`followup-${document.id}`}
+                value={followUp}
+                onChange={(e) => setFollowUp(e.target.value)}
+                placeholder="e.g. Ee value enduku perigindi?"
+                className="min-w-0 flex-1 rounded-full border border-white/12 bg-white/5 px-3.5 py-2 text-[0.82rem] text-white placeholder:text-ink-500 focus:border-brand-400/50 focus:outline-none focus:ring-2 focus:ring-brand-400/30"
+              />
+              <button
+                type="submit"
+                disabled={!followUp.trim()}
+                className="shrink-0 rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-3.5 py-2 text-[0.8rem] font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40 disabled:opacity-40"
+              >
+                Ask
+              </button>
+            </div>
+          </form>
+        ) : null}
+
+        <p className="flex items-center gap-1.5 text-[0.72rem] italic text-ink-400">
+          <IconShield width={12} height={12} aria-hidden /> Guidance, not a diagnosis. Always confirm findings with a qualified professional.
+        </p>
       </div>
     </motion.div>
   );
-}
-
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <p className="text-[0.66rem] font-semibold uppercase tracking-[0.22em] text-ink-400">{children}</p>;
 }
 
 function ActionChip({ children, icon, onClick, variant = 'solid' }: { children: React.ReactNode; icon?: React.ReactNode; onClick: () => void; variant?: 'solid' | 'ghost' | 'danger' }) {
@@ -180,117 +309,5 @@ function ActionChip({ children, icon, onClick, variant = 'solid' }: { children: 
       <span>{children}</span>
       <IconArrowRight width={11} height={11} aria-hidden />
     </button>
-  );
-}
-
-function LabResultSection({ lab }: { lab: NonNullable<DocumentAnalysisResult['labResult']> }) {
-  return (
-    <section className="space-y-2">
-      <div className="flex items-center justify-between">
-        <SectionLabel>Extracted from report</SectionLabel>
-        {lab.collectionDate ? <span className="text-[0.7rem] text-ink-400">Collected {lab.collectionDate}</span> : null}
-      </div>
-      <p className="text-sm font-medium text-white">{lab.reportTitle}</p>
-      {lab.valuesRequiringAttention.length > 0 ? (
-        <div className="space-y-2">
-          <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-amber-200/80">Values requiring attention</p>
-          {lab.valuesRequiringAttention.map((v) => <LabValueRow key={v.testName} v={v} />)}
-        </div>
-      ) : null}
-      {lab.normalValues.length > 0 ? (
-        <div className="space-y-2">
-          <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-emerald-200/80">Within reference range</p>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {lab.normalValues.map((v) => <LabValueRow key={v.testName} v={v} compact />)}
-          </div>
-        </div>
-      ) : null}
-    </section>
-  );
-}
-
-function LabValueRow({ v, compact = false }: { v: ExtractedMedicalValue; compact?: boolean }) {
-  return (
-    <div className={cn('flex flex-wrap items-center justify-between gap-2 rounded-[0.8rem] border bg-slate-950/45 px-3 py-2.5', compact ? 'border-white/10' : valueStatusTone[v.status].split(' ').filter((c) => c.startsWith('border')).join(' '))}>
-      <div className="min-w-0">
-        <p className="text-sm font-medium text-white">{v.testName}</p>
-        <p className="text-[0.7rem] text-ink-400">Reference: {v.referenceRange || '—'}{v.unit ? ` · ${v.unit}` : ''}</p>
-      </div>
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-semibold text-white">{v.measuredValue} <span className="text-[0.66rem] text-ink-400">{v.unit}</span></span>
-        <span className={cn('rounded-full border px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.16em]', valueStatusTone[v.status])}>{valueStatusLabel[v.status]}</span>
-      </div>
-    </div>
-  );
-}
-
-function PrescriptionSection({ rx }: { rx: PrescriptionExtraction }) {
-  return (
-    <section className="space-y-2">
-      <SectionLabel>Extracted from prescription</SectionLabel>
-      <div className="grid gap-2 sm:grid-cols-2">
-        <Field label="Doctor" value={rx.doctorName} />
-        <Field label="Date" value={rx.date} />
-        <Field label="Frequency" value={rx.frequency} />
-        <Field label="Duration" value={rx.duration} />
-      </div>
-      {rx.medicineNames.length > 0 ? (
-        <div className="space-y-1">
-          <p className="text-[0.7rem] text-ink-400">Medicines listed</p>
-          <div className="flex flex-wrap gap-1.5">
-            {rx.medicineNames.map((m) => (
-              <span key={m} className="rounded-full border border-white/12 bg-white/8 px-2.5 py-0.5 text-[0.74rem] text-ink-100">{m}</span>
-            ))}
-          </div>
-        </div>
-      ) : null}
-      {rx.instructions ? <p className="text-sm leading-6 text-ink-200">{rx.instructions}</p> : null}
-      {rx.needsVerification.length > 0 ? (
-        <p className="rounded-[0.7rem] border border-amber-400/25 bg-amber-500/8 px-3 py-2 text-[0.74rem] text-amber-100">
-          Needs verification: {rx.needsVerification.join(', ')}. Confirm with your doctor or pharmacist before following any instructions.
-        </p>
-      ) : null}
-    </section>
-  );
-}
-
-function MedicineSection({ medicine }: { medicine: MedicineRecognitionResult }) {
-  return (
-    <section className="space-y-2">
-      <SectionLabel>Medicine recognition</SectionLabel>
-      {medicine.isUncertain || !medicine.name ? (
-        <p className="rounded-[0.7rem] border border-amber-400/25 bg-amber-500/8 px-3 py-2 text-[0.78rem] italic text-amber-100">
-          Medicine identification is uncertain. Please verify the name/strength on the strip or with a pharmacist.
-        </p>
-      ) : (
-        <div className="rounded-[0.8rem] border border-white/10 bg-slate-950/45 p-3">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-sm font-semibold text-white">{medicine.name}{medicine.strength ? ` ${medicine.strength}` : ''}</p>
-            <span className="rounded-full border border-brand-400/25 bg-brand-500/15 px-2 py-0.5 text-[0.62rem] font-semibold text-brand-100">
-              {medicine.confidence}% confidence
-            </span>
-          </div>
-          {medicine.dosageForm ? <p className="mt-1 text-[0.72rem] text-ink-400">Form: {medicine.dosageForm}</p> : null}
-          {medicine.commonPurpose ? <p className="mt-1 text-sm leading-6 text-ink-200">{medicine.commonPurpose}</p> : null}
-        </div>
-      )}
-      {medicine.safetyWarning ? (
-        <p className="rounded-[0.7rem] border border-amber-400/25 bg-amber-500/8 px-3 py-2 text-[0.74rem] text-amber-100">
-          <span className="font-semibold">Safety:</span> {medicine.safetyWarning}
-        </p>
-      ) : null}
-      <p className="flex items-center gap-1.5 text-[0.72rem] italic text-ink-400">
-        <IconShield width={12} height={12} aria-hidden /> Identification is for navigation only. Never change your dosage or stop a prescribed medicine without consulting your doctor.
-      </p>
-    </section>
-  );
-}
-
-function Field({ label, value }: { label: string; value: string | null | undefined }) {
-  return (
-    <div className="rounded-[0.7rem] border border-white/10 bg-slate-950/40 px-3 py-2">
-      <p className="text-[0.66rem] font-semibold uppercase tracking-[0.18em] text-ink-400">{label}</p>
-      <p className="text-sm text-white">{value || <span className="text-amber-200">Needs verification</span>}</p>
-    </div>
   );
 }

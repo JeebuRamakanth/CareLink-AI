@@ -74,27 +74,36 @@ export function useDocumentUpload(): UseDocumentUploadResult {
   const [attachments, setAttachments] = useState<DocumentAttachment[]>([]);
   const [issues, setIssues] = useState<DocumentValidationIssue[]>([]);
   const activeUploads = useRef<Set<string>>(new Set());
+  // A synchronous mirror of the attachment list. `addFiles` queues state, but a
+  // caller may immediately call `startUpload` for a just-added file; without a
+  // ref the upload would look up stale state and silently never start.
+  const attachmentsRef = useRef<DocumentAttachment[]>([]);
 
   const patch = useCallback((id: string, p: Partial<DocumentAttachment>) => {
-    setAttachments((prev) => prev.map((a) => (a.id === id ? { ...a, ...p } : a)));
+    setAttachments((prev) => {
+      const next = prev.map((a) => (a.id === id ? { ...a, ...p } : a));
+      attachmentsRef.current = next;
+      return next;
+    });
   }, []);
 
   const addFiles = useCallback(
     (files: FileList | File[] | null, _ctx: UseDocumentUploadContext): DocumentAttachment[] => {
-      const existing = attachments.map((a) => ({ fileName: a.fileName, fileSize: a.fileSize }));
+      const existing = attachmentsRef.current.map((a) => ({ fileName: a.fileName, fileSize: a.fileSize }));
       const { accepted, issues: batchIssues } = validateDocumentBatch(files, existing);
       if (batchIssues.length > 0) setIssues((prev) => [...prev, ...batchIssues]);
       if (accepted.length === 0) return [];
       const newOnes = accepted.map(fileToAttachment);
-      setAttachments((prev) => [...prev, ...newOnes]);
+      attachmentsRef.current = [...attachmentsRef.current, ...newOnes];
+      setAttachments(attachmentsRef.current);
       return newOnes;
     },
-    [attachments]
+    []
   );
 
   const startUpload = useCallback(
     async (id: string, ctx: UseDocumentUploadContext) => {
-      const target = attachments.find((a) => a.id === id);
+      const target = attachmentsRef.current.find((a) => a.id === id);
       if (!target) return;
       if (!isMutable(target.pipelineState)) return;
       if (activeUploads.current.has(id)) return;
@@ -149,7 +158,7 @@ export function useDocumentUpload(): UseDocumentUploadResult {
         activeUploads.current.delete(id);
       }
     },
-    [attachments, patch]
+    [patch]
   );
 
   const retry = useCallback(
@@ -162,13 +171,13 @@ export function useDocumentUpload(): UseDocumentUploadResult {
 
   const cancel = useCallback(
     (id: string) => {
-      const target = attachments.find((a) => a.id === id);
+      const target = attachmentsRef.current.find((a) => a.id === id);
       if (!target) return;
       if (isTerminal(target.pipelineState)) return;
       target.abortController?.abort();
       patch(id, { pipelineState: 'cancelled', errorMessage: 'Upload cancelled.' });
     },
-    [attachments, patch]
+    [patch]
   );
 
   const remove = useCallback(
@@ -177,7 +186,9 @@ export function useDocumentUpload(): UseDocumentUploadResult {
         const target = prev.find((a) => a.id === id);
         if (target?.abortController) target.abortController.abort();
         if (target?.previewUrl && typeof URL !== 'undefined') URL.revokeObjectURL(target.previewUrl);
-        return prev.filter((a) => a.id !== id);
+        const next = prev.filter((a) => a.id !== id);
+        attachmentsRef.current = next;
+        return next;
       });
     },
     []
@@ -188,7 +199,9 @@ export function useDocumentUpload(): UseDocumentUploadResult {
       prev.forEach((a) => {
         if (a.pipelineState === 'completed' && a.previewUrl && typeof URL !== 'undefined') URL.revokeObjectURL(a.previewUrl);
       });
-      return prev.filter((a) => !isTerminal(a.pipelineState));
+      const next = prev.filter((a) => !isTerminal(a.pipelineState));
+      attachmentsRef.current = next;
+      return next;
     });
   }, []);
 
@@ -198,6 +211,7 @@ export function useDocumentUpload(): UseDocumentUploadResult {
         a.abortController?.abort();
         if (a.previewUrl && typeof URL !== 'undefined') URL.revokeObjectURL(a.previewUrl);
       });
+      attachmentsRef.current = [];
       return [];
     });
     setIssues([]);

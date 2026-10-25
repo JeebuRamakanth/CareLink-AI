@@ -1,248 +1,482 @@
 /**
- * CareLink-AI — Step 11 document analysis service.
+ * CareLink-AI — document analysis service (real extraction + deterministic
+ * clinical interpretation).
  *
- * Wraps the Step 9 DocumentAnalysisAdapter (mock) + the real document-analysis
- * boundary (analyzeDocumentRemotely) and returns schema-validated analysis
- * results. The UI only ever renders validated output.
+ * Replaces the earlier filename-guessing mock that rendered invented lab values
+ * ("Fasting glucose 132 mg/dL") as if they had been extracted from the user's
+ * report. Nothing is fabricated here:
  *
- * SAFETY:
- * - Output is schema-validated before rendering; unvalidated/malformed remote
- *   output is rejected (never shown as if it were a real analysis).
- * - Every result carries `isMock` + `source` so mock output is never presented
- *   as a real clinical analysis.
- * - Summaries are navigational ("a value is outside the reference range; speak
- *   to a clinician"), never a diagnosis ("you have X disease").
- * - Lab values clearly separate "EXTRACTED FROM REPORT" from "AI EXPLANATION".
+ *   file → extract real text (PDF text layer / on-device OCR)
+ *        → classify from that text (user correction wins)
+ *        → parse structured rows (lab / prescription / medicine label)
+ *        → reconcile units + reference intervals
+ *        → deterministic triage (critical values, emergency symptoms)
+ *        → verify medicine facts against authoritative sources
+ *        → schema-validated result with evidence + limitations
+ *
+ * When nothing could be extracted, the result says so and asks for a clearer
+ * upload. It never substitutes demo data for the user's document.
+ *
+ * The optional server document-analysis boundary is still consulted first when
+ * configured; its payload is schema-validated and merged (never trusted raw).
  */
 
 import { env } from '../../../config';
-import { log } from '../../../lib/security';
 import { analyzeDocumentRemotely } from '../../health-agent/services/adapters/realAdapters';
-import { adapters as resolvedAdapters, isAnyProviderReal } from '../../health-agent/services/adapters/registry';
-import { recognizeMedicine } from './medicineRecognitionService';
-import type { DocumentAnalysis } from '../../health-agent/types';
-import type { DocumentCategory, DocumentAnalysisResult, DocumentSafetyAssessment, ExtractedMedicalValue, LabResult, MedicineRecognitionResult, PrescriptionExtraction } from '../types';
+import { extractDocumentText } from './extraction/extractDocument';
+import { classifyFromExtraction, CLASSIFICATION_CONFIRM_THRESHOLD } from './extraction/classify';
+import { parseLabReport } from './clinical/labParser';
+import { parsePrescription } from './clinical/prescriptionParser';
+import { triageDocument, TRIAGE_LABEL } from './clinical/triage';
+import { CATALOG_REVIEWED, CATALOG_VERSION } from './clinical/analyteCatalog';
+import { identifyMedicine } from './medicineIdentificationService';
+import { recognizeMedicine as recognizeFromLocalCatalog } from './medicineRecognitionService';
+import type {
+  DocumentAnalysisResult,
+  DocumentCategory,
+  DocumentSafetyAssessment,
+  DocumentDataSource,
+  EvidenceReference,
+  ExtractedMedicalValue,
+  LabResult,
+  PrescriptionExtraction,
+  ScheduleRow,
+} from '../types';
 import type { DocumentKind } from '../../../services/health-data/types';
-import type { DocumentDataSource } from '../types';
+import type { DocumentExtraction } from './extraction/types';
 
-/** Classify a document into a broad analysis category from its kind + name. */
-export function classifyDocumentCategory(kind: DocumentKind, fileName: string): DocumentCategory {
-  const name = fileName.toLowerCase();
-  if (name.includes('prescription') || name.includes('rx')) return 'prescription';
-  if (name.includes('discharge')) return 'discharge-summary';
-  if (name.includes('note') || name.includes('doctor')) return 'doctor-note';
-  if (kind === 'image' && isMedicineFileName(name)) return 'medicine-image';
-  if (kind === 'image') return 'imaging';
-  if (kind === 'pdf' || name.includes('report') || name.includes('lab')) return 'lab-report';
-  return 'general-document';
-}
+export { classifyFromExtraction, CLASSIFICATION_CONFIRM_THRESHOLD };
 
-/** Filename tokens that signal a medicine/tablet photo (vs. an imaging study). */
-const MEDICINE_NAME_TOKENS = ['med', 'medicine', 'tablet', 'pill', 'capsule', 'strip', 'syrup', 'injection', 'drug'];
-function isMedicineFileName(name: string): boolean {
-  return MEDICINE_NAME_TOKENS.some((t) => name.includes(t));
-}
-
-/**
- * Derive a best-effort medicine-name hint from the filename so the mock
- * recognition service can look it up in the dataset. Returns the filename base
- * (minus extension) — never a dosage. Only used as a recognition *seed*; the
- * result stays uncertain unless a real backend confirms it.
- */
-function medicineHintFromName(fileName: string): string {
-  return fileName.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
-}
-
-/** Mock structured lab extraction (clearly tagged). Real OCR/NLP replaces this. */
-function mockLabResult(fileName: string): LabResult {
-  const values: ExtractedMedicalValue[] = [
-    { testName: 'Hemoglobin', measuredValue: '12.1', unit: 'g/dL', referenceRange: '13.0–17.0', status: 'attention', collectionDate: null },
-    { testName: 'Fasting glucose', measuredValue: '132', unit: 'mg/dL', referenceRange: '70–99', status: 'abnormal', collectionDate: null },
-    { testName: 'Total cholesterol', measuredValue: '190', unit: 'mg/dL', referenceRange: '< 200', status: 'normal', collectionDate: null },
-    { testName: 'HbA1c', measuredValue: '6.8', unit: '%', referenceRange: '< 5.7', status: 'attention', collectionDate: null },
-  ];
-  return {
-    reportTitle: fileName ? `Lab report — ${fileName}` : 'Lab report summary',
-    collectionDate: null,
-    values,
-    valuesRequiringAttention: values.filter((v) => v.status !== 'normal'),
-    normalValues: values.filter((v) => v.status === 'normal'),
-  };
-}
-
-function mockPrescription(): PrescriptionExtraction {
-  return {
-    doctorName: null,
-    date: null,
-    medicineNames: ['Prescribed medication (see document)'],
-    frequency: null,
-    duration: null,
-    instructions: null,
-    needsVerification: ['Doctor name', 'Date', 'Dosage/frequency', 'Duration'],
-  };
-}
-
-function mockMedicineRecognition(): MedicineRecognitionResult {
-  return {
-    name: null,
-    strength: null,
-    dosageForm: null,
-    manufacturerPlaceholder: null,
-    confidence: 0,
-    commonPurpose: null,
-    // §8: a safety warning is ALWAYS present, even when recognition is uncertain.
-    safetyWarning: 'Medicine identification from an image is uncertain. Verify the name and strength printed on the strip or with a pharmacist before use. Never change a prescribed dosage without consulting your doctor.',
-    prescriptionRequired: false,
-    isUncertain: true,
-    source: 'mock',
-  };
-}
-
-/**
- * Build a schema-validated analysis result. When a real analysis backend is
- * configured AND responds with a valid shape, `isMock=false`; otherwise the
- * mock interpretation is used and clearly tagged.
- */
-export async function analyzeDocument(input: {
+export interface AnalyzeDocumentInput {
   documentId: string;
   kind: DocumentKind;
   fileName: string;
   file: File;
-}): Promise<DocumentAnalysisResult> {
-  const { documentId, kind, fileName, file } = input;
-  const category = classifyDocumentCategory(kind, fileName);
+  /** A user-chosen document type, which overrides content classification. */
+  userCategory?: DocumentCategory;
+  /** Optional text the user typed alongside the upload (e.g. symptoms). */
+  userText?: string;
+}
 
-  // Try the real remote analysis boundary first.
-  const remote = env.documents.configured ? await analyzeDocumentRemotely(file, documentId).catch(() => null) : null;
-  if (remote) {
-    const validated = validateRemoteAnalysis(remote, documentId, category);
-    if (validated) return validated;
-    log.warn('documents-analysis', 'remote analysis failed schema validation; falling back to mock');
+/* ----------------------------------------------------------------------------
+ * Public API
+ * ------------------------------------------------------------------------- */
+
+/**
+ * Analyse one document. Always resolves to a schema-validated result; never
+ * throws. The result is explicit about what was extracted and what was not.
+ */
+export async function analyzeDocument(input: AnalyzeDocumentInput): Promise<DocumentAnalysisResult> {
+  const { documentId, kind, fileName, file, userCategory, userText } = input;
+
+  // 1. Real extraction from the file.
+  const extraction = await extractDocumentText({ file, kind: toExtractionKind(kind) });
+
+  const result = await analyzeExtraction({ documentId, fileName, extraction, userCategory, userText });
+
+  // 2. Optional server analysis (validated + merged as DATA, never trusted raw).
+  if (env.documents.configured) {
+    const remote = await analyzeDocumentRemotely(file, documentId).catch(() => null);
+    const serverFindings = remote && Array.isArray(remote.keyFindings)
+      ? remote.keyFindings.filter((f) => typeof f === 'string' && f.trim().length > 0).slice(0, 6)
+      : [];
+    if (serverFindings.length > 0) {
+      result.importantObservations = [
+        ...result.importantObservations,
+        ...serverFindings.map((f) => `Server analysis: ${f}`),
+      ];
+      result.evidence = [
+        ...(result.evidence ?? []),
+        { label: 'Server document analysis', supports: 'Additional findings returned by the configured server analysis service.', retrievedAt: new Date().toISOString() },
+      ];
+    }
   }
 
-  // Mock adapter (clearly tagged). Runs through the same adapter interface so a
-  // real backend can be swapped in without UI changes.
-  const mockAnalysis: DocumentAnalysis = await resolvedAdapters.documents.analyze({
-    id: documentId,
-    fileName,
-    fileSize: file.size,
-    mime: file.type || 'application/octet-stream',
-    kind: toAdapterKind(kind),
-    status: 'ready',
-    progress: 100,
-  });
+  return result;
+}
 
-  const labResult = category === 'lab-report' ? mockLabResult(fileName) : undefined;
-  const prescription = category === 'prescription' ? mockPrescription() : undefined;
-  // For medicine images, attempt recognition via the dedicated service (which
-  // reads the mock dataset + safety info). Image-only recognition is uncertain
-  // in the mock layer, so we seed it from the filename and always keep a safety
-  // warning. The UI never presents this as a confirmed identification.
-  const medicine = category === 'medicine-image'
-    ? await recognizeMedicine({ text: medicineHintFromName(fileName), documentId }).then((r) => r.safetyWarning ? r : { ...r, safetyWarning: mockMedicineRecognition().safetyWarning })
-    : undefined;
+export interface AnalyzeExtractionInput {
+  documentId: string;
+  fileName: string;
+  extraction: DocumentExtraction;
+  userCategory?: DocumentCategory;
+  userText?: string;
+}
 
-  const safety = assessSafety(labResult);
+/**
+ * Interpret an already-extracted document. Separated from `analyzeDocument` so a
+ * re-analysis with a corrected document type can reuse the text read the first
+ * time — the browser no longer holds the original file, and re-running OCR would
+ * risk a different result.
+ */
+export async function analyzeExtraction(input: AnalyzeExtractionInput): Promise<DocumentAnalysisResult> {
+  const { documentId, fileName, extraction, userCategory, userText } = input;
+
+  // 2. Classification from the ACTUAL content (user correction wins).
+  const classification = classifyFromExtraction(extraction, userCategory);
+  const category = classification.category;
+
+  // 3. Structured parsing of the extracted text.
+  const lab = category === 'lab-report' ? parseLabReport(extraction.pages) : null;
+  const rx = category === 'prescription' ? parsePrescription(extraction.pages) : null;
+
+  const labResult = lab ? buildLabResult(fileName, lab, extraction) : undefined;
+  const prescription = rx ? buildPrescriptionExtraction(rx) : undefined;
+
+  let medicine = undefined;
+  if (category === 'medicine-image') {
+    medicine = await identifyMedicine({
+      text: userText?.trim() || undefined,
+      labelText: extraction.text || undefined,
+      documentId,
+    });
+  }
+
+  // 4. Deterministic triage — critical lab values + any emergency symptom text.
+  const triage = triageDocument(lab?.values ?? [], extraction.text, userText ?? '');
+
+  // 5. Compose the validated result.
+  const limitations = collectLimitations(extraction, category, labResult, prescription);
+  const evidence = collectEvidence(category, medicine, labResult);
+
+  const summary = buildSummary({ category, extraction, labResult, prescription, medicine, triage, fileName });
+  const importantObservations = buildObservations({ category, labResult, prescription, medicine, extraction });
+  const possibleConcerns = buildConcerns({ labResult, triage });
+  const recommendedNextAction = buildNextAction(category, triage, labResult);
+
+  const noText = extraction.status !== 'extracted' || extraction.text.trim().length === 0;
 
   return {
     documentId,
     category,
-    summary: mockSummary(category),
-    importantObservations: mockAnalysis.keyFindings,
-    possibleConcerns: labResult ? labResult.valuesRequiringAttention.map((v) => `${v.testName} (${v.measuredValue} ${v.unit}) is outside the listed reference range.`) : [],
-    recommendedNextAction: recommendedAction(category, safety),
+    summary,
+    importantObservations,
+    possibleConcerns,
+    recommendedNextAction,
     labResult,
     prescription,
     medicine,
-    isMock: true,
-    source: isAnyProviderReal() ? 'mock' : 'mock',
+    // Real only when the text came from an actual extraction backend — never
+    // because a mock dataset was consulted.
+    isMock: false,
+    source: resolveSource(extraction),
     validated: true,
+    extraction,
+    classification,
+    triage,
+    evidence,
+    limitations: noText
+      ? ['No text could be read from this document, so no findings were interpreted.', ...limitations]
+      : limitations,
   };
 }
 
-/** Schema-validate a remote analysis payload before rendering it. */
-function validateRemoteAnalysis(
-  remote: { category: string; extractedTextPlaceholder: string; keyFindings: string[]; isMock: false },
-  documentId: string,
-  fallbackCategory: DocumentCategory
-): DocumentAnalysisResult | null {
-  try {
-    if (typeof remote.category !== 'string') return null;
-    if (!Array.isArray(remote.keyFindings)) return null;
-    const validCategories: DocumentCategory[] = ['lab-report', 'prescription', 'medicine-image', 'discharge-summary', 'imaging', 'doctor-note', 'general-document'];
-    const category = (validCategories as string[]).includes(remote.category) ? (remote.category as DocumentCategory) : fallbackCategory;
-    const findings = remote.keyFindings.filter((f) => typeof f === 'string' && f.length > 0).slice(0, 12);
-    return {
-      documentId,
-      category,
-      summary: typeof remote.extractedTextPlaceholder === 'string' ? remote.extractedTextPlaceholder.slice(0, 280) : 'Analysis complete.',
-      importantObservations: findings,
-      possibleConcerns: [],
-      recommendedNextAction: 'Discuss these findings with a qualified clinician.',
-      isMock: false,
-      source: 'real',
-      validated: true,
-    };
-  } catch {
-    return null;
-  }
-}
+/* ----------------------------------------------------------------------------
+ * Mapping helpers
+ * ------------------------------------------------------------------------- */
 
-/** Assess whether a lab result contains emergency-grade or attention values. */
-export function assessSafety(labResult?: LabResult): DocumentSafetyAssessment {
-  if (!labResult) return { isEmergency: false, hasAttentionValues: false, reason: 'No structured lab values extracted.' };
-  const attention = labResult.valuesRequiringAttention;
-  const hasAbnormal = attention.some((v) => v.status === 'abnormal');
-  return {
-    isEmergency: false, // Mock analysis never asserts emergency severity.
-    hasAttentionValues: attention.length > 0,
-    reason: hasAbnormal ? 'One or more values are outside the reference range.' : 'Values are within the listed reference ranges.',
-  };
-}
-
-function mockSummary(category: DocumentCategory): string {
-  switch (category) {
-    case 'lab-report':
-      return 'This report contains values outside the listed reference range. Multiple causes are possible — consider discussing it with a qualified clinician.';
+function toExtractionKind(kind: DocumentKind): 'image' | 'pdf' | 'document' | 'other' {
+  switch (kind) {
+    case 'image':
+    case 'medicine_image':
+      return 'image';
+    case 'pdf':
+    case 'lab_report':
     case 'prescription':
-      return 'A prescription was detected. Some fields could not be read clearly and are marked "Needs verification".';
-    case 'medicine-image':
-      return 'A medicine/tablet image was detected. Medicine identification is uncertain — please verify the name and strength on the strip or with a pharmacist.';
-    case 'discharge-summary':
-      return 'A discharge summary was detected. Review the listed medications and follow-up advice with your care team.';
-    case 'imaging':
-      return 'An imaging study was detected. A radiologist review is recommended; compare with prior studies if available.';
-    case 'doctor-note':
-      return 'A doctor note was detected. Confirm any instructions with the prescribing clinician.';
+      return kind === 'lab_report' || kind === 'prescription' ? 'image' : 'pdf';
+    case 'document':
+      return 'document';
     default:
-      return 'A document was received. Structured extraction is pending a real analysis backend.';
+      return 'other';
   }
 }
 
-function recommendedAction(category: DocumentCategory, safety: DocumentSafetyAssessment): string {
-  if (safety.hasAttentionValues) return 'Discuss the values outside the reference range with a qualified clinician before changing any treatment.';
+function resolveSource(extraction: DocumentExtraction): DocumentDataSource {
+  if (extraction.status === 'extracted') return extraction.backend === 'server-ocr' ? 'real' : 'real';
+  return 'unavailable';
+}
+
+/** Convert the parser output into the UI-facing LabResult shape. */
+function buildLabResult(
+  fileName: string,
+  lab: ReturnType<typeof parseLabReport>,
+  extraction: DocumentExtraction
+): LabResult {
+  const values: ExtractedMedicalValue[] = lab.values.map((v) => ({
+    testName: v.testName,
+    measuredValue: v.rawValue,
+    unit: v.unit,
+    referenceRange: v.referenceText ?? (v.interval ? `${v.interval.low}–${v.interval.high}` : ''),
+    status: v.status,
+    statusBasis: v.statusBasis,
+    collectionDate: lab.collectionDate,
+    page: v.page,
+    reportFlag: v.reportFlag,
+    unitStatus: v.unitStatus,
+    analyteKey: v.analyteKey,
+    about: v.about,
+    whyOrdered: v.whyOrdered,
+    critical: v.critical,
+    criticalReason: v.criticalReason,
+    rawLine: v.rawLine,
+  }));
+
+  return {
+    reportTitle: `Lab report — ${fileName}`,
+    collectionDate: lab.collectionDate,
+    values,
+    valuesRequiringAttention: values.filter((v) => v.status === 'abnormal' || v.status === 'attention' || v.critical),
+    normalValues: values.filter((v) => v.status === 'normal'),
+    unknownValues: values.filter((v) => v.status === 'unknown'),
+    unparsedLines: lab.unparsedLines,
+    pageCount: extraction.pageCount,
+  };
+}
+
+function buildPrescriptionExtraction(rx: ReturnType<typeof parsePrescription>): PrescriptionExtraction {
+  const schedule: ScheduleRow[] = rx.medicines.map((m) => ({
+    medicine: m.name,
+    strength: m.strength,
+    form: m.form,
+    dose: m.dose,
+    instruction: m.rawLine,
+    frequency: m.frequencyLabel ?? m.frequency,
+    timing: m.timing,
+    duration: m.duration,
+    schedule: m.schedule,
+    needsConfirmation: m.needsConfirmation,
+    rawLine: m.rawLine,
+    page: m.page,
+  }));
+
+  const needsVerification = [...new Set(rx.medicines.flatMap((m) => m.needsConfirmation))];
+  const firstWithFreq = rx.medicines.find((m) => m.frequencyLabel);
+
+  return {
+    doctorName: rx.doctorName,
+    date: rx.date,
+    medicineNames: rx.medicines.map((m) => m.name),
+    frequency: firstWithFreq?.frequencyLabel ?? null,
+    duration: rx.medicines.find((m) => m.duration)?.duration ?? null,
+    instructions: rx.followUp[0] ?? null,
+    needsVerification,
+    medicines: rx.medicines,
+    schedule,
+    followUp: rx.followUp,
+    unparsedLines: rx.unparsedLines,
+  };
+}
+
+/* ----------------------------------------------------------------------------
+ * Narrative builders — grounded strictly in the parsed structure
+ * ------------------------------------------------------------------------- */
+
+interface SummaryInput {
+  category: DocumentCategory;
+  extraction: DocumentExtraction;
+  labResult?: LabResult;
+  prescription?: PrescriptionExtraction;
+  medicine?: DocumentAnalysisResult['medicine'];
+  triage: ReturnType<typeof triageDocument>;
+  fileName: string;
+}
+
+function buildSummary({ category, extraction, labResult, prescription, medicine, triage }: SummaryInput): string {
+  if (extraction.status !== 'extracted' || !extraction.text.trim()) {
+    return extraction.note
+      ? `${extraction.note} No findings were interpreted from this document.`
+      : 'No text could be read from this document, so no findings were interpreted. Please upload a clearer copy.';
+  }
+
+  switch (category) {
+    case 'lab-report': {
+      if (!labResult || labResult.values.length === 0) {
+        return 'Text was read from this document, but no laboratory value rows could be recognised. Please check that the value table is visible and legible.';
+      }
+      const abnormal = labResult.valuesRequiringAttention.length;
+      const total = labResult.values.length;
+      const critical = labResult.values.filter((v) => v.critical).length;
+      if (critical > 0) return `${critical} value(s) in this report are in a critical range and need prompt professional review. ${total} values were read in total.`;
+      if (abnormal > 0) return `${abnormal} of ${total} read values fall outside the reference range printed on the report. ${triage.level === 'needs-follow-up' ? 'A clinician follow-up is advisable.' : ''}`.trim();
+      return `${total} laboratory values were read from this report and all fall within the ranges printed on the report. This is not a clean bill of health — interpretation needs clinical context.`;
+    }
+    case 'prescription': {
+      if (!prescription || prescription.medicineNames.length === 0) {
+        return 'Text was read from this document, but no clear medicine lines could be recognised. Please confirm the prescription with your doctor or pharmacist.';
+      }
+      return `${prescription.medicineNames.length} medicine line(s) were read from this prescription. Instructions are shown exactly as written; anything unclear is marked for confirmation.`;
+    }
+    case 'medicine-image': {
+      if (medicine?.verified && medicine.name) {
+        return `The medicine "${medicine.name}"${medicine.strength ? ` ${medicine.strength}` : ''} was matched against a medicine database. Details below come from the official label.`;
+      }
+      return 'A medicine image was received, but it could not be identified with confidence. Upload a clearer photo of the front and back of the packaging, or type the medicine name.';
+    }
+    case 'discharge-summary':
+      return 'A discharge summary was read. Review the medication and follow-up sections below with your care team.';
+    case 'imaging':
+      return 'An imaging report was read. Imaging needs a radiologist\'s review — the text below is not an interpretation of the image itself.';
+    case 'doctor-note':
+      return 'A clinical note was read. Confirm any instructions with the treating clinician.';
+    default:
+      return 'Text was read from this document, but it does not match a known medical-document type. Confirm the document type so it can be interpreted correctly.';
+  }
+}
+
+function buildObservations(input: {
+  category: DocumentCategory;
+  labResult?: LabResult;
+  prescription?: PrescriptionExtraction;
+  medicine?: DocumentAnalysisResult['medicine'];
+  extraction: DocumentExtraction;
+}): string[] {
+  const { labResult, prescription, medicine } = input;
+  const observations: string[] = [];
+
+  if (labResult) {
+    for (const v of labResult.values.slice(0, 12)) {
+      const ref = v.referenceRange ? ` (reference ${v.referenceRange})` : '';
+      observations.push(`${v.testName}: ${v.measuredValue}${v.unit ? ` ${v.unit}` : ''}${ref} — ${v.status}${v.critical ? ' — CRITICAL' : ''}`);
+    }
+  }
+  if (prescription) {
+    for (const row of prescription.schedule ?? []) {
+      observations.push(`${row.medicine}${row.strength ? ` ${row.strength}` : ''} — ${row.instruction}`);
+    }
+    for (const f of prescription.followUp ?? []) observations.push(f);
+  }
+  if (medicine?.uses?.length) {
+    observations.push(`Common uses (verified): ${medicine.uses.slice(0, 3).join(' ')}`);
+  }
+  return observations.slice(0, 16);
+}
+
+function buildConcerns(input: { labResult?: LabResult; triage: ReturnType<typeof triageDocument> }): string[] {
+  const concerns: string[] = [];
+  for (const t of input.triage.triggers) {
+    if (t.level === 'emergency' || t.level === 'urgent') concerns.push(t.detail);
+  }
+  if (input.labResult) {
+    for (const v of input.labResult.valuesRequiringAttention.filter((x) => !x.critical).slice(0, 6)) {
+      concerns.push(`${v.testName} (${v.measuredValue}${v.unit ? ` ${v.unit}` : ''}) is outside the range printed on the report. Multiple causes are possible.`);
+    }
+  }
+  return concerns.slice(0, 10);
+}
+
+function buildNextAction(category: DocumentCategory, triage: ReturnType<typeof triageDocument>, labResult?: LabResult): string {
+  if (triage.isEmergency) {
+    return 'Some findings need immediate attention. If you feel unwell now, contact emergency services or go to the nearest emergency department. Otherwise, contact your doctor today with this report.';
+  }
+  if (triage.level === 'urgent') return 'Show this document to a clinician promptly — within a day or two.';
+  if (labResult && labResult.valuesRequiringAttention.length > 0) {
+    return 'Discuss the values outside the reference range with a qualified clinician. Do not change any treatment based on this analysis alone.';
+  }
   switch (category) {
     case 'prescription':
-      return 'Verify unclear fields with your doctor or pharmacist before following any instructions.';
+      return 'Verify any unclear fields with your doctor or pharmacist before following the instructions.';
     case 'medicine-image':
-      return 'Confirm the medicine name and strength with a pharmacist.';
+      return 'Confirm the medicine name and strength with a pharmacist, or upload a clearer photo of the packaging.';
     case 'imaging':
-      return 'Have the imaging reviewed by a radiologist and discuss with your doctor.';
+      return 'Have the imaging reviewed by the radiologist and discuss it with your doctor.';
     default:
       return 'Review the extracted information with a qualified clinician.';
   }
 }
 
-function toAdapterKind(kind: DocumentKind): 'image' | 'pdf' | 'document' | 'camera' | 'unknown' {
-  switch (kind) {
-    case 'image': return 'image';
-    case 'pdf': return 'pdf';
-    case 'document': return 'document';
-    default: return 'unknown';
+/* ----------------------------------------------------------------------------
+ * Evidence + limitations
+ * ------------------------------------------------------------------------- */
+
+function collectEvidence(
+  category: DocumentCategory,
+  medicine: DocumentAnalysisResult['medicine'],
+  labResult?: LabResult
+): EvidenceReference[] {
+  const evidence: EvidenceReference[] = [];
+  if (medicine?.evidence?.length) evidence.push(...medicine.evidence);
+  if (labResult && labResult.values.some((v) => v.analyteKey)) {
+    evidence.push({
+      label: `CareLink clinical reference catalog v${CATALOG_VERSION}`,
+      retrievedAt: new Date().toISOString(),
+      supports: 'Plain-language test explanations and fallback reference intervals (the report\'s own interval always takes precedence).',
+    });
   }
+  if (evidence.length === 0 && (category === 'lab-report' || category === 'prescription')) {
+    evidence.push({
+      label: 'Values read directly from your uploaded document',
+      supports: 'All extracted values and instructions shown come from the uploaded file.',
+    });
+  }
+  return evidence;
 }
 
-/** Re-export so callers can read the active data source flag. */
+function collectLimitations(
+  extraction: DocumentExtraction,
+  category: DocumentCategory,
+  labResult?: LabResult,
+  prescription?: PrescriptionExtraction
+): string[] {
+  const limitations: string[] = [];
+  if (extraction.partial) limitations.push('Some pages of this document could not be read.');
+  if (extraction.backend === 'ocr') {
+    limitations.push('Text was read with on-device OCR, which can misread digits and units. Check the values against the original document.');
+  }
+  if (labResult?.unparsedLines?.length) {
+    limitations.push(`${labResult.unparsedLines.length} line(s) in this report could not be parsed and were not interpreted.`);
+  }
+  if (labResult?.values.some((v) => v.unitStatus === 'unit-mismatch')) {
+    limitations.push('One or more values use a unit that could not be reconciled, so they were shown as printed without a range comparison.');
+  }
+  if (prescription?.needsVerification?.length) {
+    limitations.push(`Some prescription fields were unclear: ${prescription.needsVerification.join(', ')}.`);
+  }
+  if (category === 'lab-report' && !CATALOG_REVIEWED) {
+    limitations.push('The clinical reference catalog has not yet been reviewed by a clinician; fallback reference intervals are indicative only.');
+  }
+  return limitations;
+}
+
+/* ----------------------------------------------------------------------------
+ * Safety assessment (consumed by the agent + UI banner)
+ * ------------------------------------------------------------------------- */
+
+/** Assess a document's urgency from its deterministic triage result. */
+export function assessSafety(labResult?: LabResult, triage?: ReturnType<typeof triageDocument>): DocumentSafetyAssessment {
+  if (triage) {
+    return {
+      isEmergency: triage.isEmergency,
+      hasAttentionValues: triage.triggers.some((t) => t.level === 'urgent' || t.level === 'emergency' || t.level === 'needs-follow-up'),
+      reason: triage.reason,
+      triage,
+    };
+  }
+  if (!labResult) return { isEmergency: false, hasAttentionValues: false, reason: 'No structured lab values were extracted.' };
+  const attention = labResult.valuesRequiringAttention;
+  const critical = labResult.values.some((v) => v.critical);
+  return {
+    isEmergency: critical,
+    hasAttentionValues: attention.length > 0,
+    reason: critical
+      ? 'One or more values are in a critical range and need prompt professional review.'
+      : attention.length > 0
+        ? 'One or more values are outside the reference range printed on the report.'
+        : 'Values are within the ranges printed on the report.',
+  };
+}
+
+/** Whether a real analysis backend (server) is configured. */
 export function documentAnalysisSource(): DocumentDataSource {
   return env.documents.configured ? 'real' : 'mock';
 }
+
+/** Exposed for the UI so a "not reviewed" catalog is visible. */
+export function clinicalCatalogStatus(): { version: string; reviewed: boolean } {
+  return { version: CATALOG_VERSION, reviewed: CATALOG_REVIEWED };
+}
+
+export { TRIAGE_LABEL };
+export type { DocumentExtraction };
+
+/** Re-exported for the local fallback path used elsewhere. */
+export { recognizeFromLocalCatalog };
