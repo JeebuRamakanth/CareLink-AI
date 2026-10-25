@@ -179,6 +179,8 @@ export function DocumentAnalysisResultCard({
         {analysis.medicine ? (
           <MedicineIdentification
             medicine={analysis.medicine}
+            visionRead={analysis.visionRead}
+            visionUnavailable={analysis.visionUnavailable}
             onFindPharmacy={(name) => navigate(`${ROUTES.pharmacies}?q=${encodeURIComponent(name)}`)}
             onRequestClearerImage={onAnalyze ? () => onAnalyze(document.id) : undefined}
           />

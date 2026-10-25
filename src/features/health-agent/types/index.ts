@@ -147,8 +147,14 @@ export interface AgentAction {
  * Attachment / document model — unified across image, PDF, doc, medicine photo
  * ------------------------------------------------------------------------- */
 
-export type HealthDocumentKind = 'image' | 'pdf' | 'document' | 'camera' | 'unknown';
+/**
+ * Alias of the real secure-analysis result produced by the documents pipeline
+ * (vision read, lab extraction, prescription, triage). Declared here as a type
+ * import so the agent's document model can carry it without a runtime cycle.
+ */
+export type SecureDocumentAnalysis = import('../../documents/types').DocumentAnalysisResult;
 
+export type HealthDocumentKind = 'image' | 'pdf' | 'document' | 'camera' | 'unknown';
 export type HealthDocumentStatus =
   | 'queued'
   | 'uploading'
@@ -181,6 +187,19 @@ export interface HealthDocument {
   errorMessage?: string;
   /** Populated by the document-analysis adapter (placeholder text for now). */
   analysis?: DocumentAnalysis;
+  /**
+   * The File handle for the in-flight document. Kept ONLY in React state so the
+   * real analysis pipeline (vision/OCR/PDF) can read it; it is never persisted.
+   */
+  file?: File;
+  /**
+   * The REAL secure analysis result (vision read, lab extraction, prescription,
+   * triage) produced by the documents pipeline. Present only when the real
+   * pipeline ran — the orchestrator reads this instead of inventing values.
+   */
+  secureAnalysis?: SecureDocumentAnalysis;
+  /** Honest failure reason when the real pipeline could not analyse the file. */
+  pipelineError?: string;
 }
 
 /** Provenance for a single extracted value or an entire analysis payload. */
@@ -458,8 +477,8 @@ export interface MedicalReport {
   trendComparisonPlaceholder: string;
   questionsToAskYourDoctor: string[];
   recommendedNextAction: string;
-  /** Always true until a real interpretation backend exists. */
-  isMockInterpretation: true;
+  /** True only when the interpretation is a clearly-labelled demo, never a real read. */
+  isMockInterpretation: boolean;
 }
 
 /* ----------------------------------------------------------------------------

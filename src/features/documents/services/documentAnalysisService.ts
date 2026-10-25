@@ -30,6 +30,7 @@ import { parsePrescription } from './clinical/prescriptionParser';
 import { triageDocument, TRIAGE_LABEL } from './clinical/triage';
 import { CATALOG_REVIEWED, CATALOG_VERSION } from './clinical/analyteCatalog';
 import { identifyMedicine } from './medicineIdentificationService';
+import { identifyMedicineFromImage } from './vision/medicineImageIdentification';
 import { recognizeMedicine as recognizeFromLocalCatalog } from './medicineRecognitionService';
 import type {
   DocumentAnalysisResult,
@@ -72,7 +73,7 @@ export async function analyzeDocument(input: AnalyzeDocumentInput): Promise<Docu
   // 1. Real extraction from the file.
   const extraction = await extractDocumentText({ file, kind: toExtractionKind(kind) });
 
-  const result = await analyzeExtraction({ documentId, fileName, extraction, userCategory, userText });
+  const result = await analyzeExtraction({ documentId, fileName, extraction, userCategory, userText, file, isImage: kind === 'image' || kind === 'medicine_image' });
 
   // 2. Optional server analysis (validated + merged as DATA, never trusted raw).
   if (env.documents.configured) {
@@ -101,6 +102,17 @@ export interface AnalyzeExtractionInput {
   extraction: DocumentExtraction;
   userCategory?: DocumentCategory;
   userText?: string;
+  /**
+   * The original image file. Needed ONLY for the medicine-photo vision path,
+   * which sends the pixels to the vision backend. Absent on a re-analysis of a
+   * document whose file is no longer held in the browser — in that case the
+   * stored vision read is reused rather than re-requested.
+   */
+  file?: File;
+  /** A previously stored vision read, reused when `file` is unavailable. */
+  storedVisionRead?: DocumentAnalysisResult['visionRead'];
+  /** True when the source is an image, so the vision path may be attempted. */
+  isImage?: boolean;
 }
 
 /**
@@ -110,11 +122,17 @@ export interface AnalyzeExtractionInput {
  * risk a different result.
  */
 export async function analyzeExtraction(input: AnalyzeExtractionInput): Promise<DocumentAnalysisResult> {
-  const { documentId, fileName, extraction, userCategory, userText } = input;
+  const { documentId, fileName, extraction, userCategory, userText, file, storedVisionRead, isImage } = input;
 
   // 2. Classification from the ACTUAL content (user correction wins).
   const classification = classifyFromExtraction(extraction, userCategory);
-  const category = classification.category;
+  let category = classification.category;
+
+  // A blurry/low-light medicine photo can produce no usable OCR text and would
+  // otherwise classify as `general-document`. When the source IS an image, the
+  // photograph itself is still valid evidence — run the vision path and let the
+  // vision read decide the real category (never a filename guess).
+  const visionEligible = Boolean(isImage || file?.type.startsWith('image/'));
 
   // 3. Structured parsing of the extracted text.
   const lab = category === 'lab-report' ? parseLabReport(extraction.pages) : null;
@@ -124,27 +142,65 @@ export async function analyzeExtraction(input: AnalyzeExtractionInput): Promise<
   const prescription = rx ? buildPrescriptionExtraction(rx) : undefined;
 
   let medicine = undefined;
-  if (category === 'medicine-image') {
-    medicine = await identifyMedicine({
-      text: userText?.trim() || undefined,
-      labelText: extraction.text || undefined,
-      documentId,
-    });
+  let visionRead: DocumentAnalysisResult['visionRead'];
+  let identificationLevel: DocumentAnalysisResult['identificationLevel'];
+  let visionUnavailable = false;
+
+  // The vision path is the ONLY correct way to identify a medicine photograph.
+  // It runs when the document is an image AND either the content classifier
+  // already recognised a medicine label, or nothing could be read from the image
+  // (so the classifier had no evidence at all and could not have known).
+  const shouldTryVision = visionEligible && (category === 'medicine-image' || (classification.category === 'general-document' && !extraction.text.trim()));
+
+  if (shouldTryVision && file) {
+    const identification = await identifyMedicineFromImage({ file, hint: userText?.trim() || undefined });
+    medicine = identification.medicine;
+    visionRead = identification.read;
+    identificationLevel = identification.level;
+    visionUnavailable = identification.visionUnavailable === true;
+    // The vision path was attempted, so this document IS a medicine photograph:
+    // promote the category so the UI renders the medicine section — including the
+    // honest "could not be identified" / "analysis unavailable" states — rather
+    // than a generic document. This is never a filename guess.
+    category = 'medicine-image';
+  } else if (category === 'medicine-image') {
+    if (storedVisionRead) {
+      // Re-analysis of a document whose file is no longer held: reuse the stored
+      // read instead of inventing one, then re-verify the name against references.
+      visionRead = storedVisionRead;
+      const verified = await identifyMedicine({
+        text: storedVisionRead.brandName ?? storedVisionRead.genericName ?? undefined,
+        labelText: storedVisionRead.readText || undefined,
+        documentId,
+      });
+      medicine = verified;
+      identificationLevel = verified.verified ? 'verified' : verified.name ? 'possible' : 'unidentifiable';
+    } else if (extraction.text.trim()) {
+      // No file and no stored read: the OCR text is the only evidence available.
+      medicine = await identifyMedicine({ text: userText?.trim() || undefined, labelText: extraction.text || undefined, documentId });
+      identificationLevel = medicine?.verified ? 'verified' : medicine?.name ? 'possible' : 'unidentifiable';
+    } else {
+      medicine = await identifyMedicine({ text: userText?.trim() || undefined, documentId });
+      identificationLevel = 'unidentifiable';
+    }
   }
 
   // 4. Deterministic triage — critical lab values + any emergency symptom text.
   const triage = triageDocument(lab?.values ?? [], extraction.text, userText ?? '');
 
   // 5. Compose the validated result.
-  const limitations = collectLimitations(extraction, category, labResult, prescription);
+  const limitations = collectLimitations(extraction, category, labResult, prescription, visionRead, visionUnavailable);
   const evidence = collectEvidence(category, medicine, labResult);
 
-  const summary = buildSummary({ category, extraction, labResult, prescription, medicine, triage, fileName });
-  const importantObservations = buildObservations({ category, labResult, prescription, medicine, extraction });
+  const summary = buildSummary({ category, extraction, labResult, prescription, medicine, triage, fileName, visionRead, visionUnavailable });
+  const importantObservations = buildObservations({ category, labResult, prescription, medicine, extraction, visionRead });
   const possibleConcerns = buildConcerns({ labResult, triage });
   const recommendedNextAction = buildNextAction(category, triage, labResult);
 
   const noText = extraction.status !== 'extracted' || extraction.text.trim().length === 0;
+  // A medicine photo is analysed by the VISION backend, so the OCR "no text"
+  // rule does not apply to it — the photograph itself is the evidence.
+  const noEvidence = noText && !visionRead;
 
   return {
     documentId,
@@ -156,16 +212,19 @@ export async function analyzeExtraction(input: AnalyzeExtractionInput): Promise<
     labResult,
     prescription,
     medicine,
+    visionRead,
+    identificationLevel,
+    visionUnavailable,
     // Real only when the text came from an actual extraction backend — never
     // because a mock dataset was consulted.
     isMock: false,
-    source: resolveSource(extraction),
+    source: resolveSource(extraction, visionRead, visionUnavailable),
     validated: true,
     extraction,
     classification,
     triage,
     evidence,
-    limitations: noText
+    limitations: noEvidence
       ? ['No text could be read from this document, so no findings were interpreted.', ...limitations]
       : limitations,
   };
@@ -191,8 +250,16 @@ function toExtractionKind(kind: DocumentKind): 'image' | 'pdf' | 'document' | 'o
   }
 }
 
-function resolveSource(extraction: DocumentExtraction): DocumentDataSource {
-  if (extraction.status === 'extracted') return extraction.backend === 'server-ocr' ? 'real' : 'real';
+function resolveSource(
+  extraction: DocumentExtraction,
+  visionRead?: DocumentAnalysisResult['visionRead'],
+  visionUnavailable?: boolean
+): DocumentDataSource {
+  // A real vision read is a real source even when OCR could read nothing.
+  if (visionRead) return 'real';
+  // An unavailable vision backend is NOT mock — it is an honest limitation.
+  if (visionUnavailable) return 'unavailable';
+  if (extraction.status === 'extracted') return 'real';
   return 'unavailable';
 }
 
@@ -279,9 +346,34 @@ interface SummaryInput {
   medicine?: DocumentAnalysisResult['medicine'];
   triage: ReturnType<typeof triageDocument>;
   fileName: string;
+  visionRead?: DocumentAnalysisResult['visionRead'];
+  visionUnavailable?: boolean;
 }
 
-function buildSummary({ category, extraction, labResult, prescription, medicine, triage }: SummaryInput): string {
+function buildSummary({ category, extraction, labResult, prescription, medicine, triage, visionRead, visionUnavailable }: SummaryInput): string {
+  // A medicine photograph is analysed by the VISION backend. Its summary must
+  // describe what was actually read (or say honestly that nothing was), and must
+  // never be replaced by the generic "no text could be read" message.
+  if (category === 'medicine-image') {
+    if (visionUnavailable) {
+      return 'Image analysis is not available right now, so this photograph could not be read. No medicine was identified — verify the medicine on the strip or with a pharmacist.';
+    }
+    if (visionRead) {
+      const parts = [visionRead.brandName, visionRead.strength, visionRead.dosageForm].filter(Boolean).join(' ');
+      if (visionRead.identificationLevel === 'verified' && medicine?.name) {
+        return `Read "${parts || medicine.name}" from the photograph and matched it to a medicine reference database. Label details below are cited.`;
+      }
+      if (visionRead.identificationLevel === 'possible') {
+        return `The photograph was read as "${parts || visionRead.brandName || 'an unclear name'}", but this could not be verified against a medicine reference database. Treat it as a possible match only.`;
+      }
+      return visionRead.imageQuality === 'unreadable'
+        ? 'The photograph could not be read clearly enough to identify a medicine. Please upload a sharper, well-lit photo of the front and back of the packaging.'
+        : 'No readable medicine name was found in the photograph. Please photograph the front and back of the strip or box in good light, or type the printed name.';
+    }
+    // No vision read at all (no file, no stored read) — fall through to the
+    // text-based summary below rather than claiming an identification.
+  }
+
   if (extraction.status !== 'extracted' || !extraction.text.trim()) {
     return extraction.note
       ? `${extraction.note} No findings were interpreted from this document.`
@@ -329,9 +421,29 @@ function buildObservations(input: {
   prescription?: PrescriptionExtraction;
   medicine?: DocumentAnalysisResult['medicine'];
   extraction: DocumentExtraction;
+  visionRead?: DocumentAnalysisResult['visionRead'];
 }): string[] {
-  const { labResult, prescription, medicine } = input;
+  const { labResult, prescription, medicine, visionRead } = input;
   const observations: string[] = [];
+
+  if (visionRead) {
+    // Report exactly what was READ from the photograph, field by field, so the
+    // user can compare it with the physical packaging. Null fields are omitted
+    // here (the "Not verified" list and limitations cover them).
+    const printed: [string, string | null][] = [
+      ['Brand name', visionRead.brandName],
+      ['Active ingredient', visionRead.genericName],
+      ['Strength', visionRead.strength],
+      ['Dosage form', visionRead.dosageForm],
+      ['Manufacturer', visionRead.manufacturer],
+      ['Batch', visionRead.batch],
+      ['Expiry', visionRead.expiry],
+      ['Imprint', visionRead.imprint],
+    ];
+    for (const [label, value] of printed) {
+      if (value) observations.push(`${label} (read from the photograph): ${value}`);
+    }
+  }
 
   if (labResult) {
     for (const v of labResult.values.slice(0, 12)) {
@@ -415,9 +527,26 @@ function collectLimitations(
   extraction: DocumentExtraction,
   category: DocumentCategory,
   labResult?: LabResult,
-  prescription?: PrescriptionExtraction
+  prescription?: PrescriptionExtraction,
+  visionRead?: DocumentAnalysisResult['visionRead'],
+  visionUnavailable?: boolean
 ): string[] {
   const limitations: string[] = [];
+  if (visionUnavailable) {
+    limitations.push('The image-analysis service was unavailable, so the photograph could not be read. No medicine was identified from it.');
+  }
+  if (visionRead) {
+    limitations.push('A medicine photograph is read by an AI vision model; packaging text can be misread. Confirm the name and strength on the physical packaging or with a pharmacist.');
+    if (visionRead.identificationLevel !== 'verified') {
+      limitations.push('This read was NOT verified against a medicine reference database — treat it as a possible match only.');
+    }
+    if (visionRead.imageQuality === 'blurry' || visionRead.imageQuality === 'partial') {
+      limitations.push(`The photograph was assessed as ${visionRead.imageQuality}; a sharper, complete photo of the front and back would improve the read.`);
+    }
+    for (const f of visionRead.unreadableFields.slice(0, 4)) {
+      limitations.push(`Could not read ${f.field}: ${f.reason}`);
+    }
+  }
   if (extraction.partial) limitations.push('Some pages of this document could not be read.');
   if (extraction.backend === 'ocr') {
     limitations.push('Text was read with on-device OCR, which can misread digits and units. Check the values against the original document.');

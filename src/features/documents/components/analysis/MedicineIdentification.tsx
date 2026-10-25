@@ -14,31 +14,52 @@
 import { cn } from '../../../../components/common/cn';
 import { IconPharmacy, IconPill, IconShield, IconSparkle } from '../../../../components/agent/AgentIcons';
 import type { MedicineRecognitionResult } from '../../types';
+import type { MedicineVisionRead } from '../../services/vision/types';
 import { SectionLabel, InfoCell } from './ExtractionEvidence';
 
 interface Props {
   medicine: MedicineRecognitionResult;
+  /** The structured vision read of the photograph, when one was produced. */
+  visionRead?: MedicineVisionRead;
+  /** True when the vision backend itself was unavailable. */
+  visionUnavailable?: boolean;
   /** Open the pharmacy search for this medicine. */
   onFindPharmacy?: (medicineName: string) => void;
   /** Ask for a clearer image. */
   onRequestClearerImage?: () => void;
 }
 
-export function MedicineIdentification({ medicine, onFindPharmacy, onRequestClearerImage }: Props) {
+export function MedicineIdentification({ medicine, visionRead, visionUnavailable, onFindPharmacy, onRequestClearerImage }: Props) {
   const uncertain = medicine.isUncertain || !medicine.name || medicine.verified !== true;
 
   return (
     <section className="space-y-2.5">
       <SectionLabel>Medicine identification</SectionLabel>
 
-      {uncertain ? (
+      {/* The photograph itself could not be analysed — an honest limitation, not
+          a guess. Shown BEFORE any medicine-specific guidance. */}
+      {visionUnavailable ? (
+        <div className="rounded-[0.9rem] border border-amber-400/40 bg-amber-500/12 p-3">
+          <p className="flex items-center gap-1.5 text-[0.8rem] font-bold text-amber-100">
+            <IconShield width={14} height={14} aria-hidden /> Image analysis unavailable
+          </p>
+          <p className="mt-1 text-[0.8rem] leading-6 text-amber-100/95">
+            {medicine.uncertaintyReason ?? 'The medicine photograph could not be analysed, so no medicine was identified.'}
+          </p>
+          <p className="mt-1.5 text-[0.78rem] text-amber-100/90">
+            Read the name and strength printed on the strip or box and type it into the chat, or ask a pharmacist to confirm the medicine.
+          </p>
+        </div>
+      ) : null}
+
+      {uncertain && !visionUnavailable ? (
         <div className="rounded-[0.9rem] border border-amber-400/40 bg-amber-500/12 p-3">
           <p className="flex items-center gap-1.5 text-[0.8rem] font-bold text-amber-100">
             <IconShield width={14} height={14} aria-hidden /> Identification not confirmed
           </p>
           <p className="mt-1 text-[0.8rem] leading-6 text-amber-100/95">
             {medicine.uncertaintyReason
-              ?? 'This medicine could not be verified against a medicine database. Do not rely on a name guessed from a photo.'}
+              ?? 'This medicine could not be verified against a medicine reference database. Do not rely on a name read from a photo.'}
           </p>
           {medicine.name ? (
             <p className="mt-1.5 text-[0.78rem] text-amber-100/90">
@@ -70,7 +91,13 @@ export function MedicineIdentification({ medicine, onFindPharmacy, onRequestClea
             Photograph the front and back of the strip or box, including the active ingredient, strength and imprint.
           </p>
         </div>
-      ) : (
+      ) : null}
+
+      {/* What the vision model actually READ from the photograph. Shown whether
+          or not the name verified, so the user can compare with the pack. */}
+      {visionRead ? <VisionReadPanel read={visionRead} /> : null}
+
+      {!uncertain ? (
         <>
           <div className="rounded-[0.9rem] border border-emerald-400/30 bg-emerald-500/8 p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -118,7 +145,7 @@ export function MedicineIdentification({ medicine, onFindPharmacy, onRequestClea
             </div>
           ) : null}
         </>
-      )}
+      ) : null}
 
       {medicine.safetyWarning ? (
         <p className="rounded-[0.8rem] border border-amber-400/25 bg-amber-500/8 px-3 py-2 text-[0.76rem] text-amber-100">
@@ -168,6 +195,66 @@ function Bullets({ title, items, tone }: { title: string; items: string[]; tone:
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+/**
+ * Show exactly what the vision model READ from the photograph, field by field,
+ * plus its own quality/confidence assessment. Unread fields are shown as
+ * "Unable to verify" — never omitted silently or filled with a guess.
+ */
+function VisionReadPanel({ read }: { read: MedicineVisionRead }) {
+  const fields: { label: string; value: string | null }[] = [
+    { label: 'Brand name', value: read.brandName },
+    { label: 'Active ingredient (as printed)', value: read.genericName },
+    { label: 'Strength (as printed)', value: read.strength },
+    { label: 'Dosage form', value: read.dosageForm },
+    { label: 'Manufacturer (as printed)', value: read.manufacturer },
+    { label: 'Batch / lot', value: read.batch },
+    { label: 'Expiry (as printed)', value: read.expiry },
+    { label: 'Imprint / code', value: read.imprint },
+  ];
+
+  return (
+    <div className="rounded-[0.9rem] border border-sky-400/25 bg-sky-500/8 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="flex items-center gap-1.5 text-[0.72rem] font-semibold uppercase tracking-[0.16em] text-sky-200">
+          <IconSparkle width={11} height={11} aria-hidden /> Read from your photograph
+        </p>
+        <span className="rounded-full border border-sky-300/30 bg-sky-500/15 px-2 py-0.5 text-[0.6rem] font-semibold text-sky-100">
+          {read.imageQuality === 'clear' ? 'Clear photo' : read.imageQuality === 'partial' ? 'Partial photo' : read.imageQuality === 'blurry' ? 'Blurry photo' : 'Photo unreadable'}
+          {read.confidence > 0 ? ` · read confidence ${Math.round(read.confidence * 100)}%` : ''}
+        </span>
+      </div>
+
+      <dl className="mt-2 grid gap-x-4 gap-y-1.5 sm:grid-cols-2">
+        {fields.map((f) => (
+          <div key={f.label} className="flex min-w-0 items-baseline justify-between gap-2">
+            <dt className="shrink-0 text-[0.72rem] text-ink-400">{f.label}</dt>
+            <dd className={cn('min-w-0 break-words text-right text-[0.76rem] font-medium', f.value ? 'text-ink-100' : 'italic text-ink-500')}>
+              {f.value ?? 'Unable to verify'}
+            </dd>
+          </div>
+        ))}
+      </dl>
+
+      {read.readText ? (
+        <details className="mt-2">
+          <summary className="cursor-pointer text-[0.72rem] font-semibold text-sky-200">Show the raw text that was read</summary>
+          <pre className="mt-1.5 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-white/10 bg-slate-950/60 p-2 text-[0.7rem] leading-5 text-ink-300">{read.readText}</pre>
+        </details>
+      ) : null}
+
+      {read.unreadableFields.length > 0 ? (
+        <p className="mt-2 text-[0.72rem] text-amber-100/90">
+          Could not read: {read.unreadableFields.map((f) => f.field).join(', ')}. A sharper, complete photo may help.
+        </p>
+      ) : null}
+
+      <p className="mt-1.5 text-[0.68rem] text-ink-500">
+        Read by {read.source.provider} · {new Date(read.source.fetchedAt).toLocaleString()}
+      </p>
     </div>
   );
 }

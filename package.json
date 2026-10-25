@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "test:focused": "node --experimental-strip-types --import ./scripts/test-register.mjs --test src/services/maps/hospitalPlaceMapping.test.mjs src/services/maps/directionsService.test.mjs src/services/maps/hospitalDirectorySearch.test.mjs src/services/maps/googlePlacesErrors.test.mjs src/services/providerDirectoryService.test.mjs src/services/pharmacyService.test.mjs src/services/hospitalDiscovery.test.mjs src/pages/Hospitals/hospitalPresentation.test.mjs src/services/auth/devTestAuth.test.mjs src/data/coverage.test.mjs src/features/health-agent/services/recommendationRanking.test.mjs src/features/health-agent/services/ai/multilingual.test.mjs src/features/health-agent/services/safetyIntegration.test.mjs supabase/functions/ai-gateway/logic.test.mjs src/features/documents/services/clinicalParsers.test.mjs src/features/documents/services/medicineIdentification.test.mjs",
+    "test:focused": "node --experimental-strip-types --import ./scripts/test-register.mjs --test src/services/maps/hospitalPlaceMapping.test.mjs src/services/maps/directionsService.test.mjs src/services/maps/hospitalDirectorySearch.test.mjs src/services/maps/googlePlacesErrors.test.mjs src/services/providerDirectoryService.test.mjs src/services/pharmacyService.test.mjs src/services/hospitalDiscovery.test.mjs src/pages/Hospitals/hospitalPresentation.test.mjs src/services/auth/devTestAuth.test.mjs src/data/coverage.test.mjs src/features/health-agent/services/recommendationRanking.test.mjs src/features/health-agent/services/ai/multilingual.test.mjs src/features/health-agent/services/safetyIntegration.test.mjs supabase/functions/ai-gateway/logic.test.mjs supabase/functions/medicine-vision/logic.test.mjs src/features/documents/services/clinicalParsers.test.mjs src/features/documents/services/medicineIdentification.test.mjs src/features/documents/services/vision/medicineVision.test.mjs",
     "preview": "vite preview",
     "android:sync": "npm run build && npx cap sync android",
     "android:open": "npx cap open android",
@@ -31,7 +31,8 @@
     "verify:sweep": "node scripts/verify-sweep.mjs",
     "verify:readiness": "node scripts/verify-readiness.mjs",
     "fixtures": "node scripts/make-test-fixtures.mjs",
-    "verify:documents": "node scripts/verify-document-analysis.mjs"
+    "verify:documents": "node scripts/verify-document-analysis.mjs",
+    "verify:medicine-image": "node scripts/verify-medicine-image.mjs"
   },
   "dependencies": {
     "@capacitor/app": "^8.1.1",

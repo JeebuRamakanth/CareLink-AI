@@ -22,6 +22,7 @@ import type { ParsedMedicine } from './services/clinical/prescriptionParser';
 import type { TriageResult } from './services/clinical/triage';
 import type { LabValueStatus, StatusBasis } from './services/clinical/labParser';
 import type { UnitStatus } from './services/clinical/units';
+import type { MedicineVisionRead } from './services/vision/types';
 
 /* ----------------------------------------------------------------------------
  * Pipeline status
@@ -295,6 +296,16 @@ export interface DocumentAnalysisResult {
   labResult?: LabResult;
   prescription?: PrescriptionExtraction;
   medicine?: MedicineRecognitionResult;
+  /**
+   * The structured vision READ of a medicine photograph (what the vision model
+   * actually read). Present only when a real vision backend produced it —
+   * it is never synthesised from a filename or a mock dataset.
+   */
+  visionRead?: MedicineVisionRead;
+  /** How well a photographed medicine could be identified. */
+  identificationLevel?: 'verified' | 'possible' | 'unidentifiable';
+  /** True when the vision backend was unavailable (as opposed to an unreadable photo). */
+  visionUnavailable?: boolean;
   /** Always true until a real analysis backend exists. */
   isMock: boolean;
   source: DocumentDataSource;
