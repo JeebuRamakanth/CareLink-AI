@@ -15,9 +15,11 @@
 
 import type {
   AgentIntent,
+  AgentLanguage,
   AgentMessage,
   ConversationContext,
 } from '../types';
+import { detectLanguage as detectInputLanguage } from './ai/languageDetector';
 
 const CONDITION_SYNONYMS: Record<string, string> = {
   diabetes: 'Diabetes',
@@ -49,8 +51,6 @@ const SPECIALTY_KEYWORDS: { keywords: string[]; specialty: string }[] = [
 
 const MEDICINE_NAMES = ['metformin', 'paracetamol', 'acetaminophen', 'amoxicillin', 'aspirin', 'insulin'];
 
-const HINGLISH_KEYWORDS = ['kya', 'kaise', 'mera', 'meri', 'muje', 'mujhe', 'hai', 'dard', 'bimari', 'ilaaj', 'kavali', 'chahiye', 'batao'];
-
 const normalize = (input: string): string => input.toLowerCase().trim();
 const dedupe = <T,>(arr: T[]): T[] => Array.from(new Set(arr));
 
@@ -79,15 +79,16 @@ const extractMedicines = (text: string): string[] => {
   return MEDICINE_NAMES.filter((m) => t.includes(m));
 };
 
-export const detectLanguage = (input: string): 'en' | 'te' | 'hi' | undefined => {
-  const t = normalize(input);
-  if (/[\u0C00-\u0C7F]/.test(t)) return 'te';
-  if (/[\u0900-\u097F]/.test(t)) return 'hi';
-  if (HINGLISH_KEYWORDS.some((w) => t.includes(w))) {
-    // Telugu-English mix leans Telugu (naaku/undi), else Hinglish.
-    return t.includes('naaku') || t.includes('undi') || t.includes('kavali') ? 'te' : 'hi';
-  }
-  return undefined;
+/**
+ * Language hint for a raw input string.
+ *
+ * Delegates to the shared multilingual detector (native script + Romanized
+ * transliteration) so the legacy context manager and the orchestrator can never
+ * disagree about the user's language.
+ */
+export const detectLanguage = (input: string): AgentLanguage | undefined => {
+  const detection = detectInputLanguage(input);
+  return detection.language === 'en' && !detection.transliterated ? undefined : detection.language;
 };
 
 export const emptyContext = (): ConversationContext => ({

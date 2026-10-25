@@ -14,7 +14,7 @@
  * Shared primitives
  * ------------------------------------------------------------------------- */
 
-export type AgentLanguage = 'en' | 'te' | 'hi';
+export type AgentLanguage = 'en' | 'te' | 'hi' | 'kn' | 'ta' | 'ml' | 'bn' | 'gu' | 'mr' | 'ur';
 
 export type UrgencyLevel = 'routine' | 'attention' | 'urgent' | 'emergency';
 

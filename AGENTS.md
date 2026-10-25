@@ -1473,3 +1473,130 @@ discovery and live pharmacy stock remain unconfigured and are labelled as such.
   UI rather than hiding it.
 - OCR of packaging is unreliable by nature: the UI must keep asking for a
   clearer photo instead of guessing a medicine identity.
+
+## Step 30 — Multilingual assistant + hospital discovery + multilingual emergency (VERIFIED)
+
+Requirement: auto-detect the user's language (no manual picker needed), search
+hospitals by ANY field, and detect red flags in local languages without the LLM.
+
+### Phase 2 — true multilingual assistant (one detector, no duplicates)
+- NEW `src/features/health-agent/services/ai/languageDetector.ts` — the SINGLE
+  deterministic detector. Three layers: Unicode script ranges (te/kn/ml/ta/hi/bn/
+  gu/ur) → Romanized transliteration scoring → code-switching. `SUPPORTED_LANGUAGES`
+  = en, te, hi, kn, ta, ml, bn, gu, mr, ur. `resolveResponseLanguage()` adopts a
+  confident/non-English detection so the user can switch mid-chat, but keeps the
+  remembered language on a plain-English/empty turn (a Telugu chat + "ok" stays Telugu).
+- `AgentLanguage` widened in BOTH `features/health-agent/types` and
+  `services/agent/agentTypes`; `LANGUAGE_LABELS`/`LANGUAGE_ORDER` in helpers;
+  AgentComposer + ContextPanel + AIChatPage selectors list all ten.
+- **Unified the three duplicate heuristics** (`mockAdapters.detectLanguage`,
+  `contextManager.detectLanguage`, `agentIntentRouter.detectLanguageHint`) onto the
+  shared detector — they can no longer disagree.
+- `aiEngine.runAITurn` detects + resolves the language, returns `detection` +
+  `responseLanguage`; the orchestrator does the same BEFORE its branches (so the
+  emergency path is language-aware) and returns both on `AgentOrchestratorResponse`.
+  `useAgentConversation` adopts `response.language`, so no manual selection is needed.
+- Gateway: `SUPPORTED_GATEWAY_LANGUAGES` + `detectScriptLanguage()` re-derives the
+  language server-side from native script (the client value is NOT trusted over the
+  typed script). System prompt now carries an explicit TARGET LANGUAGE + code-switching
+  instruction and forbids "one tablet / two tablets" dosing.
+
+### Phase 7 — multilingual, context-aware emergency red flags
+- NEW `src/features/health-agent/services/ai/redFlags.ts` — ~140 phrases across
+  cardiac/respiratory/stroke/consciousness/bleeding/anaphylaxis/self-harm/other, in
+  English, Telugu/Hindi/Kannada/Tamil script AND Romanized transliteration, plus
+  explicit misspellings. `assessRedFlags()` is context-aware: NEGATION (before AND
+  after the phrase — Telugu puts "ledu" after the noun) and EDUCATIONAL framing
+  ("what are the symptoms of a heart attack?") do NOT escalate, while a present
+  report always does.
+- `safetyLayer.inputSafetyFloor` now delegates to `assessRedFlags`.
+- **REAL BUG FIXED:** `mockAdapters.classify` had a raw English keyword shortcut
+  (`EMERGENCY_PATTERNS`) that BYPASSED the context checks, so an educational
+  question routed to the emergency path. The shortcut is now empty; classification
+  uses `assessRedFlags` only. Telugu/Kannada/Tamil reports (previously unmatched)
+  now escalate correctly.
+- NEW `src/features/health-agent/services/ai/messages.ts` — reviewed localized
+  safety copy (emergency title/call label/go-now/operator hint, medication
+  consultation notice, dose-uncertainty, AI-unavailable, no-data). Emergency copy
+  is DETERMINISTIC, so it works when the provider is down. AIChatPage's banner and
+  `buildEmergencyResult` are localized; the medication notice is now in the user's
+  language on every medicine result.
+
+### Phase 3 — hospital discovery is a real search
+- `hospitalDirectorySearch.ts`: search covers name, slug, city, district, PIN code,
+  address, state, facility type, category, ownership, specialties, departments.
+  Multi-word = AND; a 6-digit query matches the record's own PIN code only;
+  whitespace/case tolerant. `isEligibleForDirectory()` (status/business_status).
+  **Two fields are deliberately NOT searched** — `source_label` (every record says
+  "Government of Andhra Pradesh", so "Government" matched private facilities) and
+  the generated `description` (names BOTH anchor cities, so "Vijayawada" matched
+  the whole directory). Both were real over-matching bugs found by the tests.
+- `hospitalService.getHospitals()` filters by eligibility, so an EMPTY search
+  returns the whole eligible directory (105 records, paginated) — never a sample.
+- FilterBar gained **District** + **PIN code** controls; `useHospitals` accepts
+  initial overrides and `/hospitals?pincode=521001` deep-links.
+- **REAL DATA BUG FIXED:** `ownershipOf()` classified by facility TYPE only, so
+  "Government Medical College & Teaching General Hospital" (type "Medical College
+  Hospital") and "PHC Tallapalem" (no category) were labelled **Private** — a false
+  claim about who runs them. Now also uses a public name marker (PHC/CHC/UPHC/
+  Government/…). A government-DOMAIN heuristic was tried and REJECTED: district
+  directories also publish private institutions, so it wrongly upgraded a private
+  medical college. Fixed in `ingest.mjs` + the committed `hospitals.ts` +
+  `imported-facilities.json` + migration `0034` (4 records).
+- `emit-migration.mjs` no longer stamps today's date on the `SOURCES (checked …)`
+  line — it reads the real last source re-check from the import report, because
+  regenerating the migration is not a source re-check.
+- **SAFETY GUARD:** `ingest.mjs` REFUSES to write when a run produces >20% fewer
+  records than the committed directory (an offline run previously collapsed 105 →
+  12 and would have erased real facilities). `--allow-shrink` overrides deliberately.
+
+### Phase 10 — database boundary
+- NEW `supabase/migrations/0038_step30_supported_languages.sql` — normalizes
+  unsupported values to 'en' and adds CHECK constraints on
+  `profiles.language_preference`, `conversations.language`,
+  `patient_context_snapshots.language` accepting ONLY the ten supported codes.
+  Additive/idempotent; no RLS change. Added to `build-migration-bundle.sh`
+  (0038) and `DEPLOY_ALL.sql`.
+
+### Tests
+- NEW `ai/multilingual.test.mjs` (20): detection across te/te-rom/en/hi/hinglish/kn/
+  ta/ml, code-switching, resolveResponseLanguage, red flags in every language,
+  negation, educational framing, misspellings, localized copy.
+- NEW `services/hospitalDiscovery.test.mjs` (15): empty search = full directory,
+  city/name/district/PIN/ownership/type search, whitespace, no-result honesty,
+  AND-narrowing, filter composition + clearing, provenance, no fabricated rating.
+- NEW `services/safetyIntegration.test.mjs` (19): the REAL orchestrator end-to-end
+  — mild fever (no diagnosis), escalation, chest pain/breathing/stroke/unconscious
+  emergencies, educational non-escalation, no dispatch claim, no medicine on an
+  emergency, medication consult notice + no dose/schedule/duration/hot-water, unknown
+  medicine uncertain, language preservation + mid-chat switch, injection as data,
+  privilege refusal, real hospital ids, provenance.
+- `logic.test.mjs` +4 (all languages accepted, server-side script re-derivation).
+- NEW `supabase/tests/300_step30_supported_languages.sql` (9 assertions).
+- `verify:wiring` 68 → **99**; `verify:e2e` 44 → **54** (Telugu/Hinglish auto-reply,
+  emergency banner above the chat with `tel:112`, educational non-escalation,
+  empty/city/PIN/no-result hospital search); `verify:navigation` alias resolution.
+
+### Verification (this environment)
+`npm run build` green; `npm run lint` 0 errors (15 pre-existing warnings);
+`test:focused` **163/163** (was 106); `verify:e2e` **54/54**; `verify:sweep`
+18 routes × 8 widths = 0 console errors / 0 overflow; `verify:wiring` 99/99;
+`verify:directory` 21/21; `verify:workflow` 39/39; `verify:navigation` 10/10;
+SQL replay **672 PASS / 0 FAIL** (was 663). Browser: `/hospitals` 105 facilities,
+District + PIN code filters, `?pincode=521001` → 16 results; `/ai` lists all ten
+languages and the quick prompts run through the real pipeline.
+
+### BLOCKED (external credentials — unchanged)
+No Supabase URL/anon key, DB password, Cloudinary, Google Places/Maps or xAI key.
+Live AI answers, live Places discovery and live pharmacy stock remain unconfigured.
+Migration 0038 is verified by the local Docker Postgres replay only.
+
+### Gotchas
+- `npm run directory:offline` cannot refresh the directory (no cached pages); it now
+  REFUSES to write a shrunken result. Use `npm run directory:ingest` with network.
+- The `ownership` fix lives in the classifier, so a future network re-ingest keeps it;
+  the committed generated files were patched to match.
+- The Playwright-style browser tool's `type` does not dispatch React's synthetic
+  input event — use the E2E harness (which does) to verify filtered inputs.
+- Adding a language requires touching `SUPPORTED_LANGUAGES`, `SUPPORTED_GATEWAY_LANGUAGES`
+  and the migration 0038 CHECK vocabulary together.

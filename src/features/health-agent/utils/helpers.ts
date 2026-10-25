@@ -63,9 +63,19 @@ export const kindLabel: Record<HealthDocumentKind, string> = {
 
 export const LANGUAGE_LABELS: Record<AgentLanguage, string> = {
   en: 'English',
-  te: 'Telugu',
-  hi: 'Hindi',
+  te: 'తెలుగు (Telugu)',
+  hi: 'हिन्दी (Hindi)',
+  kn: 'ಕನ್ನಡ (Kannada)',
+  ta: 'தமிழ் (Tamil)',
+  ml: 'മലയാളം (Malayalam)',
+  bn: 'বাংলা (Bengali)',
+  gu: 'ગુજરાતી (Gujarati)',
+  mr: 'मराठी (Marathi)',
+  ur: 'اردو (Urdu)',
 };
+
+/** Language selector order — English first, then the regional languages. */
+export const LANGUAGE_ORDER: AgentLanguage[] = ['en', 'te', 'hi', 'kn', 'ta', 'ml', 'bn', 'gu', 'mr', 'ur'];
 
 export const QUICK_PROMPTS: { label: string; lang: AgentLanguage }[] = [
   { label: 'Naaku fever and severe headache undi', lang: 'te' },

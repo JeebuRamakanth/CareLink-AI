@@ -657,6 +657,154 @@ async function main() {
       JSON.stringify({ nearMe, nearMeState }).slice(0, 200)
     );
 
+    // ---- Phase 2: the assistant auto-detects the user's language ----
+    await goto('/ai');
+    const typeAndSend = async (message) => {
+      await evaluate(`
+        (() => {
+          const ta = document.querySelector('textarea');
+          if (!ta) return false;
+          const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+          setter.call(ta, ${JSON.stringify(message)});
+          ta.dispatchEvent(new Event('input', { bubbles: true }));
+          return true;
+        })()
+      `);
+      await delay(200);
+      await evaluate(`
+        (() => {
+          const ta = document.querySelector('textarea');
+          if (!ta) return false;
+          ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+          return true;
+        })()
+      `);
+      await delay(3200);
+      return evaluate('document.body.innerText');
+    };
+
+    const teluguReply = await typeAndSend('నాకు జ్వరం వస్తోంది');
+    check(
+      'assistant auto-detects Telugu script and replies in Telugu',
+      /[\u0C00-\u0C7F]/.test(teluguReply ?? ''),
+      (teluguReply ?? '').slice(-220)
+    );
+
+    const hinglishReply = await typeAndSend('Mujhe bukhar hai aur badan dard ho raha hai');
+    check(
+      'assistant detects Hinglish without a manual language selection',
+      /[\u0900-\u097F]/.test(hinglishReply ?? '') || /Hinglish|hindi|आपने/i.test(hinglishReply ?? ''),
+      (hinglishReply ?? '').slice(-220)
+    );
+
+    // ---- Phase 7: emergency red flags surface immediately, above the chat ----
+    const emergencyReply = await typeAndSend('I have severe chest pain right now');
+    check(
+      'emergency symptom surfaces a visible emergency banner with a tel: action',
+      /emergency|urgent/i.test(emergencyReply ?? '') && (await evaluate(`
+        Boolean(document.querySelector('a[href^="tel:"]'))
+      `)) === true,
+      (emergencyReply ?? '').slice(-220)
+    );
+    check(
+      'the emergency call action offers the Indian national number 112',
+      (await evaluate(`
+        [...document.querySelectorAll('a[href^="tel:"]')].some((a) => a.getAttribute('href') === 'tel:112')
+      `)) === true
+    );
+    check(
+      'the emergency banner sits ABOVE the conversation, not buried below it',
+      (await evaluate(`
+        (() => {
+          const banner = document.querySelector('[role="alert"][aria-live="assertive"]');
+          const main = document.getElementById('ai-chat-main');
+          if (!banner || !main) return false;
+          return banner.compareDocumentPosition(main) === Node.DOCUMENT_POSITION_FOLLOWING;
+        })()
+      `)) === true
+    );
+    check(
+      'an educational question about a red flag does not raise the emergency banner',
+      await (async () => {
+        await goto('/ai');
+        const text2 = await typeAndSend('What are the symptoms of a heart attack?');
+        const hasBanner = await evaluate(`
+          Boolean(document.querySelector('[role="alert"][aria-live="assertive"]'))
+        `);
+        return hasBanner === false && /heart attack|symptoms/i.test(text2 ?? '');
+      })()
+    );
+
+    // ---- Phase 3: hospital discovery is a real search ----
+    await goto('/hospitals');
+    const emptySearchCount = await evaluate(`
+      (() => {
+        const text = document.body.innerText;
+        const m = text.match(/(\\d+)\\s+(?:facilities|hospitals|results)/i);
+        return m ? Number(m[1]) : null;
+      })()
+    `);
+    check(
+      'an empty hospital search shows the whole eligible directory (more than one page)',
+      typeof emptySearchCount === 'number' && emptySearchCount > 12,
+      `count=${emptySearchCount}`
+    );
+
+    const citySearch = await evaluate(`
+      (() => {
+        const input = document.getElementById('hospital-directory-search');
+        if (!input) return false;
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+        setter.call(input, 'Vijayawada');
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        return true;
+      })()
+    `);
+    await delay(900);
+    const cityText = await evaluate('document.body.innerText');
+    check(
+      'a city search returns real matching records',
+      citySearch === true && /Vijayawada/i.test(cityText) && !/No facilities match/i.test(cityText),
+      cityText.slice(0, 200)
+    );
+
+    const pinSearch = await evaluate(`
+      (() => {
+        const input = document.getElementById('hospital-directory-search');
+        if (!input) return false;
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+        setter.call(input, '521001');
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        return true;
+      })()
+    `);
+    await delay(900);
+    const pinText = await evaluate('document.body.innerText');
+    check(
+      'a PIN-code search returns real matching records',
+      pinSearch === true && !/No facilities match/i.test(pinText),
+      pinText.slice(0, 200)
+    );
+
+    const noResultText = await (async () => {
+      await evaluate(`
+        (() => {
+          const input = document.getElementById('hospital-directory-search');
+          if (!input) return;
+          const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+          setter.call(input, 'zzz-nonexistent-facility-zzz');
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+        })()
+      `);
+      await delay(900);
+      return evaluate('document.body.innerText');
+    })();
+    check(
+      'a no-result hospital search shows an honest empty state (no fabricated records)',
+      /No facilities match/i.test(noResultText ?? ''),
+      (noResultText ?? '').slice(0, 220)
+    );
+
     ws.close();
   } finally {
     chrome.kill('SIGTERM');

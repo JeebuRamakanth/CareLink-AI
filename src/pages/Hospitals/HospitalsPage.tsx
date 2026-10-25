@@ -13,6 +13,7 @@ import { getCoverageScopeLabel } from '../../services/hospitalService';
 export function HospitalsPage() {
   const [searchParams] = useSearchParams();
   const initialQuery = searchParams.get('q') ?? searchParams.get('city') ?? '';
+  const initialPincode = (searchParams.get('pincode') ?? '').replace(/[^\d]/g, '').slice(0, 6);
   const {
     filteredHospitals,
     visibleHospitals,
@@ -30,7 +31,7 @@ export function HospitalsPage() {
     refresh,
     activeFilterLabels,
     filterOptions,
-  } = useHospitals(initialQuery);
+  } = useHospitals(initialQuery, initialPincode ? { pincode: initialPincode } : {});
 
   const resultsState = error ? 'error' : loading ? 'loading' : filteredHospitals.length === 0 ? 'empty' : 'success';
 
@@ -76,7 +77,7 @@ export function HospitalsPage() {
           errorMessage={error ?? 'Please try again in a moment.'}
           onRetry={refresh}
           resultCount={filteredHospitals.length}
-          emptyTitle={searchTerm || filters.city || filters.specialty || filters.facilityType ? 'No facilities match those filters' : 'No facilities are currently available'}
+          emptyTitle={searchTerm || filters.city || filters.district || filters.pincode || filters.specialty || filters.facilityType || filters.ownership ? 'No facilities match those filters' : 'No facilities are currently available'}
           emptyDescription={notice || 'Try a broader search term or check back later. Search results do not guarantee full local coverage.'}
         >
           <>

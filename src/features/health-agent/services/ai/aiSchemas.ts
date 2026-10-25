@@ -12,7 +12,6 @@
 
 import type {
   AgentIntent,
-  AgentLanguage,
   ConfidenceLevel,
   DocumentAnalysis,
   DocumentAnalysisCategory,
@@ -22,6 +21,8 @@ import type {
 } from '../../types';
 import type { AIChatResponse } from './aiTypes';
 
+import { isSupportedLanguage } from './languageDetector';
+
 const INTENTS: readonly AgentIntent[] = [
   'symptom', 'disease', 'hospital', 'doctor', 'pharmacy', 'medicine', 'lab',
   'report', 'appointment', 'emergency', 'route', 'recovery', 'vaccination',
@@ -30,7 +31,6 @@ const INTENTS: readonly AgentIntent[] = [
 const CONFIDENCE: readonly ConfidenceLevel[] = ['low', 'medium', 'high'];
 const URGENCY: readonly UrgencyLevel[] = ['routine', 'attention', 'urgent', 'emergency'];
 const SAFETY: readonly SafetyLevel[] = ['educational', 'possible-concern', 'urgent', 'emergency', 'professional-care'];
-const LANGUAGES: readonly AgentLanguage[] = ['en', 'te', 'hi'];
 
 const MAX_TEXT = 2000;
 const MAX_LIST = 8;
@@ -72,7 +72,7 @@ export function validateAIChatResponse(raw: unknown): AIChatResponse | null {
   const safetyLevel = asEnum(raw.safetyLevel, SAFETY);
   if (!summary || !explanation || !intent || !confidence || !urgency || !safetyLevel) return null;
 
-  const language = asEnum(raw.language, LANGUAGES) ?? 'en';
+  const language = isSupportedLanguage(raw.language) ? raw.language : 'en';
 
   const sourceRaw = isRecord(raw.source) ? raw.source : null;
   const provider = sourceRaw && typeof sourceRaw.provider === 'string' && sourceRaw.provider.trim()

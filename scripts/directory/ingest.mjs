@@ -52,6 +52,20 @@ const HOSPITALS_OUT = join(ROOT, 'src', 'data', 'hospitals.ts');
 const UA = 'Mozilla/5.0 (compatible; CareLinkDirectoryBot/1.0; +https://carelink.ai/bot)';
 const FETCHED_AT = new Date().toISOString().slice(0, 10);
 
+/** A shrink larger than this fraction of the committed directory is refused. */
+const SHRINK_TOLERANCE = 0.2;
+
+/** How many records the committed directory currently holds (0 when unreadable). */
+function readPreviousRecordCount() {
+  try {
+    if (!existsSync(HOSPITALS_OUT)) return 0;
+    const source = readFileSync(HOSPITALS_OUT, 'utf8');
+    return (source.match(/\n    slug:/g) ?? []).length;
+  } catch {
+    return 0;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Source registry. `coverage` documents what the source is expected to contain
 // so the report can state the achieved coverage honestly.
@@ -130,10 +144,31 @@ function classifyCategory(raw) {
   return { facility_type: 'Healthcare facility', category_label: value };
 }
 
-/** Government-funded facilities are 'public'; everything else is 'private'. */
-function ownershipOf(facilityType) {
+/**
+ * Government-funded facilities are 'Government'; everything else is 'Private'.
+ *
+ * The facility TYPE alone is not sufficient evidence: a "Government Medical
+ * College & Teaching General Hospital" classifies as "Medical College Hospital",
+ * and "PHC Tallapalem" carries no category at all, so both would be mislabelled
+ * Private — a factual error about who runs the hospital.
+ *
+ * Evidence used, in order:
+ *   1. a public facility TYPE (PHC/UPHC/CHC/…);
+ *   2. a public facility MARKER in the facility NAME ("PHC Velagaleru",
+ *      "Government Medical College…").
+ *
+ * A government DOMAIN is deliberately NOT used as evidence: district directories
+ * publish private institutions too (e.g. a private medical college on a .gov.in
+ * page), so a domain match would wrongly upgrade a private hospital.
+ * Private facilities are never upgraded without name/type evidence.
+ */
+const PUBLIC_NAME_MARKER = /\b(e[\s.-]*uphc|uphc|uhc|phc|chc|ufwc|amoh|dlo|pp\s*unit|tb\s*clinic|district\s+hospital|government|govt\.?)\b/i;
+
+function ownershipOf(facilityType, name = '') {
   const publicTypes = new Set(['E-UPHC', 'UPHC', 'UHC', 'PHC', 'CHC', 'UFWC', 'AMOH', 'DLO', 'PP Unit', 'TB Clinic', 'Government Hospital', 'District Hospital', 'Police Dispensary', 'Temporary Ward']);
-  return publicTypes.has(facilityType) ? 'Government' : 'Private';
+  if (publicTypes.has(facilityType)) return 'Government';
+  if (PUBLIC_NAME_MARKER.test(name)) return 'Government';
+  return 'Private';
 }
 
 // ---------------------------------------------------------------------------
@@ -329,7 +364,7 @@ function deriveLocality(name, address, corridorLocalities) {
 // ---------------------------------------------------------------------------
 function buildHospital(input) {
   const { facility_type, category_label } = classifyCategory(input.category);
-  const ownership = ownershipOf(facility_type);
+  const ownership = ownershipOf(facility_type, input.name);
   const city = input.city || '';
   const address = input.address || '';
   const parts = [address, city, 'Andhra Pradesh', 'India'].filter(Boolean);
@@ -379,6 +414,7 @@ async function main() {
   const args = process.argv.slice(2);
   const offline = args.includes('--offline');
   const reportOnly = args.includes('--report');
+  const allowShrink = args.includes('--allow-shrink');
 
   const sourceStats = [];
   const allRaw = [];
@@ -592,6 +628,23 @@ async function main() {
   writeFileSync(REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`);
 
   if (!reportOnly) {
+    // SAFETY GUARD — never silently destroy the directory. An offline run (or a
+    // source outage) can collect far fewer records than the committed set; writing
+    // that over src/data/hospitals.ts would erase real, sourced facilities from
+    // the app. A shrink beyond the configured tolerance requires --allow-shrink,
+    // and the operator must re-ingest with network access instead.
+    const previousCount = readPreviousRecordCount();
+    if (!allowShrink && previousCount > 0 && finalRecords.length < previousCount * (1 - SHRINK_TOLERANCE)) {
+      console.error(
+        `\n  REFUSING TO WRITE: this run produced ${finalRecords.length} records but the committed`
+        + ` directory has ${previousCount}. That is a shrink of more than ${Math.round(SHRINK_TOLERANCE * 100)}%.`
+        + `\n  Re-run with network access (npm run directory:ingest), or pass --allow-shrink to`
+        + ` override deliberately. The report was still written.`
+      );
+      process.exitCode = 1;
+      return;
+    }
+
     // Canonical machine-readable record set. The TypeScript module and the
     // Supabase seed migration are both generated from this, so the app and the
     // database cannot drift apart.

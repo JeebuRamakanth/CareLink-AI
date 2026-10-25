@@ -8,7 +8,8 @@
  * escalate to safe call-to-action rendering instead of burying guidance in chat.
  */
 
-import type { AgentIntent, ConfidenceLevel, IntentClassification } from './agentTypes';
+import type { AgentIntent, AgentLanguage, ConfidenceLevel, IntentClassification } from './agentTypes';
+import { detectLanguage as detectInputLanguage } from '../../features/health-agent/services/ai/languageDetector';
 
 const EMERGENCY_PATTERNS = [
   'severe chest pain',
@@ -151,15 +152,13 @@ export function classifyIntent(rawInput: string): IntentClassification {
   return { intent: 'general', confidence: 'low', entities: [], rawInput };
 }
 
-/** Language hint — minimal heuristic for the demo multilingual toggle. */
-export function detectLanguageHint(rawInput: string): 'en' | 'te' | 'hi' | null {
-  const text = normalize(rawInput);
-  // Telugu script range
-  if (/[\u0C00-\u0C7F]/.test(text)) return 'te';
-  // Devanagari script range (Hindi / Hinglish native chars)
-  if (/[\u0900-\u097F]/.test(text)) return 'hi';
-  // Crude Hinglish keyword sniff
-  const hinglish = ['kya', 'kaise', 'mera', 'meri', 'muje', 'mujhe', 'hai', 'ho raha', 'dard', 'bimari', 'ilaaj'];
-  if (hinglish.some((w) => text.includes(w))) return 'hi';
-  return null;
+/**
+ * Language hint for the legacy agent intent router.
+ *
+ * Delegates to the shared multilingual detector so the /agent workspace, the
+ * Health Agent and the AI engine agree on the user's language.
+ */
+export function detectLanguageHint(rawInput: string): AgentLanguage | null {
+  const detection = detectInputLanguage(rawInput);
+  return detection.language === 'en' && !detection.transliterated ? null : detection.language;
 }

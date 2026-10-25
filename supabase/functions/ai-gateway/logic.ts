@@ -4,11 +4,22 @@ export const MAX_MESSAGES = 6;
 export const MAX_MESSAGE_CHARS = 280;
 export const MAX_ATTACHMENTS = 4;
 
+/**
+ * Languages the gateway accepts. Kept in sync with the client's
+ * `SUPPORTED_LANGUAGES` (src/features/health-agent/services/ai/languageDetector.ts);
+ * a language must be listed here before the model may answer in it.
+ */
+export const SUPPORTED_GATEWAY_LANGUAGES = [
+  'en', 'te', 'hi', 'kn', 'ta', 'ml', 'bn', 'gu', 'mr', 'ur',
+] as const;
+
+export type GatewayLanguage = (typeof SUPPORTED_GATEWAY_LANGUAGES)[number];
+
 export interface GatewayPayload {
   version: 1;
   input: string;
   messages: { role: 'user' | 'assistant'; content: string }[];
-  language: 'en' | 'te' | 'hi';
+  language: GatewayLanguage;
   context: Record<string, unknown>;
   attachments: { kind: string; extraction?: { keyFindings: string[] } }[];
   allowedActions: string[];
@@ -26,7 +37,7 @@ export interface ParsedAIResponse {
   followUpQuestions: string[];
   warnings: string[];
   entities: string[];
-  language: 'en' | 'te' | 'hi';
+  language: GatewayLanguage;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -84,7 +95,7 @@ export function parseGatewayPayload(value: unknown): GatewayPayload | null {
   }
 
   const language = value.language;
-  if (language !== 'en' && language !== 'te' && language !== 'hi') return null;
+  if (typeof language !== 'string' || !(SUPPORTED_GATEWAY_LANGUAGES as readonly string[]).includes(language)) return null;
 
   const context = value.context === undefined ? {} : value.context;
   if (!isRecord(context)) return null;
@@ -161,8 +172,9 @@ export function parseProviderCompletion(value: unknown, fallbackLanguage: Gatewa
         .slice(0, 8).map((item) => item.trim().slice(0, 320))
       : [];
 
-  const language = parsed.language === 'en' || parsed.language === 'te' || parsed.language === 'hi'
-    ? parsed.language
+  const language = typeof parsed.language === 'string'
+    && (SUPPORTED_GATEWAY_LANGUAGES as readonly string[]).includes(parsed.language)
+    ? (parsed.language as GatewayLanguage)
     : fallbackLanguage;
   return {
     summary: summary.trim().slice(0, 400),
@@ -182,6 +194,27 @@ export function parseProviderCompletion(value: unknown, fallbackLanguage: Gatewa
 export function missingConfiguration(apiKey: string, model: string): 'api-key-missing' | 'model-missing' | null {
   if (!apiKey.trim()) return 'api-key-missing';
   if (!model.trim()) return 'model-missing';
+  return null;
+}
+
+/**
+ * Server-side script detection (defense in depth).
+ *
+ * The client sends a detected language, but a native-script input is
+ * unambiguous evidence the model MUST answer in that script — so the gateway
+ * re-derives it from the raw text rather than trusting the client's value.
+ * Returns null when the input is Latin-script (the client's detection, which
+ * understands transliteration, is the better signal there).
+ */
+export function detectScriptLanguage(input: string): GatewayLanguage | null {
+  if (/[\u0C00-\u0C7F]/.test(input)) return 'te';
+  if (/[\u0C80-\u0CFF]/.test(input)) return 'kn';
+  if (/[\u0D00-\u0D7F]/.test(input)) return 'ml';
+  if (/[\u0B80-\u0BFF]/.test(input)) return 'ta';
+  if (/[\u0900-\u097F]/.test(input)) return 'hi';
+  if (/[\u0980-\u09FF]/.test(input)) return 'bn';
+  if (/[\u0A80-\u0AFF]/.test(input)) return 'gu';
+  if (/[\u0600-\u06FF]/.test(input)) return 'ur';
   return null;
 }
 

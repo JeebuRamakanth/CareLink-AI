@@ -29,6 +29,8 @@ import { buildContextSnapshot, boundHistory } from './contextSnapshot';
 import { screenForInjection, detectPrivilegeRequest, privilegeRefusalResponse } from './promptGuards';
 import { enforceResponseSafety } from './safetyLayer';
 import { mockAIRespond } from './mockAIResponder';
+import { detectLanguage, resolveResponseLanguage, type LanguageDetection } from './languageDetector';
+import { localized, AI_UNAVAILABLE_NOTICE } from './messages';
 
 export type AIEngineMode = 'real' | 'mock' | 'unavailable' | 'refused';
 
@@ -38,6 +40,7 @@ export interface AIEngineInput {
   patientContext: PatientContext;
   conversationContext: ConversationContext;
   history?: AgentMessage[];
+  /** Language the caller selected; the detector may override it (Phase 2). */
   language: AgentLanguage;
   allowedActions: string[];
   /** Pre-classified intent from the orchestrator's classifier; the mock
@@ -53,6 +56,10 @@ export interface AIEngineResult {
   safetyIntervened: boolean;
   /** True when prompt-injection patterns were detected in the input. */
   injectionFlagged: boolean;
+  /** The language detection for this turn (Phase 2). */
+  detection: LanguageDetection;
+  /** The language the response was produced in (may differ from the input). */
+  responseLanguage: AgentLanguage;
 }
 
 export function aiEngineMode(): AIEngineMode {
@@ -60,10 +67,11 @@ export function aiEngineMode(): AIEngineMode {
 }
 
 /** A safe, honest "temporarily unavailable" response for real-mode failures. */
-function unavailableResponse(reason: string): AIChatResponse {
+function unavailableResponse(reason: string, language: AgentLanguage = 'en'): AIChatResponse {
   const needsSetup = reason === 'ai-not-configured';
   const needsSignIn = reason === 'unauthorized';
   const rateLimited = reason === 'rate-limit' || reason === 'provider-rate-limit';
+  const notice = localized(AI_UNAVAILABLE_NOTICE, language);
   return {
     summary: needsSetup
       ? 'CareLink AI setup is incomplete.'
@@ -71,7 +79,7 @@ function unavailableResponse(reason: string): AIChatResponse {
         ? 'Please sign in to use CareLink AI.'
         : rateLimited
           ? 'Please wait before trying again.'
-          : 'CareLink AI is temporarily unavailable.',
+          : notice,
     intent: 'general',
     confidence: 'low',
     urgency: 'routine',
@@ -82,12 +90,12 @@ function unavailableResponse(reason: string): AIChatResponse {
         ? 'Sign in with your Supabase account, then retry. Demo sign-in does not authorize the AI service.'
         : rateLimited
           ? 'The AI service is rate-limiting requests. Wait briefly and retry; no response was fabricated.'
-          : 'The AI service could not be reached right now. You can still use the search, appointments, and emergency guidance below — no response was fabricated.',
+          : notice,
     nextActions: ['Search for a hospital or doctor.', 'View your appointments.', 'Call your local emergency number if you need urgent help.'],
     followUpQuestions: [],
     warnings: [needsSetup ? 'Server-side xAI configuration is required.' : 'CareLink AI is temporarily unavailable.'],
     entities: [],
-    language: 'en',
+    language,
     source: { provider: 'CareLink AI', mode: 'unavailable', fetchedAt: new Date().toISOString() },
   };
 }
@@ -121,6 +129,13 @@ const attachmentsFor = (documents: HealthDocument[]): AIChatRequest['attachments
 export async function runAITurn(input: AIEngineInput): Promise<AIEngineResult> {
   const screen = screenForInjection(input.text);
 
+  // Phase 2 — detect the language/style the user actually wrote in and resolve
+  // the response language. Pure + synchronous, so it can never delay emergency
+  // handling and works even when the model is unreachable.
+  const detection = detectLanguage(input.text);
+  const hasPriorTurns = (input.history?.length ?? 0) > 1;
+  const responseLanguage = resolveResponseLanguage(detection, input.language, hasPriorTurns);
+
   // Privilege / secret-elevation requests never reach the model at all.
   const privilege = detectPrivilegeRequest(input.text);
   if (privilege.flagged) {
@@ -133,16 +148,18 @@ export async function runAITurn(input: AIEngineInput): Promise<AIEngineResult> {
       response: { ...response, source: { provider: 'CareLink security policy', mode: 'refused', fetchedAt: new Date().toISOString() } },
       safetyIntervened: intervened,
       injectionFlagged: screen.flagged,
+      detection,
+      responseLanguage,
     };
   }
 
-  const snapshot = buildContextSnapshot(input.conversationContext, input.patientContext, input.language);
+  const snapshot = buildContextSnapshot(input.conversationContext, input.patientContext, responseLanguage);
 
   const request: AIChatRequest = {
     version: 1,
     messages: boundHistory(input.history),
     input: input.text.slice(0, 2000),
-    language: input.language,
+    language: responseLanguage,
     context: snapshot,
     attachments: attachmentsFor(input.documents),
     allowedActions: input.allowedActions,
@@ -160,10 +177,10 @@ export async function runAITurn(input: AIEngineInput): Promise<AIEngineResult> {
     mode = 'real';
   } else if (gatewayReal) {
     // A real gateway exists but is unavailable right now — never fake it.
-    raw = unavailableResponse(outcome.kind === 'unavailable' ? outcome.reason : 'gateway-error');
+    raw = unavailableResponse(outcome.kind === 'unavailable' ? outcome.reason : 'gateway-error', responseLanguage);
     mode = 'unavailable';
   } else {
-    raw = mockAIRespond(input, outcome.kind === 'unavailable' ? outcome.reason : undefined);
+    raw = mockAIRespond({ ...input, language: responseLanguage }, outcome.kind === 'unavailable' ? outcome.reason : undefined);
     mode = 'mock';
   }
 
@@ -177,5 +194,7 @@ export async function runAITurn(input: AIEngineInput): Promise<AIEngineResult> {
     response,
     safetyIntervened: intervened,
     injectionFlagged: screen.flagged,
+    detection,
+    responseLanguage,
   };
 }

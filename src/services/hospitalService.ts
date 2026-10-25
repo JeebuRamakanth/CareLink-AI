@@ -6,7 +6,7 @@ import { geocodedLocalities } from '../data/geocodedLocalities';
 import { classifyCoverage, coverageScopeLabel, type LocalityLookup } from '../data/coverage';
 import type { Hospital, HospitalFilters } from '../types';
 import { env } from '../config';
-import { matchesHospitalSearch } from './hospitalDirectorySearch';
+import { isEligibleForDirectory, matchesHospitalSearch } from './hospitalDirectorySearch';
 import { enrichHospital, enrichHospitals } from './providerDirectoryService';
 
 const normalizeText = (value: string): string => value.trim().toLowerCase();
@@ -127,7 +127,11 @@ export async function getHospitals(): Promise<Hospital[]> {
   for (const bundled of getBundledHospitals()) {
     if (!byId.has(bundled.id)) byId.set(bundled.id, bundled);
   }
-  return sortHospitals(enrichHospitals([...byId.values()]), 'recommended');
+  // Phase 3.1 — an empty search shows the whole ELIGIBLE directory. Inactive and
+  // permanently-closed records are excluded; everything else is returned (the
+  // page paginates), never a silent sample.
+  const eligible = [...byId.values()].filter(isEligibleForDirectory);
+  return sortHospitals(enrichHospitals(eligible), 'recommended');
 }
 
 export async function getHospitalById(id: string): Promise<Hospital | null> {

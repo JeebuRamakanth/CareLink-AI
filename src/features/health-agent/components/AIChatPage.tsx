@@ -66,6 +66,7 @@ import {
 import { explainRecommendation } from '../services/recommendationRanking';
 import { hospitalFocusTopic } from '../services/contextManager';
 import { resultProvenance } from '../services/agentOrchestrator';
+import { localized, EMERGENCY_CALL_LABEL, EMERGENCY_GO_NOW } from '../services/ai/messages';
 import '../../../components/agent/agent.css';
 import type {
   AgentAction,
@@ -1108,7 +1109,9 @@ export function AIChatPage() {
         onClear={conv.clearConversation}
       />
 
-      {/* Emergency banner */}
+      {/* Emergency banner — deterministic, localized, and independent of the
+          AI provider (Phase 7). It sits ABOVE the conversation so it can never
+          be hidden below a long response. */}
       <AnimatePresence>
         {isEmergency && conv.result ? (
           <motion.div
@@ -1119,10 +1122,15 @@ export function AIChatPage() {
             aria-live="assertive"
             className="agent-emergency-ring overflow-hidden border-b border-rose-400/30 bg-gradient-to-r from-rose-500/20 to-amber-500/15"
           >
-            <div className="flex items-center gap-2.5 px-4 py-2.5">
+            <div className="flex flex-wrap items-center gap-2.5 px-4 py-2.5">
               <IconEmergency width={18} height={18} className="shrink-0 text-rose-200" aria-hidden />
-              <p className="text-[0.82rem] font-semibold text-rose-100">{conv.result.summary} — treat this as urgent. Call your local emergency number now.</p>
-              <a href={primaryEmergencyContact('in').href} className="ml-auto shrink-0 rounded-full bg-rose-500 px-3 py-1.5 text-[0.78rem] font-bold text-white transition hover:bg-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60">Call {primaryEmergencyContact('in').phone}</a>
+              <p className="min-w-0 flex-1 text-[0.82rem] font-semibold text-rose-100">
+                {conv.result.summary}
+                <span className="mt-0.5 block font-normal text-rose-100/90">{localized(EMERGENCY_GO_NOW, conv.language)}</span>
+              </p>
+              <a href={primaryEmergencyContact('in').href} className="ml-auto shrink-0 rounded-full bg-rose-500 px-3 py-1.5 text-[0.78rem] font-bold text-white transition hover:bg-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60">
+                {localized(EMERGENCY_CALL_LABEL, conv.language)} · {primaryEmergencyContact('in').phone}
+              </a>
             </div>
           </motion.div>
         ) : null}
