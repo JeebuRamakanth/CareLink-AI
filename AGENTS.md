@@ -1600,3 +1600,103 @@ Migration 0038 is verified by the local Docker Postgres replay only.
   input event — use the E2E harness (which does) to verify filtered inputs.
 - Adding a language requires touching `SUPPORTED_LANGUAGES`, `SUPPORTED_GATEWAY_LANGUAGES`
   and the migration 0038 CHECK vocabulary together.
+
+## Step 31 — Medicine image analysis made REAL (VERIFIED)
+
+### ROOT CAUSES of the "DEMO DATA / CARELINK DEMO RESPONSE / LOW CONFIDENCE /
+### medicine knowledge (mock) / generic advice" medicine-photo response
+Five separate real defects, all now fixed at the source:
+
+1. **The `/ai` composer never analysed the image.** `useAgentConversation.runDocumentPipeline`
+   was a pure progress ANIMATION (`window.setTimeout` cycling status) — it never read the
+   file, never OCR'd, never called a backend. The orchestrator therefore received an
+   attachment with `extraction: undefined`, and the text-only gateway got
+   `attachment uploaded (no extraction)`. Fixed: the pipeline now runs the REAL
+   `uploadAndAnalyzeDocument` flow and stores the validated result on the document
+   (`secureAnalysis`), and `sendMessage` **awaits** it before the orchestrator runs.
+2. **`buildReportResult` returned hardcoded lab values** (FBS 132, HbA1c 6.8%,
+   Chol 212, LDL 138) labelled "Mock interpretation of your uploaded report". Now it
+   reads the real `secureAnalysis.labResult`, and states honestly when nothing was read.
+3. **`buildMedicineResult` emitted the literal source label `'CareLink medicine knowledge (mock)'`.**
+   Removed; medicine facts now carry real reference citations.
+4. **`mockMedicineRecognition` reported `recognitionConfidence: 0.9, uncertain: false`**
+   from a 3-drug exact-match catalog. Now `0.35` + `uncertain: true` (a name found in a
+   tiny list is NOT a verification).
+5. **No vision model existed anywhere.** The chat gateway is text-only. A medicine photo
+   could only ever be guessed from its FILENAME. Fixed with a real vision path (below).
+
+Additionally, `mergeAIIntoResult` relabelled EVERY result "CareLink demo response"
+whenever no AI language provider was configured — including results with REAL analysed
+content. It now keeps the real content's own wording/provenance when
+`isDemoData === false && dataSource === 'real'`.
+
+### The real vision path (new)
+- `supabase/functions/medicine-vision/` — NEW Edge Function + `logic.ts` (pure,
+  unit-testable). The ONLY holder of `XAI_VISION_MODEL` (and the reused `XAI_API_KEY`).
+  Requires a Supabase JWT, per-user rate limit (10/min), bounded base64 body (8 MB),
+  MIME allow-list (jpeg/png/webp only), channel separation (the user hint is wrapped as
+  untrusted DATA), a strict JSON response schema, server-side `identificationLevel`
+  derivation, and server-attached provenance. A malformed provider answer becomes 502 —
+  a medicine identity is NEVER synthesised from it.
+- `src/features/documents/services/vision/` — client side:
+  `medicineVisionService.ts` (downscale via `optimizeImageForUpload`, base64, invoke,
+  `validateVisionRead`, honest `unavailable` outcomes), `medicineImageIdentification.ts`
+  (`identifyMedicineFromImage` + `identifyFromVisionRead`), `types.ts`.
+- `documentAnalysisService.analyzeExtraction` runs the vision path when the source is an
+  IMAGE and either the content classifier already saw medicine-label vocabulary or
+  nothing was readable at all (a blurry photo yields no OCR text and would otherwise
+  classify as `general-document`). The category is promoted to `medicine-image` whenever
+  the vision path is attempted, so the honest "could not be identified" state renders.
+  Re-analysis reuses the stored vision read (never re-sends, never invents).
+- `documentAnalysisService.resolveSource` returns `real` for a real vision read and
+  `unavailable` (NOT `mock`) when the vision backend is missing.
+- Cross-check: `identifyFromVisionRead` verifies the read names against RxNorm + openFDA
+  (keyless) and yields `verified` | `possible` | `unidentifiable`. `verified: true`
+  REQUIRES a real database match; everything else is `isUncertain: true` with a reason.
+- The orchestrator routes an analysed medicine photo to the medicine result even when the
+  composer text is just "uploaded document" (`analysedMedicinePhoto` short-circuit).
+- UI: `MedicineIdentification` gained a `VisionReadPanel` showing brand / active
+  ingredient / strength / form / manufacturer / batch / expiry / imprint — each unread
+  field rendered as "Unable to verify", plus the photo-quality assessment, read
+  confidence, the raw read text (collapsible), unread fields, and the vision model +
+  timestamp. `visionUnavailable` renders a distinct honest limitation panel.
+
+### Safety (unchanged principles, now actually enforced)
+Never invents a name/strength/ingredient/manufacturer/dose/price; never identifies from
+colour/shape; blurry → asks for a clearer photo or the printed name; provider/schema
+failure → honest unavailable + safe next steps; the consultation notice is attached to
+every medicine result; no personalised dose is ever derived from a photo.
+
+### Verification (this environment)
+- `npm run build` green; `npm run lint` 0 errors (15 pre-existing warnings, none in Step 31 files).
+- `test:focused` 163 → **196** (NEW `supabase/functions/medicine-vision/logic.test.mjs` 19,
+  NEW `src/features/documents/services/vision/medicineVision.test.mjs` 14).
+- NEW `npm run verify:medicine-image` (`scripts/verify-medicine-image.mjs`) — **25/25**
+  browser checks: a raster medicine photo uploaded on `/ai` shows NO "CareLink demo
+  response"/"DEMO DATA"/mock-source badge, NO verified-match claim, NO fabricated
+  strength/price/dose, IS offered the consultation notice + a clearer-photo path, and a
+  composer-uploaded lab PDF shows values read from the file (fixture HbA1c 7.4, no LDL)
+  instead of the old hardcoded mock (HbA1c 6.8 + LDL 138).
+- `verify:documents` 26/26; `verify:e2e` 54/54; `verify:sweep` 18 routes × 8 widths =
+  0 console errors / 0 overflow; `verify:wiring` 99 → **110**; `verify:directory` 21/21;
+  `verify:workflow` 39/39; `verify:navigation` 10/10; `verify:auth` 11/11.
+- SQL replay **672 PASS / 0 FAIL** (unchanged — this step adds no migration).
+- `scripts/make-test-fixtures.mjs` now also emits `medicine-photo-test.png` (400×240) and
+  `medicine-photo-blank-test.png` (8×8) — synthetic raster stand-ins for a medicine photo.
+
+### BLOCKED (external credentials)
+No Supabase URL/anon key or xAI key exists in this environment, so the vision function
+cannot be deployed or invoked live. The medicine-photo path is therefore verified at the
+unit + schema + adapter + browser (honest-unavailable) level; the app shows a truthful
+"image analysis not configured / could not be identified" state rather than any demo
+medicine. To go live: `supabase functions deploy medicine-vision` and
+`supabase secrets set XAI_VISION_MODEL=<vision-capable-model-id>` (reusing `XAI_API_KEY`),
+then re-run `npm run verify:medicine-image` against a configured backend.
+
+### Gotchas
+- `XAI_VISION_MODEL` is a SEPARATE secret from `XAI_MODEL`: the chat gateway is text-only
+  and a vision model is required for photos. Neither may ever be a `VITE_*` variable.
+- `npm run verify:medicine-image` requires the dev server on port 12000 and the fixtures
+  (`npm run fixtures`).
+- Vite `server.allowedHosts` must list the current work host or the dev server returns
+  "Blocked request".

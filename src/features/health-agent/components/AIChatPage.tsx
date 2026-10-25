@@ -1074,7 +1074,9 @@ export function AIChatPage() {
   const handleFiles = (files: FileList | null) => {
     if (!files || files.length === 0) return;
     const added = conv.addDocuments(Array.from(files));
-    added.forEach((d) => conv.runDocumentPipeline(d.id));
+    // Run the REAL analysis pipeline (validate → upload → extract → vision/OCR)
+    // so the agent receives actual findings, not an un-analysed attachment.
+    added.forEach((d) => void conv.runDocumentPipeline(d.id));
   };
 
   const handlePickPrompt = (prompt: string) => {

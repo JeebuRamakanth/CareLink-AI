@@ -378,9 +378,10 @@ export const mockMedicineRecognition: AgentAdapters['medicines'] = {
     if (input.text) {
       const found = findMedicine(input.text);
       if (found) {
-        // Demo recognition: high confidence only because the mock database is
-        // tiny and exact-match. Truth-tagged as mock.
-        return { ...found, recognitionConfidence: 0.9, uncertain: false, source: 'mock' as const };
+        // Demo catalog match: a NAME was found in a tiny exact-match list. This is
+        // NOT a verification, so the confidence is deliberately low and the result
+        // is flagged uncertain — the caller must present it as unverified.
+        return { ...found, recognitionConfidence: 0.35, uncertain: true, source: 'mock' as const };
       }
     }
     return null;

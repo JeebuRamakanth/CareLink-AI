@@ -13,7 +13,7 @@
  * claim a diagnosis. Severity is re-evaluated every turn.
  */
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createAgentOrchestrator } from '../services/agentOrchestrator';
 import { mockAdapters } from '../services/adapters/mockAdapters';
 import { emptyContext } from '../services/contextManager';
@@ -28,8 +28,10 @@ import {
 import type { AIToolKind, AIToolSuggestion, AuthorizedFamilyProfile } from '../services/ai/aiTools';
 import { createAppointment as persistAppointmentRow } from '../../../services/health-data/appointmentsRepository';
 import { isSupabaseConfigured } from '../../../services/supabase/client';
+import { uploadAndAnalyzeDocument } from '../../documents/services/documentService';
 import { recordAIActivity } from '../../../services/auth/authorization';
 import { useOptionalAgent } from '../../../contexts/AgentContext';
+import { useOptionalAuth } from '../../../contexts/AuthContext';
 import type {
   AgentLanguage,
   AgentMessage,
@@ -44,7 +46,6 @@ import { patientProfiles as mockPatientProfiles, recoverySeed } from '../data/mo
 import {
   ACCEPTED_MIMES,
   detectDocumentKind,
-  documentPipelineSteps,
   MAX_FILE_SIZE_BYTES,
   QUICK_PROMPTS,
 } from '../utils/helpers';
@@ -72,7 +73,8 @@ export interface UseAgentConversation {
   addDocuments: (files: File[]) => HealthDocument[];
   removeDocument: (id: string) => void;
   clearDocuments: () => void;
-  runDocumentPipeline: (id: string) => void;
+  /** Run the REAL analysis pipeline for an attached document. */
+  runDocumentPipeline: (id: string) => Promise<void>;
   recoveryCheckIn: (trend: RecoveryTrend, note?: string) => Promise<void>;
   clearConversation: () => void;
   suggestedPrompts: typeof QUICK_PROMPTS;
@@ -93,6 +95,24 @@ export interface UseAgentConversation {
 
 const createId = (prefix = 'msg') => `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
 const nowIso = () => new Date().toISOString();
+
+/**
+ * Map a real document-analysis category onto the agent's narrower category set.
+ * The agent's `DocumentAnalysisCategory` predates the documents pipeline and does
+ * not include `doctor-note`; that category is reported as `general-document`.
+ */
+function toAgentCategory(category: string): import('../types').DocumentAnalysisCategory {
+  switch (category) {
+    case 'lab-report':
+    case 'prescription':
+    case 'medicine-image':
+    case 'discharge-summary':
+    case 'imaging':
+      return category;
+    default:
+      return 'general-document';
+  }
+}
 
 const WELCOME_MESSAGE: AgentMessage = {
   id: 'welcome',
@@ -118,6 +138,8 @@ const fileToDocument = (file: File): HealthDocument => {
     status: 'queued',
     progress: 0,
     previewUrl,
+    // Kept in memory so the real analysis pipeline (vision/OCR/PDF) can read it.
+    file,
   };
 };
 
@@ -213,6 +235,10 @@ export function useAgentConversation(): UseAgentConversation {
   const [activeProfileId, setActiveProfileId] = useState<string>('self');
   const [context, setContext] = useState<ConversationContext>(emptyContext());
   const [documents, setDocuments] = useState<HealthDocument[]>([]);
+  // Synchronous mirror of `documents` — the real pipeline resolves the File from
+  // here so a just-added document is found before React state has flushed.
+  const documentsRef = useRef<HealthDocument[]>([]);
+  useEffect(() => { documentsRef.current = documents; }, [documents]);
   const [recovery, setRecovery] = useState(recoverySeed);
   const [lastResult, setLastResult] = useState<AgentResult | null>(null);
   const [toolSuggestions, setToolSuggestions] = useState<AIToolSuggestion[]>([]);
@@ -225,6 +251,10 @@ export function useAgentConversation(): UseAgentConversation {
   // loaded by AgentContext. The AI family resolver and the profile switcher
   // both read from this single source — never a fake/locally-invented set.
   const agentCtx = useOptionalAgent();
+  const auth = useOptionalAuth();
+  // Owner id used for the secure-document pipeline (RLS-scoped). Local demo
+  // users fall back to a stable local id, matching the documents page.
+  const ownerId = auth?.user?.id ?? 'local-demo-user';
 
   // Single source of truth for patient/family profiles: the real RLS-scoped set
   // loaded by AgentContext (self + authenticated family members) when present,
@@ -270,6 +300,9 @@ export function useAgentConversation(): UseAgentConversation {
       valid.push(fileToDocument(file));
     }
     if (valid.length > 0) {
+      // Keep the synchronous mirror current so a pipeline run started right after
+      // this call can resolve the File before React state flushes.
+      documentsRef.current = [...documentsRef.current, ...valid];
       setDocuments((prev) => [...prev, ...valid]);
       setError(null);
     }
@@ -277,10 +310,18 @@ export function useAgentConversation(): UseAgentConversation {
   }, []);
 
   const updateDocument = useCallback((id: string, patch: Partial<HealthDocument>) => {
+    // Update the synchronous mirror too, so a caller that awaits the pipeline can
+    // immediately read the analysis result from `documentsRef` (React state has
+    // not necessarily flushed yet).
+    documentsRef.current = documentsRef.current.map((d) => (d.id === id ? { ...d, ...patch } : d));
     setDocuments((prev) => prev.map((d) => (d.id === id ? { ...d, ...patch } : d)));
   }, []);
 
   const removeDocument = useCallback((id: string) => {
+    documentsRef.current = documentsRef.current.filter((d) => {
+      if (d.id === id && d.previewUrl) URL.revokeObjectURL(d.previewUrl);
+      return d.id !== id;
+    });
     setDocuments((prev) => {
       const target = prev.find((d) => d.id === id);
       if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
@@ -289,37 +330,103 @@ export function useAgentConversation(): UseAgentConversation {
   }, []);
 
   const clearDocuments = useCallback(() => {
+    documentsRef.current.forEach((d) => d.previewUrl && URL.revokeObjectURL(d.previewUrl));
+    documentsRef.current = [];
     setDocuments((prev) => {
       prev.forEach((d) => d.previewUrl && URL.revokeObjectURL(d.previewUrl));
       return [];
     });
   }, []);
 
+  /**
+   * Run the REAL secure document pipeline for one attachment.
+   *
+   * Previously this function only animated a progress bar and never read the
+   * file — which is why an uploaded medicine photo produced a demo response.
+   * It now runs validate → upload → extract → analyse (vision for a medicine
+   * photo) and stores the REAL result on the document. The status/progress
+   * updates remain, but they now reflect work that actually happened.
+   */
   const runDocumentPipeline = useCallback(
-    (id: string) => {
+    async (id: string) => {
       if (pipelineLocks.current.has(id)) return;
       pipelineLocks.current.add(id);
-      let stepIndex = 0;
-      const advance = () => {
-        if (stepIndex >= documentPipelineSteps.length) {
-          pipelineLocks.current.delete(id);
+
+      const setStep = (status: HealthDocument['status'], progress: number) =>
+        updateDocument(id, { status, progress });
+
+      try {
+        // Resolve the file from the synchronous mirror so a just-added document
+        // is found even before React state has flushed.
+        const doc = documentsRef.current.find((d) => d.id === id);
+        if (!doc?.file) {
+          updateDocument(id, { status: 'error', progress: 0, errorMessage: 'The file is no longer available in this session. Please attach it again.', pipelineError: 'missing-file' });
           return;
         }
-        const step = documentPipelineSteps[stepIndex];
-        updateDocument(id, { status: step.status, progress: step.progress });
-        stepIndex += 1;
-        window.setTimeout(advance, 520);
-      };
-      advance();
+
+        setStep('reading', 15);
+        const res = await uploadAndAnalyzeDocument({
+          file: doc.file,
+          ctx: { ownerId, familyProfileId: activeProfileId === 'self' ? null : activeProfileId },
+          onUploadProgress: (p) => updateDocument(id, { status: 'uploading', progress: Math.max(10, Math.round(p * 0.4)) }),
+          onProcessingProgress: (p) => updateDocument(id, { status: 'extracting', progress: Math.max(45, 40 + Math.round(p * 0.5)) }),
+        });
+
+        if (!res.ok) {
+          updateDocument(id, { status: 'error', progress: 0, errorMessage: res.error, pipelineError: res.error });
+          return;
+        }
+
+        const { document: stored, analysis } = res.outcome;
+        if (!analysis) {
+          updateDocument(id, {
+            status: 'error',
+            progress: 0,
+            errorMessage: 'The document was stored but no analysis result was produced.',
+            pipelineError: 'no-analysis',
+          });
+          return;
+        }
+        updateDocument(id, {
+          status: 'ready',
+          progress: 100,
+          secureAnalysis: analysis,
+          pipelineError: undefined,
+          // Map the real analysis onto the lightweight agent analysis shape so
+          // existing agent rendering keeps working with REAL content.
+          analysis: {
+            category: toAgentCategory(analysis.category),
+            extractedTextPlaceholder: analysis.extraction?.text?.slice(0, 1200) ?? '',
+            keyFindings: analysis.importantObservations.slice(0, 6),
+            isMock: analysis.isMock,
+            provenance: { sourceDocumentId: stored.id, processedAt: new Date().toISOString(), provider: analysis.source },
+          },
+        });
+      } catch (e) {
+        const message = e instanceof Error ? e.message : 'The document could not be analysed.';
+        updateDocument(id, { status: 'error', progress: 0, errorMessage: message, pipelineError: message });
+      } finally {
+        pipelineLocks.current.delete(id);
+      }
     },
-    [updateDocument]
+    [updateDocument, ownerId, activeProfileId]
   );
 
   const sendMessage = useCallback(
     async (text: string) => {
       const trimmed = text.trim();
-      const pendingDocs = documents;
       if (abortRef.current) return;
+
+      // Ensure every attached document has finished its REAL analysis before the
+      // orchestrator reads it. Without this the request could race the pipeline
+      // and the agent would see an un-analysed attachment.
+      const pending = documentsRef.current.filter((d) => d.file && (d.status === 'queued' || d.status === 'uploading' || d.status === 'reading' || d.status === 'extracting' || d.status === 'organizing' || d.status === 'preparing'));
+      if (pending.length > 0) {
+        setStatus('thinking');
+        await Promise.all(pending.map((d) => runDocumentPipeline(d.id)));
+      }
+
+      const pendingDocs = documentsRef.current;
       if (!trimmed && pendingDocs.length === 0) return;
 
       const userMessage: AgentMessage = {
@@ -388,7 +495,7 @@ export function useAgentConversation(): UseAgentConversation {
         abortRef.current = null;
       }
     },
-    [documents, activeProfile, language, context, messages, activeProfileId, clearDocuments, familyProfiles]
+    [activeProfile, language, context, messages, activeProfileId, clearDocuments, familyProfiles, runDocumentPipeline]
   );
 
   const stop = useCallback(() => {
@@ -498,9 +605,13 @@ export function useAgentConversation(): UseAgentConversation {
     const handoff = drainPendingHandoff();
     if (handoff && handoff.text.trim()) {
       if (handoff.documents.length > 0) {
+        // Seed the synchronous mirror too so the analysis pipeline can resolve
+        // each File before React state flushes.
+        documentsRef.current = handoff.documents;
         setDocuments(handoff.documents);
-        handoff.documents.forEach((d) => runDocumentPipeline(d.id));
+        handoff.documents.forEach((d) => void runDocumentPipeline(d.id));
       }
+      // sendMessage awaits any in-flight analysis before calling the orchestrator.
       void sendMessage(handoff.text);
     }
   }, [sendMessage, runDocumentPipeline]);

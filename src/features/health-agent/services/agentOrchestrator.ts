@@ -24,6 +24,7 @@ import type {
   HealthDocument,
   MedicalReport,
   MedicalReportValue,
+  MedicineResult,
   PharmacyRecommendation,
 
   UrgencyLevel,
@@ -70,6 +71,7 @@ import {
   MEDICATION_CONSULT_NOTICE,
 } from './ai/messages';
 import { getBloodCentres } from '../../../services/bloodCentreService';
+import { identifyMedicine } from '../../documents/services/medicineIdentificationService';
 import { primaryEmergencyContact } from '../../documents/services/clinical/emergencyConfig';
 import { getPharmacyRecommendations, getLaboratoryRecommendations } from './pharmacyRecommendations';
 import { haversineKm, estimateDriveMinutes } from '../../../lib/location';
@@ -81,18 +83,10 @@ import {
   type RecommendationOrigin,
 } from './directoryRecommendations';
 import type { AgentActionType, AIProvenance, SafetyLevel } from '../types';
+import { ROUTES } from '../../../routes/routeConstants';
 
 const DISCLAIMER_MEDICAL = DISCLOSURES.medical;
 const DISCLAIMER_EMERGENCY = DISCLOSURES.emergency;
-
-const ROUTES = {
-  agent: '/agent',
-  ai: '/ai',
-  hospitals: '/hospitals',
-  doctors: '/doctors',
-  appointments: '/appointments',
-  bloodBanks: '/blood-banks',
-} as const;
 
 /**
  * Resolve the active specialty for the current turn: explicit entities win,
@@ -229,6 +223,13 @@ function mergeAIIntoResult(result: AgentResult, ai: AIEngineResult): AgentResult
     warnings.push('Instruction-like text in the input was treated as data, not commands.');
   }
 
+  // A result that carries REAL analysed content (e.g. a medicine photograph read
+  // by the vision backend, or lab values extracted from the user's report) must
+  // NOT be relabelled a "CareLink demo response" merely because no AI language
+  // provider is configured. The CONTENT is real; only the phrasing is unpolished.
+  // In that case we keep the builder's own summary/explanation and provenance.
+  const resultHasRealContent = result.isDemoData === false && result.dataSource === 'real';
+
   const provenanceMode: AIProvenance['mode'] =
     ai.mode === 'real' ? 'real' : ai.mode === 'unavailable' ? 'unavailable' : ai.mode === 'refused' ? 'refused' : 'mock';
   const sourceLabel =
@@ -239,6 +240,12 @@ function mergeAIIntoResult(result: AgentResult, ai: AIEngineResult): AgentResult
         : ai.mode === 'refused'
           ? 'CareLink security policy'
           : 'CareLink demo response';
+
+  // Mock AI language layer over a REAL analysis: keep the real content's own
+  // wording and provenance — do not present it as a demo response.
+  if (ai.mode === 'mock' && resultHasRealContent) {
+    return { ...result, warnings, sources: result.sources };
+  }
 
   // For unavailable/refused turns we keep the intent builder's navigational
   // data but surface the honest AI note (never a fabricated AI statement).
@@ -567,14 +574,102 @@ async function buildBloodCentreResult(patient?: PatientPoint | null): Promise<Ag
 
 async function buildMedicineResult(
   rawInput: string,
-  adapters: AgentAdapters,
+  _adapters: AgentAdapters,
   context?: ConversationContext,
   patient?: PatientPoint | null,
-  language: AgentLanguage = 'en'
+  language: AgentLanguage = 'en',
+  documents: HealthDocument[] = []
 ): Promise<AgentResult> {
-  const medicine = await adapters.medicines.recognize({ text: rawInput });
+  // Resolve the medicine NAME first (registry: real provider when configured,
+  // honest low-confidence demo match otherwise), then verify that name against an
+  // authoritative reference database. Passing the whole user sentence to a
+  // reference lookup would risk matching an unrelated drug, so the name is
+  // extracted before verification.
+  const recognized = await _adapters.medicines.recognize({ text: rawInput });
+  const identified = recognized?.name ? await identifyMedicine({ text: recognized.name }) : null;
+  const medicine: MedicineResult | null = identified?.name
+    ? {
+      id: `med-${identified.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40)}`,
+      name: identified.name,
+      commonPurpose: identified.commonPurpose ?? 'Purpose not confirmed — verify with a pharmacist.',
+      importantSafetyInfo: identified.safetyWarning ?? localized(MEDICATION_CONSULT_NOTICE, language),
+      prescriptionRequired: identified.prescriptionRequired,
+      interactionWarningPlaceholder: 'Interaction checks require your full medication list — ask your doctor or pharmacist to review for interactions.',
+      strength: identified.strength ?? undefined,
+      dosageForm: identified.dosageForm ?? undefined,
+      manufacturer: identified.manufacturerPlaceholder ?? undefined,
+      recognitionConfidence: identified.confidence / 100,
+      uncertain: identified.isUncertain,
+      source: identified.source === 'real' ? 'real' : 'mock',
+    }
+    : recognized
+      ? { ...recognized, uncertain: true, source: 'mock' as const }
+      : null;
+  const identifiedEvidence = identified?.evidence ?? [];
   // §8.4 — the mandatory professional-consultation notice, in the user's language.
   const consultNotice = localized(MEDICATION_CONSULT_NOTICE, language);
+
+  // A medicine PHOTOGRAPH attached to this turn was already analysed by the REAL
+  // vision pipeline. Surface that read (and its verification level) instead of a
+  // demo response, and never claim an identification that was not verified.
+  const photoDoc = documents.find((d) => d.secureAnalysis?.category === 'medicine-image');
+  const photo = photoDoc?.secureAnalysis;
+
+  if (photo) {
+    const level = photo.identificationLevel ?? 'unidentifiable';
+    const read = photo.visionRead;
+    const med = photo.medicine;
+    const uncertain = level !== 'verified';
+    const printed = read
+      ? [read.brandName, read.strength, read.dosageForm].filter(Boolean).join(' ')
+      : '';
+
+    const summary = level === 'verified' && med?.name
+      ? `Medicine photo — ${med.name}${med.strength ? ` ${med.strength}` : ''}`
+      : level === 'possible'
+        ? 'Medicine photo — possible match (unverified)'
+        : 'Medicine photo — could not be identified';
+
+    return emptyResult('medicine', {
+      summary,
+      explanation: `${photo.summary} ${consultNotice}`,
+      urgency: 'routine',
+      meta: {
+        confidence: level === 'verified' ? 'medium' : 'low',
+        urgency: 'routine',
+        tier: level === 'verified' ? 'educational' : 'professional',
+        disclaimer: consultNotice,
+      },
+      recommendedNextSteps: level === 'verified'
+        ? ['Confirm this medicine and its dose with a pharmacist before use.']
+        : ['Photograph the front and back of the strip or box in good light, or type the printed name.', 'Ask a pharmacist to confirm the medicine before purchase or use.'],
+      medicines: med ? [{
+        id: `med-${photoDoc!.id}`,
+        name: med.name ?? printed ?? 'Unidentified medicine',
+        commonPurpose: med.commonPurpose ?? 'Purpose not confirmed — verify with a pharmacist.',
+        importantSafetyInfo: med.safetyWarning ?? consultNotice,
+        prescriptionRequired: med.prescriptionRequired,
+        interactionWarningPlaceholder: 'Interaction checks require your full medication list — ask your doctor or pharmacist to review for interactions.',
+        strength: med.strength ?? undefined,
+        dosageForm: med.dosageForm ?? undefined,
+        manufacturer: med.manufacturerPlaceholder ?? undefined,
+        recognitionConfidence: med.confidence / 100,
+        uncertain: med.isUncertain || uncertain,
+        source: 'real',
+      }] : [],
+      warnings: uncertain
+        ? [`Medicine identification is not confirmed (${level}). Verify the name and strength on the strip or with a pharmacist.`]
+        : [],
+      dataSource: 'real',
+      isDemoData: false,
+      sources: med?.evidence?.length ? med.evidence.map((e) => e.label) : ['Medicine photograph (vision analysis)'],
+      actions: [
+        { type: 'find-pharmacy', label: 'Find a pharmacy', href: ROUTES.pharmacies, icon: 'find-pharmacy' },
+        { type: 'upload-prescription', label: 'Upload a prescription', href: ROUTES.ai, icon: 'upload-prescription' },
+      ],
+      suggestedReplies: ['Find a pharmacy near me', 'Upload a prescription', 'What should I do next?'],
+    });
+  }
 
   // §9: never invent a medicine. When recognition fails or is uncertain, say
   // so plainly and route to verification instead of substituting a guess.
@@ -591,9 +686,9 @@ async function buildMedicineResult(
       warnings: ['Medicine identification is uncertain. Please verify the name and strength with the label/pharmacist.'],
       dataSource: dataSourceFor(),
       isDemoData: !isAnyProviderReal(),
-      sources: [isAnyProviderReal() ? 'CareLink medicine knowledge' : 'CareLink medicine knowledge (mock)'],
+      sources: [isAnyProviderReal() ? 'CareLink medicine knowledge' : 'Medicine name not verified'],
       actions: [
-        { type: 'find-pharmacy', label: 'Ask a pharmacist', href: ROUTES.ai, icon: 'find-pharmacy' },
+        { type: 'find-pharmacy', label: 'Ask a pharmacist', href: ROUTES.pharmacies, icon: 'find-pharmacy' },
         { type: 'upload-prescription', label: 'Upload a prescription', href: ROUTES.ai, icon: 'upload-prescription' },
       ],
       suggestedReplies: ['Find a pharmacy near me', 'Upload a prescription'],
@@ -616,67 +711,101 @@ async function buildMedicineResult(
     medicines: [med],
     pharmacies,
     warnings: uncertain ? ['Medicine identification is uncertain. Please verify the name and strength with the label/pharmacist.'] : [],
-    dataSource: dataSourceFor(),
-    isDemoData: !isAnyProviderReal(),
-    sources: [isAnyProviderReal() ? 'CareLink medicine knowledge' : 'CareLink medicine knowledge (mock)'],
+    dataSource: medicine.source === 'real' ? 'real' : dataSourceFor(),
+    isDemoData: medicine.source !== 'real' && !isAnyProviderReal(),
+    sources: identifiedEvidence.length > 0 ? identifiedEvidence.map((e) => e.label) : ['Medicine reference lookup unavailable'],
     actions: [
-      { type: 'find-pharmacy', label: 'Find a pharmacy', href: ROUTES.ai, icon: 'find-pharmacy' },
+      { type: 'find-pharmacy', label: 'Find a pharmacy', href: ROUTES.pharmacies, icon: 'find-pharmacy' },
       { type: 'upload-prescription', label: 'Upload a prescription', href: ROUTES.ai, icon: 'upload-prescription' },
     ],
     suggestedReplies: ['Find a pharmacy', 'Upload a prescription', 'What should I do next?'],
   });
 }
 
+/**
+ * Build a report result from the REAL secure analysis of the attached documents.
+ *
+ * This previously returned a hardcoded "mock interpretation" (FBS 132, HbA1c
+ * 6.8%, …) regardless of the uploaded file. It now reads the actual extracted
+ * lab values produced by the documents pipeline, and states honestly when no
+ * analysis is available yet — it never invents values.
+ */
 function buildReportResult(documents: HealthDocument[]): AgentResult {
-  const sourceFile = documents.find((d) => d.kind === 'pdf' || d.kind === 'document')?.fileName;
-  const ATTENTION: MedicalReportValue[] = [
-    { label: 'Fasting Blood Sugar', value: '132 mg/dL', range: '70–99', status: 'abnormal' },
-    { label: 'HbA1c', value: '6.8%', range: '< 5.7%', status: 'attention' },
-    { label: 'Total Cholesterol', value: '212 mg/dL', range: '< 200', status: 'attention' },
-    { label: 'LDL Cholesterol', value: '138 mg/dL', range: '< 100', status: 'abnormal' },
-  ];
-  const NORMAL: MedicalReportValue[] = [
-    { label: 'Hemoglobin', value: '14.2 g/dL', range: '13.5–17.5', status: 'normal' },
-    { label: 'WBC Count', value: '6.8 ×10³/μL', range: '4.0–11.0', status: 'normal' },
-    { label: 'Platelet Count', value: '250 ×10³/μL', range: '150–400', status: 'normal' },
-  ];
+  const analysed = documents.filter((d) => d.secureAnalysis);
+  const labDoc = analysed.find((d) => d.secureAnalysis?.labResult);
+  const sourceFile = documents.find((d) => d.kind === 'pdf' || d.kind === 'document')?.fileName
+    ?? documents[0]?.fileName;
+
+  if (!labDoc?.secureAnalysis?.labResult) {
+    const failed = documents.find((d) => d.pipelineError);
+    return emptyResult('report', {
+      summary: 'Report received — no lab values extracted yet',
+      explanation: failed
+        ? `The document could not be analysed (${failed.pipelineError}). No values have been interpreted. ${failed.errorMessage ?? ''}`.trim()
+        : 'No laboratory values could be read from the attached document, so nothing has been interpreted. Upload a clearer copy of the report (a PDF or a well-lit photo of the value table).',
+      urgency: 'routine',
+      meta: {
+        confidence: 'low', urgency: 'routine', tier: 'professional',
+        disclaimer: 'No real analysis was produced. CareLink has not interpreted this document.',
+      },
+      recommendedNextSteps: ['Upload a clearer copy of the report, or type the values you want to discuss with your doctor.'],
+      sources: ['CareLink document pipeline'],
+      actions: [
+        { type: 'find-doctor', label: 'Find a doctor', href: ROUTES.doctors, icon: 'find-doctor' },
+        { type: 'open-command-center', label: 'What should I do next?', href: ROUTES.ai, icon: 'open-command-center' },
+      ],
+      suggestedReplies: ['Find a doctor', 'Find a hospital', 'What should I do next?'],
+    });
+  }
+
+  const analysis = labDoc.secureAnalysis;
+  const lab = analysis.labResult!;
+  const toReportValue = (v: typeof lab.values[number]): MedicalReportValue => ({
+    label: v.testName,
+    value: `${v.measuredValue}${v.unit ? ` ${v.unit}` : ''}`.trim(),
+    range: v.referenceRange || undefined,
+    status: v.critical ? 'abnormal' : v.status === 'abnormal' ? 'abnormal' : v.status === 'attention' ? 'attention' : 'normal',
+  });
+
   const report: MedicalReport = {
-    id: 'report-mock-1',
-    reportTitle: sourceFile ? `Lab report — ${sourceFile}` : 'Lab report summary',
+    id: `report-${labDoc.id}`,
+    reportTitle: `Lab report — ${sourceFile ?? 'uploaded document'}`,
     sourceFileName: sourceFile,
-    summary: 'Mock interpretation of your uploaded report. A few values sit outside the typical range and are worth discussing with your doctor.',
-    importantObservations: [
-      'Fasting blood sugar and HbA1c are higher than the typical range — relevant for diabetes management.',
-      'Cholesterol panel shows borderline-elevated values worth reviewing.',
-      'Hemoglobin, WBC, and platelets are within typical ranges.',
-    ],
-    valuesRequiringAttention: ATTENTION,
-    normalValues: NORMAL,
-    trendComparisonPlaceholder: 'Trend comparison will be available once multiple reports are tracked over time.',
+    summary: analysis.summary,
+    importantObservations: analysis.importantObservations.slice(0, 10),
+    valuesRequiringAttention: lab.valuesRequiringAttention.slice(0, 12).map(toReportValue),
+    normalValues: lab.normalValues.slice(0, 12).map(toReportValue),
+    trendComparisonPlaceholder: 'Trend comparison becomes available once several reports are analysed over time.',
     questionsToAskYourDoctor: [
-      'What do my elevated blood sugar and HbA1c values indicate for me?',
-      'Should I adjust my diet, activity, or medication?',
-      'When should I retest, and what targets should I aim for?',
+      'Which of these values need attention, and what do they mean for me?',
+      'Do any of these results change my current treatment?',
+      'When should I retest?',
     ],
-    recommendedNextAction: 'Share these results with your doctor or an endocrinologist to build a management plan.',
-    isMockInterpretation: true,
+    recommendedNextAction: analysis.recommendedNextAction,
+    isMockInterpretation: false,
   };
+
+  const critical = lab.values.some((v) => v.critical);
   return emptyResult('report', {
-    summary: 'Medical report — mock analysis',
-    explanation: 'This is a clearly-labelled mock interpretation. No real medical interpretation has been performed yet. Always confirm with your doctor.',
-    urgency: 'attention',
+    summary: `Medical report — ${lab.values.length} value(s) read`,
+    explanation: analysis.summary,
+    urgency: critical ? 'urgent' : lab.valuesRequiringAttention.length > 0 ? 'attention' : 'routine',
     meta: {
-      confidence: 'low', urgency: 'attention', tier: 'professional',
-      disclaimer: 'Mock interpretation only. CareLink has not performed real medical analysis. Treat all findings as illustrative and confirm with a licensed professional.',
+      confidence: 'medium',
+      urgency: critical ? 'urgent' : lab.valuesRequiringAttention.length > 0 ? 'attention' : 'routine',
+      tier: 'professional',
+      disclaimer: 'Values were read from your uploaded document. This is navigational information, not a diagnosis — confirm with a licensed professional.',
     },
-    recommendedNextSteps: [report.recommendedNextAction],
+    recommendedNextSteps: [analysis.recommendedNextAction],
     medicalReport: report,
-    sources: ['CareLink mock report analysis'],
+    dataSource: 'real',
+    isDemoData: false,
+    sources: analysis.evidence?.length ? analysis.evidence.map((e) => e.label) : ['Values read from your uploaded document'],
     actions: [
-      { type: 'find-doctor', label: 'Find an endocrinologist', href: `${ROUTES.doctors}?q=Endocrinology`, icon: 'find-doctor' },
+      { type: 'find-doctor', label: 'Find a relevant doctor', href: ROUTES.doctors, icon: 'find-doctor' },
       { type: 'open-command-center', label: 'What should I do next?', href: ROUTES.ai, icon: 'open-command-center' },
     ],
-    suggestedReplies: ['Find an endocrinologist', 'What should I do next?', 'Find a hospital'],
+    suggestedReplies: ['Find a doctor', 'What should I do next?', 'Find a hospital'],
   });
 }
 
@@ -916,6 +1045,15 @@ export function createAgentOrchestrator(adapters: AgentAdapters = resolvedAdapte
     const classification = await adapters.ai.classify(request.text, request.patientContext);
     const patient = patientPoint(request);
 
+    // A MEDICINE PHOTOGRAPH that was actually analysed by the vision pipeline is
+    // authoritative about the turn: route to the medicine result directly instead
+    // of relying on the text classifier (which only sees the literal string
+    // "uploaded document"). This is what prevents an uploaded medicine photo from
+    // producing a generic report/demo response.
+    const analysedMedicinePhoto = request.documents.find(
+      (d) => d.secureAnalysis?.category === 'medicine-image' && d.secureAnalysis?.identificationLevel
+    );
+
     // Phase 2 — detect the user's language BEFORE any branch, so the emergency
     // path is language-aware too and detection can never delay escalation.
     const detection = detectLanguage(request.text);
@@ -947,7 +1085,11 @@ export function createAgentOrchestrator(adapters: AgentAdapters = resolvedAdapte
     }
 
     let result: AgentResult;
-    switch (classification.intent) {
+    // An analysed medicine photograph wins over the text classifier: the photo is
+    // the user's actual intent, and its analysis is real.
+    if (analysedMedicinePhoto) {
+      result = await buildMedicineResult(request.text, adapters, priorContext, patient, responseLanguage, request.documents);
+    } else switch (classification.intent) {
       case 'symptom':
         result = await buildSymptomResultAsync(classification.entities, priorContext);
         break;
@@ -970,7 +1112,7 @@ export function createAgentOrchestrator(adapters: AgentAdapters = resolvedAdapte
         result = await buildBloodCentreResult(patient);
         break;
       case 'medicine':
-        result = await buildMedicineResult(request.text, adapters, priorContext, patient, responseLanguage);
+        result = await buildMedicineResult(request.text, adapters, priorContext, patient, responseLanguage, request.documents);
         break;
       case 'report':
         result = buildReportResult(request.documents);

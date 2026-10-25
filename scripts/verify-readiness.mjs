@@ -67,6 +67,15 @@ add(
   'Server-side Edge Function secret; cannot be verified from the browser. Runs demo mode until set.',
 );
 
+// --- Medicine image analysis (vision) ---
+add(
+  'medicine-vision',
+  'Medicine image analysis (vision) via medicine-vision Edge Function',
+  sbUrl && sbKey ? 'CONFIGURED (assumed)' : 'NOT CONFIGURED',
+  ['XAI_API_KEY', 'XAI_VISION_MODEL'],
+  'Server-side Edge Function secret; a medicine photo shows an honest unavailable state (never a demo medicine) until set.',
+);
+
 // --- Google Places ---
 add(
   'places',

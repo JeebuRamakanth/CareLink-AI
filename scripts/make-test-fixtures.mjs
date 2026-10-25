@@ -14,9 +14,58 @@
 
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { deflateSync } from 'node:zlib';
 
 const outDir = process.argv[2] || '/tmp';
 mkdirSync(outDir, { recursive: true });
+
+/** Build a minimal, valid PNG of the given size (no text — a stand-in photo). */
+function buildPng(width = 320, height = 200) {
+  const raw = Buffer.alloc((width * 3 + 1) * height);
+  for (let y = 0; y < height; y += 1) {
+    const rowStart = y * (width * 3 + 1);
+    raw[rowStart] = 0; // filter: none
+    for (let x = 0; x < width; x += 1) {
+      const p = rowStart + 1 + x * 3;
+      // A light background with a few darker bands so it is not a flat colour.
+      const band = Math.floor(y / 24) % 2 === 0 ? 235 : 205;
+      raw[p] = band;
+      raw[p + 1] = band;
+      raw[p + 2] = band;
+    }
+  }
+  const crcTable = [];
+  for (let n = 0; n < 256; n += 1) {
+    let c = n;
+    for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    crcTable[n] = c >>> 0;
+  }
+  const crc32 = (buf) => {
+    let c = 0xffffffff;
+    for (const b of buf) c = crcTable[(c ^ b) & 0xff] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  };
+  const chunk = (type, data) => {
+    const len = Buffer.alloc(4);
+    len.writeUInt32BE(data.length);
+    const typeBuf = Buffer.from(type, 'latin1');
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(crc32(Buffer.concat([typeBuf, data])));
+    return Buffer.concat([len, typeBuf, data, crc]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8; // bit depth
+  ihdr[9] = 2; // colour type: truecolour
+  const idat = deflateSync(raw);
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', ihdr),
+    chunk('IDAT', idat),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
+}
 
 /** Build a minimal, valid PDF whose content stream holds a real text layer. */
 function buildPdf(lines, { fontSize = 10 } = {}) {
@@ -113,5 +162,16 @@ for (const fixture of fixtures) {
   writeFileSync(path, buildPdf(fixture.lines));
   console.log(`wrote ${path}`);
 }
+
+// A synthetic "medicine photo" — a raster image (NOT text) so the vision path is
+// what must handle it. Clearly a fixture: no real medicine is depicted.
+const medicinePhotoPath = join(outDir, 'medicine-photo-test.png');
+writeFileSync(medicinePhotoPath, buildPng(400, 240));
+console.log(`wrote ${medicinePhotoPath}`);
+
+// A deliberately unusable "photo" (tiny, flat) to exercise the unreadable path.
+const blankPhotoPath = join(outDir, 'medicine-photo-blank-test.png');
+writeFileSync(blankPhotoPath, buildPng(8, 8));
+console.log(`wrote ${blankPhotoPath}`);
 
 console.log('\nThese are SYNTHETIC test fixtures. Do not ship them to users.');

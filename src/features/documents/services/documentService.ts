@@ -373,6 +373,10 @@ export async function analyzeExistingDocument(
     fileName: doc.fileName,
     extraction: storedExtraction,
     userCategory: userCategory ?? doc.analysis?.category,
+    // Reuse the stored vision read so a corrected document type never re-sends
+    // the photograph (the browser no longer holds it) and never invents a read.
+    storedVisionRead: doc.analysis?.visionRead,
+    isImage: doc.kind === 'image' || doc.kind === 'medicine_image',
   });
 
   if (isSupabaseConfigured()) {

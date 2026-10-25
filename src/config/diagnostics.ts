@@ -168,6 +168,18 @@ export function getIntegrationReadiness(): IntegrationReadiness[] {
         '(`supabase secrets set ...`). Until then the assistant runs in clearly-labelled demo mode.',
     },
     {
+      id: 'medicine-vision',
+      label: 'Medicine image analysis (vision) via the medicine-vision Edge Function',
+      // Vision needs the SAME server key plus a vision-capable model, and the
+      // browser must be able to reach the function (Supabase configured).
+      status: supabaseStatus === 'configured' ? 'configured' : 'not-configured',
+      variables: ['XAI_API_KEY', 'XAI_VISION_MODEL'],
+      serverOnly: true,
+      setup:
+        'Deploy the medicine-vision function and set XAI_VISION_MODEL (a vision-capable model) as an Edge Function secret. ' +
+        'Until then a medicine photo shows an honest "image analysis not configured" state — never a demo medicine identity.',
+    },
+    {
       id: 'google-places',
       label: 'Google Places discovery',
       status: placeholder('VITE_GOOGLE_MAPS_API_KEY') ? 'placeholder' : present('VITE_GOOGLE_MAPS_API_KEY') ? 'configured' : 'not-configured',

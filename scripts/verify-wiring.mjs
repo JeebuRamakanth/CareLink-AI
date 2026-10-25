@@ -689,6 +689,84 @@ check(
   'a client must not be able to persist an unsupported language code'
 );
 
+// --- Step 31: medicine image analysis is a REAL vision path ---
+check(
+  'medicine-vision: a dedicated vision Edge Function exists',
+  existsSync(join(root, 'supabase/functions/medicine-vision/index.ts')) &&
+    existsSync(join(root, 'supabase/functions/medicine-vision/logic.ts')),
+  'medicine photos must reach a vision-capable model, not the text-only chat gateway'
+);
+check(
+  'medicine-vision: the client calls the vision function with bounded image bytes',
+  has('src/features/documents/services/vision/medicineVisionService.ts', "functions.invoke<unknown>('medicine-vision'") &&
+    has('src/features/documents/services/vision/medicineVisionService.ts', 'optimizeImageForUpload'),
+  'the image must be downscaled before it leaves the browser'
+);
+check(
+  'medicine-vision: the vision payload is schema-validated before use',
+  has('src/features/documents/services/vision/medicineVisionService.ts', 'validateVisionRead') &&
+    has('supabase/functions/medicine-vision/logic.ts', 'parseVisionCompletion'),
+  'an unvalidated provider payload must never become a medicine identity'
+);
+check(
+  'medicine-vision: an unavailable backend yields an honest state, never a demo medicine',
+  has('src/features/documents/services/vision/medicineImageIdentification.ts', 'visionUnavailable') &&
+    has('src/features/documents/services/vision/medicineImageIdentification.ts', 'isVisionConfigured'),
+  'no vision backend must NOT be silently replaced with mock recognition'
+);
+check(
+  'medicine-vision: the vision model id is a server-only secret',
+  !has('.env.example', 'VITE_XAI') &&
+    has('.env.example', 'XAI_VISION_MODEL'),
+  'the vision model/key must never be exposed as a VITE_* variable'
+);
+
+// --- Step 31: the composer pipeline is REAL, not an animation ---
+check(
+  'pipeline: the /ai composer runs the real document pipeline',
+  has('src/features/health-agent/hooks/useAgentConversation.ts', 'uploadAndAnalyzeDocument') &&
+    !has('src/features/health-agent/hooks/useAgentConversation.ts', 'documentPipelineSteps'),
+  'a fake progress animation must never stand in for real analysis'
+);
+check(
+  'pipeline: sendMessage awaits the real analysis before the orchestrator runs',
+  has('src/features/health-agent/hooks/useAgentConversation.ts', 'await Promise.all(pending.map'),
+  'the orchestrator must not read an un-analysed attachment'
+);
+
+// --- Step 31: no fabricated report/medicine content remains ---
+check(
+  'honesty: the report builder no longer hardcodes lab values',
+  !has('src/features/health-agent/services/agentOrchestrator.ts', 'Fasting Blood Sugar') &&
+    !has('src/features/health-agent/services/agentOrchestrator.ts', "id: 'report-mock-1'") &&
+    has('src/features/health-agent/services/agentOrchestrator.ts', 'secureAnalysis?.labResult'),
+  'hardcoded FBS/HbA1c values must not be presented as the user\'s report'
+);
+check(
+  'honesty: the mock medicine source label is gone',
+  !has('src/features/health-agent/services/agentOrchestrator.ts', 'medicine knowledge (mock)'),
+  'the (mock) source label must be replaced by honest provenance'
+);
+check(
+  'honesty: demo medicine recognition is low-confidence and uncertain',
+  has('src/features/health-agent/services/adapters/mockAdapters.ts', 'recognitionConfidence: 0.35') &&
+    has('src/features/health-agent/services/adapters/mockAdapters.ts', 'uncertain: true'),
+  'a tiny exact-match catalog must never report high-confidence recognition'
+);
+check(
+  'honesty: the legacy /agent report builder no longer hardcodes lab values',
+  !has('src/services/agent/mockAgentService.ts', 'REPORT_ATTENTION') &&
+    !has('src/services/agent/mockAgentService.ts', 'report-mock-1') &&
+    !has('src/services/agent/mockAgentService.ts', 'Mock interpretation of your uploaded report'),
+  'the legacy command center must not present fabricated report values'
+);
+check(
+  'honesty: the legacy /agent medicine builder never substitutes an unnamed medicine',
+  has('src/services/agent/mockAgentService.ts', 'Medicine not confidently identified') &&
+    !has('src/services/agent/mockAgentService.ts', "rawInput: 'paracetamol'"),
+  'a medicine the user never named must not be invented'
+);
+
 console.log(`\nCareLink wiring audit — ${checks.length} checks`);
 for (const c of checks) {
   console.log(`  ${c.ok ? 'PASS' : 'FAIL'}  ${c.name}`);

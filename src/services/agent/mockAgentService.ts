@@ -14,8 +14,6 @@ import type {
   AgentIntent,
   AgentResponse,
   IntentClassification,
-  MedicalReportResult,
-  MedicalReportValue,
 } from './agentTypes';
 import {
   agentMedicineResults,
@@ -177,7 +175,25 @@ function buildMedicineResponse(classification: IntentClassification): AgentRespo
   else if (text.includes('paracetamol') || text.includes('acetaminophen')) key = 'paracetamol';
   else if (text.includes('amoxicillin')) key = 'amoxicillin';
 
-  const medicine = key ? agentMedicineResults[key] : agentMedicineResults.paracetamol;
+  // NEVER substitute a medicine the user did not name. Without a recognised name
+  // there is nothing to show — say so and route to verification.
+  if (!key) {
+    return {
+      kind: 'text',
+      title: 'Medicine not confidently identified',
+      explanation:
+        'No specific medicine was recognised in your message. Type the exact name and strength printed on the pack, or attach a photo of the packaging so it can be read. This is not a confirmed identification.',
+      meta: {
+        confidence: 'low',
+        urgency: 'routine',
+        disclaimer:
+          'Verify the medicine name and strength with a pharmacist before use. Never change a prescribed medicine without your doctor.',
+      },
+      suggestedReplies: ['Find a pharmacy', 'Upload a prescription', 'What should I do next?'],
+    };
+  }
+
+  const medicine = agentMedicineResults[key];
 
   return {
     kind: 'medicine',
@@ -245,57 +261,25 @@ function buildRecoveryResponse(): AgentResponse {
   };
 }
 
-const REPORT_NORMAL: MedicalReportValue[] = [
-  { label: 'Hemoglobin', value: '14.2 g/dL', range: '13.5–17.5', status: 'normal' },
-  { label: 'WBC Count', value: '6.8 ×10³/μL', range: '4.0–11.0', status: 'normal' },
-  { label: 'Platelet Count', value: '250 ×10³/μL', range: '150–400', status: 'normal' },
-];
-
-const REPORT_ATTENTION: MedicalReportValue[] = [
-  { label: 'Fasting Blood Sugar', value: '132 mg/dL', range: '70–99', status: 'abnormal' },
-  { label: 'HbA1c', value: '6.8%', range: '< 5.7%', status: 'attention' },
-  { label: 'Total Cholesterol', value: '212 mg/dL', range: '< 200', status: 'attention' },
-  { label: 'LDL Cholesterol', value: '138 mg/dL', range: '< 100', status: 'abnormal' },
-];
-
 function buildReportResponse(attachments: AgentAttachment[]): AgentResponse {
-  const sourceFile = attachments.find((a) => a.kind === 'pdf' || a.kind === 'document')?.fileName;
-  const report: MedicalReportResult = {
-    id: 'report-mock-1',
-    reportTitle: sourceFile ? `Lab report — ${sourceFile}` : 'Lab report summary',
-    sourceFileName: sourceFile,
-    summary:
-      'Mock interpretation of your uploaded report. A few values sit outside the typical range and are worth discussing with your doctor.',
-    importantObservations: [
-      'Fasting blood sugar and HbA1c are higher than the typical range — relevant for diabetes management.',
-      'Cholesterol panel shows borderline-elevated values worth reviewing.',
-      'Hemoglobin, WBC, and platelets are within typical ranges.',
-    ],
-    valuesRequiringAttention: REPORT_ATTENTION,
-    normalValues: REPORT_NORMAL,
-    trendComparisonPlaceholder: 'Trend comparison will be available once multiple reports are tracked over time.',
-    questionsToAskYourDoctor: [
-      'What do my elevated blood sugar and HbA1c values indicate for me?',
-      'Should I adjust my diet, activity, or medication?',
-      'When should I retest, and what targets should I aim for?',
-    ],
-    recommendedNextAction: 'Share these results with your doctor or an endocrinologist to build a management plan.',
-    isMockInterpretation: true,
-  };
+  const attached = attachments.length > 0;
 
+  // This legacy surface has NO real extraction pipeline: it must never present
+  // hardcoded lab values as the user's report. It points the user at the secure
+  // analysis (which does read the file) instead of inventing an interpretation.
   return {
-    kind: 'report',
-    title: 'Medical report — mock analysis',
-    explanation:
-      'This is a clearly-labelled mock interpretation. No real medical interpretation has been performed yet. Always confirm with your doctor.',
+    kind: 'text',
+    title: attached ? 'Report attached — run the secure analysis' : 'Medical report analysis',
+    explanation: attached
+      ? 'A document was attached. Open "Secure document analysis" below (or the Documents page) to read the actual values from your file. This command center does not fabricate a report interpretation.'
+      : 'Attach your lab or blood report in the composer, or open the Documents page, to have the real values read from your file. CareLink will not invent report values.',
     meta: {
       confidence: 'low',
-      urgency: 'attention',
+      urgency: 'routine',
       disclaimer:
-        'Mock interpretation only. CareLink.AI has not performed real medical analysis. Treat all findings as illustrative and confirm with a licensed professional.',
+        'No report interpretation is produced here. Real analysis reads your uploaded document; confirm all findings with a licensed professional.',
     },
-    suggestedReplies: ['Find an endocrinologist', 'What should I do next?', 'Find a hospital'],
-    data: report,
+    suggestedReplies: ['Find a doctor', 'What should I do next?', 'Find a hospital'],
   };
 }
 
@@ -416,7 +400,21 @@ export function buildResponseForQuickAction(actionId: string): AgentResponse {
     case 'my-appointments':
       return buildAppointmentResponse();
     case 'my-medicines':
-      return buildMedicineResponse({ intent: 'medicine', confidence: 'medium', entities: ['paracetamol'], rawInput: 'paracetamol' });
+      // "My Medicines" is a navigation action, not a drug lookup. It must NOT
+      // resolve to a specific medicine the user never mentioned — that would be
+      // an invented identity. Point to the real prescription/medicine analysis.
+      return {
+        kind: 'text',
+        title: 'Your medicines',
+        explanation:
+          'Attach a prescription or a photo of your medicine packaging in the composer — the secure analysis reads the printed names and strengths. Type a specific medicine name to look it up. CareLink does not invent a medicine you did not mention.',
+        meta: {
+          confidence: 'high',
+          urgency: 'routine',
+          disclaimer: 'Confirm every medicine and dose with your doctor or pharmacist.',
+        },
+        suggestedReplies: ['Upload a prescription', 'Find a pharmacy', 'What should I do next?'],
+      };
     case 'recovery-tracker':
       return buildRecoveryResponse();
     default:
