@@ -19,7 +19,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion, MotionConfig } from 'framer-motion';
 import { cn } from '../../../components/common/cn';
 import { Badge } from '../../../components/ui/Badge';
@@ -52,6 +52,7 @@ import type { AIToolSuggestion } from '../services/ai/aiTools';
 import { AgentDocumentAnalysisPanel } from './AgentDocumentAnalysisPanel';
 import { useOptionalLocationContext } from '../../../contexts/LocationContext';
 import { useOptionalNavigationContext } from '../../../contexts/NavigationContext';
+import { GlobalNavigation } from '../../../components/layout/GlobalNavigation';
 import { directionsUrl } from '../../../services/maps/mapsService';
 import { buildDirectionsUrl, buildPlaceSearchUrl } from '../../../services/maps/directionsService';
 import {
@@ -955,16 +956,17 @@ function ChatHeader({
   return (
     <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-white/8 bg-slate-950/80 px-3 py-2.5 backdrop-blur-2xl sm:px-4">
       <div className="flex min-w-0 items-center gap-2.5">
-        <Link to={ROUTES.home} aria-label="Back to home" className="flex size-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 text-ink-200 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/40">
-          <IconArrowRight width={16} height={16} className="rotate-180" aria-hidden />
+        {/* Shared global navigation — identical entry point to every other route. */}
+        <GlobalNavigation />
+        <Link to={ROUTES.home} aria-label="CareLink.AI home" className="flex min-w-0 items-center gap-2.5 rounded-full pr-1 transition hover:opacity-90">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-[0.8rem] border border-brand-400/30 bg-gradient-to-br from-brand-500/35 to-accent-500/20 text-white">
+            <IconSparkle width={17} height={17} aria-hidden />
+          </span>
+          <span className="hidden min-w-0 leading-tight sm:block">
+            <span className="block truncate text-[0.92rem] font-semibold text-white">CareLink.AI</span>
+            <span className="block truncate text-[0.68rem] text-ink-300">Your healthcare command center</span>
+          </span>
         </Link>
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-[0.8rem] border border-brand-400/30 bg-gradient-to-br from-brand-500/35 to-accent-500/20 text-white">
-          <IconSparkle width={17} height={17} aria-hidden />
-        </span>
-        <div className="min-w-0 leading-tight">
-          <p className="flex items-center gap-1 text-[0.92rem] font-semibold text-white"><span aria-hidden>✦</span> CareLink AI</p>
-          <p className="truncate text-[0.68rem] text-ink-300">Your healthcare command center</p>
-        </div>
       </div>
       <div className="flex shrink-0 items-center gap-2">
         {/* Family profile */}
@@ -1014,6 +1016,7 @@ export function AIChatPage() {
   const conv = useAgentConversation();
   const locationCtx = useOptionalLocationContext();
   const navContext = useOptionalNavigationContext();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [text, setText] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -1030,6 +1033,21 @@ export function AIChatPage() {
     conv.drainHandoff();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Deep-link prompts from the navigation drawer (e.g. /ai?prompt=recovery).
+  // The prompt is EXECUTED through the real conversation pipeline, then the
+  // parameter is removed so a refresh or Back does not replay it.
+  const deepLinkPrompt = searchParams.get('prompt');
+  useEffect(() => {
+    if (!deepLinkPrompt) return;
+    void conv.sendMessage(deepLinkPrompt);
+    setSearchParams((params) => {
+      const next = new URLSearchParams(params);
+      next.delete('prompt');
+      return next;
+    }, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deepLinkPrompt]);
 
   // Scroll to the latest message whenever messages/status change.
   useEffect(() => {

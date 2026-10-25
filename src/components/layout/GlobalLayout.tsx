@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { LayoutContainer } from './LayoutContainer';
 import { PageTransition } from './PageTransition';
 import { ScrollToTop } from './ScrollToTop';
-import { NavDrawer } from './NavDrawer';
-import { primaryNavItems } from './navigationData';
+import { GlobalNavigation } from './GlobalNavigation';
 import type { ReactNode } from 'react';
 import { ROUTES } from '../../routes/routeConstants';
 import { useOptionalAuth } from '../../contexts/AuthContext';
@@ -56,10 +55,8 @@ interface GlobalLayoutProps {
 
 export function GlobalLayout({ children, activePage = 'Home' }: GlobalLayoutProps) {
   const [scrolled, setScrolled] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [suspensionDismissed, setSuspensionDismissed] = useState(false);
   const auth = useOptionalAuth();
-  const isAdmin = Boolean(auth.isAdmin);
   const isSuspended = Boolean(auth.isSuspended);
   const isDisabled = auth.user?.accountStatus === 'disabled';
   const showSuspensionBanner = !suspensionDismissed && (isSuspended || isDisabled);
@@ -106,78 +103,32 @@ export function GlobalLayout({ children, activePage = 'Home' }: GlobalLayoutProp
               </div>
             </Link>
 
-            {/* Wide-screen rail — the highest-frequency destinations only, so the
-                bar never crowds. Everything else lives in the drawer. */}
-            <nav className="hidden items-center gap-1 xl:flex" aria-label="Primary navigation">
-              {primaryNavItems.map((item) => (
-                <NavLink
-                  key={item.label}
-                  to={item.to}
-                  className={({ isActive }: { isActive: boolean }) => ['group relative rounded-full px-3 py-2 text-[0.92rem] font-medium tracking-[0.02em] transition-all duration-200', isActive ? 'text-white' : 'text-ink-300 hover:text-white'].join(' ')}
-                >
-                  {({ isActive }: { isActive: boolean }) => (
-                    <>
-                      <span className="relative z-10">{item.label}</span>
-                      <span className={['absolute inset-x-1.5 bottom-1.5 h-[2px] rounded-full bg-gradient-to-r from-brand-400 to-accent-400 transition-all duration-200', isActive ? 'opacity-100 scale-x-100' : 'opacity-0 scale-x-75 group-hover:opacity-100 group-hover:scale-x-100'].join(' ')} />
-                    </>
-                  )}
-                </NavLink>
-              ))}
-            </nav>
-
+            {/* The global header is intentionally the brand + this hamburger.
+                There is no horizontal navigation rail: every destination lives in
+                the drawer so the bar never crowds and cannot duplicate itself. */}
             <div className="flex shrink-0 items-center gap-2">
-              <Link to={ROUTES.ai} className="hidden items-center gap-2 rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-4 py-2 text-[0.92rem] font-semibold text-white shadow-[0_16px_40px_-20px_rgba(77,132,255,0.8)] transition-all duration-200 hover:-translate-y-0.5 sm:flex">
-                <span className="inline-flex size-2.5 animate-pulse rounded-full bg-white" />
-                Ask CareLink AI
-              </Link>
+              {/* Compact account indicator — the only header control that needs to
+                  stay outside the drawer for usability (signed-in state + alerts).
+                  All destinations still live in the drawer. */}
+              {auth.user ? (
+                <div className="flex items-center gap-2">
+                  <Link
+                    to={ROUTES.profile}
+                    className="hidden max-w-[10rem] items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-2 text-[0.82rem] font-medium text-ink-200 transition-all duration-200 hover:bg-white/10 hover:text-white sm:flex"
+                    title={auth.user.email}
+                  >
+                    <span className="inline-flex size-1.5 shrink-0 rounded-full bg-emerald-400" aria-hidden />
+                    <span className="truncate">{auth.user.email}</span>
+                  </Link>
+                  <NotificationBell />
+                </div>
+              ) : null}
 
-              {/* Account controls collapse into the drawer below xl so the bar
-                  cannot overlap at 768–1279 px. */}
-              <div className="hidden items-center gap-2 xl:flex">
-                {auth.user ? (
-                  <>
-                    <Link to={ROUTES.profile} className="flex items-center gap-2 rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-4 py-2 text-[0.92rem] font-semibold text-white transition-all duration-200 hover:-translate-y-0.5">
-                      Profile
-                    </Link>
-                    {isAdmin ? (
-                      <Link to={ROUTES.admin} className="flex items-center gap-2 rounded-full border border-brand-400/30 bg-white/5 px-4 py-2 text-[0.92rem] font-semibold text-brand-100 transition-all duration-200 hover:bg-white/10 hover:text-white">
-                        <span className="inline-flex size-1.5 rounded-full bg-brand-300" aria-hidden />
-                        Console
-                      </Link>
-                    ) : null}
-                    <NotificationBell />
-                  </>
-                ) : (
-                  <>
-                    <Link to={ROUTES.login} className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-[0.92rem] font-medium text-ink-200 transition-all duration-200 hover:bg-white/10 hover:text-white">Login</Link>
-                    <Link to={ROUTES.register} className="rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-4 py-2 text-[0.92rem] font-semibold text-white transition-all duration-200 hover:-translate-y-0.5">Register</Link>
-                  </>
-                )}
-              </div>
-
-              {/* Hamburger — the single entry point to the full navigation map. */}
-              <button
-                type="button"
-                className="flex size-10 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition-all duration-200 hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/50"
-                onClick={() => setMobileMenuOpen(true)}
-                aria-label="Open navigation menu"
-                aria-expanded={mobileMenuOpen}
-                aria-controls="site-navigation-drawer"
-              >
-                <span className="flex flex-col gap-[5px]" aria-hidden>
-                  <span className="h-0.5 w-5 rounded-full bg-white" />
-                  <span className="h-0.5 w-5 rounded-full bg-white" />
-                  <span className="h-0.5 w-5 rounded-full bg-white" />
-                </span>
-              </button>
+              <GlobalNavigation />
             </div>
           </div>
         </LayoutContainer>
       </header>
-
-      <div id="site-navigation-drawer">
-        <NavDrawer open={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
-      </div>
 
       <PageTransition keyName={activePage}>
         <main id="main-content" className="pb-16">
