@@ -163,7 +163,11 @@ for (const f of actionSources) {
       expr.startsWith('adapters.') ||
       expr.includes('hospitalHref') ||
       expr.includes('bookUrl') ||
-      expr.includes('viewAppointmentsUrl');
+      expr.includes('viewAppointmentsUrl') ||
+      // The emergency-contact helper returns a `tel:` href by construction
+      // (asserted in medicineIdentification.test.mjs: every contact href is a
+      // dialable tel: link), so it is a validated scheme source.
+      expr.includes('primaryEmergencyContact(');
     if (!ok) badHrefs.push(`${relative(root, f)}: ${expr}`);
   }
 }

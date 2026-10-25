@@ -23,13 +23,16 @@ import { IconReport, IconShield, IconSparkle } from '../../../components/agent/A
 import { useOptionalAuth } from '../../../contexts/AuthContext';
 import { useDocumentUpload } from '../../documents/hooks/useDocumentUpload';
 import { DocumentAnalysisResultCard } from '../../documents/components/DocumentAnalysisResultCard';
-import { uploadAndAnalyzeDocument } from '../../documents/services/documentService';
-import type { DocumentAnalysisResult, HealthDocument } from '../../documents/types';
+import { analyzeExistingDocument, uploadAndAnalyzeDocument } from '../../documents/services/documentService';
+import { findNearestEmergencyFacility } from '../../../services/emergency/nearestEmergencyFacility';
+import type { DocumentAnalysisResult, DocumentCategory, HealthDocument } from '../../documents/types';
 
 interface Props {
   activeProfileId: string | null;
   /** Compact mode for embedding inside the chat composer area. */
   compact?: boolean;
+  /** Send a follow-up question about an analysed document into the chat. */
+  onFollowUp?: (question: string) => void;
 }
 
 interface CompletedAnalysis {
@@ -37,13 +40,44 @@ interface CompletedAnalysis {
   analysis: DocumentAnalysisResult;
 }
 
-export function AgentDocumentAnalysisPanel({ activeProfileId, compact = true }: Props) {
+export function AgentDocumentAnalysisPanel({ activeProfileId, compact = true, onFollowUp }: Props) {
   const auth = useOptionalAuth();
   const ownerId = auth.user?.id ?? 'local-demo-user';
   const upload = useDocumentUpload();
   const [completed, setCompleted] = useState<CompletedAnalysis[]>([]);
   const [expanded, setExpanded] = useState(false);
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
+  const [emergencyDirections, setEmergencyDirections] = useState<string | null>(null);
+  const [emergencyDestination, setEmergencyDestination] = useState<string | null>(null);
+
+  /** Resolve a real navigation destination when an analysis flags an emergency. */
+  const resolveEmergencyDestination = useCallback(async (analysis: DocumentAnalysisResult) => {
+    if (!analysis.triage?.isEmergency) {
+      setEmergencyDirections(null);
+      setEmergencyDestination(null);
+      return;
+    }
+    try {
+      const facility = await findNearestEmergencyFacility(null);
+      setEmergencyDirections(facility?.directionsUrl ?? null);
+      setEmergencyDestination(facility?.name ?? null);
+    } catch {
+      setEmergencyDirections(null);
+      setEmergencyDestination(null);
+    }
+  }, []);
+
+  /** Re-run the interpretation (optionally with a corrected document type). */
+  const reanalyze = useCallback(
+    async (documentId: string, category?: DocumentCategory) => {
+      const analysis = await analyzeExistingDocument(documentId, category);
+      if (!analysis) return;
+      setCompleted((prev) => prev.map((c) => (c.document.id === documentId ? { ...c, analysis } : c)));
+      setActiveDocId(documentId);
+      void resolveEmergencyDestination(analysis);
+    },
+    [resolveEmergencyDestination]
+  );
 
   // Run the full secure pipeline directly so we capture the analysis outcome.
   // The upload hook is used for transient attachment/issue state (validation +
@@ -63,6 +97,7 @@ export function AgentDocumentAnalysisPanel({ activeProfileId, compact = true }: 
               setCompleted((prev) => [{ document, analysis }, ...prev].slice(0, 6));
               setActiveDocId(document.id);
               setExpanded(true);
+              void resolveEmergencyDestination(analysis);
             }
           } else {
             // The hook surfaces the issue; nothing else to do here.
@@ -72,7 +107,7 @@ export function AgentDocumentAnalysisPanel({ activeProfileId, compact = true }: 
         }
       }
     },
-    [upload, ownerId, activeProfileId]
+    [upload, ownerId, activeProfileId, resolveEmergencyDestination]
   );
 
   const activeCompleted = completed.find((c) => c.document.id === activeDocId) ?? completed[0] ?? null;
@@ -125,6 +160,11 @@ export function AgentDocumentAnalysisPanel({ activeProfileId, compact = true }: 
               <DocumentAnalysisResultCard
                 document={activeCompleted.document}
                 analysis={activeCompleted.analysis}
+                onCorrectType={(id, category) => void reanalyze(id, category)}
+                onAnalyze={(id) => void reanalyze(id)}
+                onFollowUp={onFollowUp}
+                directionsUrl={emergencyDirections}
+                destinationLabel={emergencyDestination}
               />
             ) : null}
 
@@ -148,7 +188,10 @@ export function AgentDocumentAnalysisPanel({ activeProfileId, compact = true }: 
             ) : null}
 
             <p className="flex items-center gap-1.5 text-[0.7rem] italic text-ink-400">
-              <IconShield width={12} height={12} aria-hidden /> Analysis is navigational, not a diagnosis. {activeCompleted?.analysis.isMock ? 'Mock interpretation — no real AI ran.' : 'Real analysis.'}
+              <IconShield width={12} height={12} aria-hidden /> Analysis is navigational, not a diagnosis.{' '}
+              {activeCompleted?.analysis.extraction?.status === 'extracted'
+                ? 'Read from your uploaded document.'
+                : 'No text could be read from this document.'}
             </p>
           </motion.div>
         ) : null}

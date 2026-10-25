@@ -50,6 +50,7 @@ import {
 import { useAgentConversation } from '../hooks/useAgentConversation';
 import type { AIToolSuggestion } from '../services/ai/aiTools';
 import { AgentDocumentAnalysisPanel } from './AgentDocumentAnalysisPanel';
+import { primaryEmergencyContact } from '../../documents/services/clinical/emergencyConfig';
 import { useOptionalLocationContext } from '../../../contexts/LocationContext';
 import { useOptionalNavigationContext } from '../../../contexts/NavigationContext';
 import { GlobalNavigation } from '../../../components/layout/GlobalNavigation';
@@ -1121,7 +1122,7 @@ export function AIChatPage() {
             <div className="flex items-center gap-2.5 px-4 py-2.5">
               <IconEmergency width={18} height={18} className="shrink-0 text-rose-200" aria-hidden />
               <p className="text-[0.82rem] font-semibold text-rose-100">{conv.result.summary} — treat this as urgent. Call your local emergency number now.</p>
-              <a href="tel:911" className="ml-auto shrink-0 rounded-full bg-rose-500 px-3 py-1.5 text-[0.78rem] font-bold text-white transition hover:bg-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60">Call 911</a>
+              <a href={primaryEmergencyContact('in').href} className="ml-auto shrink-0 rounded-full bg-rose-500 px-3 py-1.5 text-[0.78rem] font-bold text-white transition hover:bg-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60">Call {primaryEmergencyContact('in').phone}</a>
             </div>
           </motion.div>
         ) : null}
@@ -1197,7 +1198,10 @@ export function AIChatPage() {
       {/* Step 11 — secure document analysis (additive, non-breaking) */}
       <div className="border-t border-white/10 bg-slate-950/40 px-3 py-3 sm:px-4">
         <div className="mx-auto max-w-3xl">
-          <AgentDocumentAnalysisPanel activeProfileId={conv.activeProfileId === 'self' ? null : conv.activeProfileId} />
+          <AgentDocumentAnalysisPanel
+            activeProfileId={conv.activeProfileId === 'self' ? null : conv.activeProfileId}
+            onFollowUp={(q) => void conv.sendMessage(q)}
+          />
         </div>
       </div>
 

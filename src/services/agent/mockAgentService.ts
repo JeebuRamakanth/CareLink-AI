@@ -30,6 +30,7 @@ import {
   getDirectoryLabs,
   getDirectoryPharmacies,
 } from './directoryBridge';
+import { emergencyContacts } from '../../features/documents/services/clinical/emergencyConfig';
 
 const DISCLAIMER_MEDICAL =
   'CareLink.AI provides navigational guidance, not a medical diagnosis. For diagnosis or treatment, consult a licensed healthcare professional.';
@@ -328,10 +329,7 @@ function buildEmergencyResponse(): AgentResponse {
         address: `${facility.address}, ${facility.city}`,
         route: facility.route ?? buildDirectoryRoute(facility),
       })),
-      contacts: [
-        { label: 'Emergency services', phone: '911', href: 'tel:911' },
-        { label: 'Local emergency helpline', phone: '112', href: 'tel:112' },
-      ],
+      contacts: emergencyContacts().map((c) => ({ label: c.label, phone: c.phone, href: c.href })),
       disclaimer: DISCLAIMER_EMERGENCY,
     },
   };

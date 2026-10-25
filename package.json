@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "test:focused": "node --experimental-strip-types --import ./scripts/test-register.mjs --test src/services/maps/hospitalPlaceMapping.test.mjs src/services/maps/directionsService.test.mjs src/services/maps/hospitalDirectorySearch.test.mjs src/services/maps/googlePlacesErrors.test.mjs src/services/providerDirectoryService.test.mjs src/services/pharmacyService.test.mjs src/pages/Hospitals/hospitalPresentation.test.mjs src/services/auth/devTestAuth.test.mjs src/data/coverage.test.mjs src/features/health-agent/services/recommendationRanking.test.mjs supabase/functions/ai-gateway/logic.test.mjs",
+    "test:focused": "node --experimental-strip-types --import ./scripts/test-register.mjs --test src/services/maps/hospitalPlaceMapping.test.mjs src/services/maps/directionsService.test.mjs src/services/maps/hospitalDirectorySearch.test.mjs src/services/maps/googlePlacesErrors.test.mjs src/services/providerDirectoryService.test.mjs src/services/pharmacyService.test.mjs src/pages/Hospitals/hospitalPresentation.test.mjs src/services/auth/devTestAuth.test.mjs src/data/coverage.test.mjs src/features/health-agent/services/recommendationRanking.test.mjs supabase/functions/ai-gateway/logic.test.mjs src/features/documents/services/clinicalParsers.test.mjs src/features/documents/services/medicineIdentification.test.mjs",
     "preview": "vite preview",
     "android:sync": "npm run build && npx cap sync android",
     "android:open": "npx cap open android",
@@ -29,7 +29,9 @@
     "verify:auth": "node scripts/verify-auth.mjs",
     "verify:e2e": "node scripts/verify-e2e.mjs",
     "verify:sweep": "node scripts/verify-sweep.mjs",
-    "verify:readiness": "node scripts/verify-readiness.mjs"
+    "verify:readiness": "node scripts/verify-readiness.mjs",
+    "fixtures": "node scripts/make-test-fixtures.mjs",
+    "verify:documents": "node scripts/verify-document-analysis.mjs"
   },
   "dependencies": {
     "@capacitor/app": "^8.1.1",
@@ -41,10 +43,12 @@
     "@tailwindcss/vite": "^4.3.3",
     "framer-motion": "^13.0.0",
     "maplibre-gl": "^6.6.0",
+    "pdfjs-dist": "^4.10.38",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.2",
-    "tailwindcss": "^4.3.3"
+    "tailwindcss": "^4.3.3",
+    "tesseract.js": "^5.1.1"
   },
   "devDependencies": {
     "@capacitor/android": "^8.5.0",

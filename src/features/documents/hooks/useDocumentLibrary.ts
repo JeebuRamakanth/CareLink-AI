@@ -17,7 +17,7 @@ import {
   documentStorageModeLabel,
   listDocumentsForContext,
 } from '../services/documentService';
-import type { DocumentAnalysisResult, HealthDocument } from '../types';
+import type { DocumentAnalysisResult, DocumentCategory, HealthDocument } from '../types';
 
 export interface UseDocumentLibrary {
   documents: HealthDocument[];
@@ -31,7 +31,7 @@ export interface UseDocumentLibrary {
   selectedAnalysis: DocumentAnalysisResult | null;
   reload: () => Promise<void>;
   onView: (doc: HealthDocument) => void;
-  onAnalyze: (doc: HealthDocument) => Promise<void>;
+  onAnalyze: (doc: HealthDocument, category?: DocumentCategory) => Promise<void>;
   onDelete: (doc: HealthDocument) => Promise<void>;
   closeViewer: () => void;
   analyzingId: string | null;
@@ -77,11 +77,11 @@ export function useDocumentLibrary(): UseDocumentLibrary {
     setSelectedId(doc.id);
   }, []);
 
-  const onAnalyze = useCallback(async (doc: HealthDocument) => {
+  const onAnalyze = useCallback(async (doc: HealthDocument, category?: DocumentCategory) => {
     setAnalyzingId(doc.id);
     setError(null);
     try {
-      const analysis = await analyzeExistingDocument(doc.id);
+      const analysis = await analyzeExistingDocument(doc.id, category);
       if (analysis) {
         setDocuments((prev) => prev.map((d) => (d.id === doc.id ? { ...d, analysis, analysisStatus: 'ready', pipelineState: 'completed' } : d)));
       }

@@ -9,6 +9,8 @@ export default defineConfig({
   ],
   server: {
     allowedHosts: [
+      "work-2-szbwlqfedenhcaxq.prod-runtime.all-hands.dev",
+      "work-1-szbwlqfedenhcaxq.prod-runtime.all-hands.dev",
       "work-1-zhmrobnnzjpnrcqw.prod-runtime.all-hands.dev",
       "work-2-zhmrobnnzjpnrcqw.prod-runtime.all-hands.dev",
       "work-1-qjpzakddggifllmj.prod-runtime.all-hands.dev",
