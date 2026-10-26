@@ -38,6 +38,8 @@ export const SPECIALTIES: SpecialtyDefinition[] = [
   { id: 'ophthalmology', name: 'Ophthalmology', synonyms: ['eye', 'eyes', 'ophthalmologist', 'eye specialist', 'retina', 'vision'] },
   { id: 'psychiatry', name: 'Psychiatry', synonyms: ['mental health', 'psychiatrist', 'anxiety', 'depression', 'depress', 'mental'] },
   { id: 'nephrology', name: 'Nephrology', synonyms: ['kidney', 'renal', 'nephrologist'] },
+  { id: 'endocrinology', name: 'Endocrinology', synonyms: ['endocrine', 'endocrinologist', 'diabetes', 'sugar', 'thyroid', 'hormone'] },
+  { id: 'rheumatology', name: 'Rheumatology', synonyms: ['rheumatologist', 'arthritis', 'autoimmune'] },
   { id: 'oncology', name: 'Oncology', synonyms: ['cancer', 'oncologist', 'tumour', 'tumor'] },
   { id: 'pulmonology', name: 'Pulmonology', synonyms: ['respiratory', 'lung', 'pulmonologist', 'chest', 'asthma'] },
   { id: 'gastroenterology', name: 'Gastroenterology', synonyms: ['gastro', 'stomach', 'liver', 'gut', 'gastroenterologist', 'digestive'] },

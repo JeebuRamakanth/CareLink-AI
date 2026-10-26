@@ -450,6 +450,69 @@ export interface MedicineResult {
   uncertain?: boolean;
   /** mock/live provenance for the recognition. */
   source?: 'real' | 'mock';
+  /** True only when the name was verified against an authoritative database. */
+  verified?: boolean;
+  /** Verified common uses (from a label source), when available. */
+  uses?: string[];
+  /** Verified common side effects, when available. */
+  sideEffects?: string[];
+  /** Verified serious warnings, when available. */
+  seriousWarnings?: string[];
+  /** Reference/label dosage text — never a patient-specific dose. */
+  referenceDosage?: string | null;
+  /** Why the identification is uncertain. */
+  uncertaintyReason?: string | null;
+  /** Provenance entries for the medicine facts shown. */
+  evidence?: { label: string; url?: string; retrievedAt?: string; supports: string }[];
+  /** What could not be verified — surfaced, never hidden. */
+  unverified?: string[];
+}
+
+/** Verified medicine facts + the user's own prescription instruction. */
+export interface MedicineCareInfo {
+  /** True only when the medicine was verified against a reference database. */
+  verified: boolean;
+  /** Why it is not verified (never empty when `verified` is false). */
+  uncertaintyReason: string | null;
+  /** Verified educational facts, each traceable to a source. */
+  facts: { label: string; detail: string }[];
+  /** Source labels for the facts above. */
+  sources: string[];
+  /** What could NOT be verified — stated, never hidden. */
+  unverified: string[];
+  /** The user's own prescription instruction for this medicine, when attached. */
+  prescriptionInstruction: {
+    asWritten: string;
+    strength: string | null;
+    form: string | null;
+    frequency: string | null;
+    timing: string | null;
+    duration: string | null;
+    schedule: string[];
+    needsConfirmation: string[];
+    page: number;
+  } | null;
+  /** The reference (label) dosage text — never a patient-specific dose. */
+  referenceDosage: string | null;
+}
+
+/**
+ * A facility recommended from the findings of an analysed report, with the
+ * facility's OWN published department as the evidence for relevance.
+ */
+export interface ReportFacilityRecommendation {
+  /** Canonical clinical specialty the finding maps to (a SERVICE, not a diagnosis). */
+  specialty: string;
+  /** Plain-language clinical area. */
+  area: string;
+  /** The department name the FACILITY itself publishes (verbatim). */
+  matchedDepartment: string;
+  /** The report findings that made this facility relevant. */
+  findings: { testName: string; measuredValue: string; referenceRange: string; basis: string }[];
+  /** Full evidence-grounded explanation rendered with the card. */
+  whyRelevant: string;
+  /** The facility record (rendered with the standard hospital card). */
+  facility: HospitalRecommendation;
 }
 
 export interface MedicineInput {
@@ -639,6 +702,36 @@ export interface AgentResult {
   labs: LabRecommendation[];
   bloodCentres: BloodCentreRecommendation[];
   medicines: MedicineResult[];
+  /**
+   * Verified medicine facts + the user's own prescription instruction for the
+   * medicine on screen. Present only when a medicine was resolved this turn.
+   */
+  medicineCareInfo?: MedicineCareInfo;
+  /**
+   * Facilities recommended from the findings of an analysed report, each with
+   * the facility's OWN published department as evidence of relevance. Populated
+   * only when a report with abnormal findings was attached.
+   */
+  reportFacilities?: ReportFacilityRecommendation[];
+  /** Honest explanation when no facility publishes a matching service. */
+  reportFacilityNotice?: string;
+  /**
+   * The user's OWN prescription, extracted from an attached document and shown
+   * exactly as written. Present only when a prescription was actually read.
+   * CareLink never creates, changes or reminds about a prescription.
+   */
+  prescriptionSchedule?: {
+    medicine: string;
+    strength: string | null;
+    form: string | null;
+    instruction: string;
+    frequency: string | null;
+    timing: string | null;
+    duration: string | null;
+    schedule: string[];
+    needsConfirmation: string[];
+    page: number;
+  }[];
   routes: RouteRecommendation[];
   appointments: AppointmentRecommendation[];
   medicalReport?: MedicalReport;

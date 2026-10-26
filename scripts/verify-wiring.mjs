@@ -730,7 +730,12 @@ check(
 );
 check(
   'pipeline: sendMessage awaits the real analysis before the orchestrator runs',
-  has('src/features/health-agent/hooks/useAgentConversation.ts', 'await Promise.all(pending.map'),
+  // A document already being analysed by the composer must be JOINED (its
+  // in-flight promise awaited), not skipped — otherwise Send during analysis
+  // sent an un-analysed attachment and the agent answered generically.
+  has('src/features/health-agent/hooks/useAgentConversation.ts', 'pipelineRuns.current.get')
+    && has('src/features/health-agent/hooks/useAgentConversation.ts', 'await Promise.all([')
+    && has('src/features/health-agent/hooks/useAgentConversation.ts', 'notStarted.map((d) => runDocumentPipeline(d.id))'),
   'the orchestrator must not read an un-analysed attachment'
 );
 
@@ -765,6 +770,81 @@ check(
   has('src/services/agent/mockAgentService.ts', 'Medicine not confidently identified') &&
     !has('src/services/agent/mockAgentService.ts', "rawInput: 'paracetamol'"),
   'a medicine the user never named must not be invented'
+);
+
+/* ----------------------------------------------------------------------------
+ * Step 32 — connected report/prescription/medicine workflow
+ * ------------------------------------------------------------------------- */
+
+const ORCH = 'src/features/health-agent/services/agentOrchestrator.ts';
+const TREATMENT = 'src/features/health-agent/services/treatmentFacilities.ts';
+const ANALYTE_MAP = 'src/features/health-agent/data/analyteSpecialty.ts';
+const CARE_INFO = 'src/features/health-agent/services/medicineCareInfo.ts';
+const MED_LOOKUP = 'src/features/health-agent/services/medicineLookup.ts';
+
+check('report: an analyte → clinical-service mapping exists', existsSync(join(root, ANALYTE_MAP)));
+check(
+  'report: facility relevance requires a PUBLISHED department',
+  has(TREATMENT, 'evidence_status !== \'published\'') && has(TREATMENT, 'isSameSpecialty(department.name'),
+  'a capability must never be inferred from the report or a facility name'
+);
+check(
+  'report: the why-relevant explanation names the facility department and does not prescribe',
+  has(TREATMENT, 'publishes a ${department} department') && has(TREATMENT, 'A clinician decides'),
+  'the explanation must cite evidence and defer the clinical decision'
+);
+check(
+  'report: the orchestrator reads the real directory for facility discovery',
+  has(ORCH, 'matchFacilitiesForReport') && has(ORCH, 'buildReportResultWithDiscovery'),
+  'the report builder must map findings onto real facilities'
+);
+check(
+  'report: the orchestrator surfaces the discovered facilities + honest notice',
+  has(ORCH, 'reportFacilities') && has(ORCH, 'reportFacilityNotice'),
+  'the result must carry the evidence and the empty state'
+);
+check(
+  'prescription: an analysed prescription is authoritative over the text classifier',
+  has(ORCH, 'analysedPrescription') && has(ORCH, 'buildPrescriptionResult'),
+  'an attached prescription must not fall through to a generic report answer'
+);
+check(
+  'prescription: the schedule is reproduced verbatim and never turned into advice',
+  has(ORCH, 'prescriptionSchedule') && has(ORCH, 'exactly as written') && has(ORCH, 'does not create, change or remind'),
+  'the user’s own prescription must be shown as written'
+);
+check(
+  'medicine: every medicine gets real pharmacy discovery',
+  has(ORCH, 'getPharmacyRecommendations') && !has(ORCH, 'pharmacyDiscoveryAction ?'),
+  'pharmacy discovery must not depend on the 3 legacy demo drugs'
+);
+check(
+  'medicine: verified facts are surfaced from the reference lookup',
+  has(ORCH, 'medicineCareInfo') && has(CARE_INFO, 'verified === true'),
+  'only database-verified facts may be shown'
+);
+check(
+  'medicine: a typed name outside the demo catalog is verified, never guessed',
+  has(MED_LOOKUP, 'extractMedicineCandidates') && has(ORCH, 'looksLikeMedicineQuestion') && has(ORCH, 'resolveIdentifiedMedicine'),
+  'a real medicine name must be tried against the reference database'
+);
+check(
+  'medicine: an unverified result shows no fabricated facts',
+  has(CARE_INFO, 'This medicine was not verified against a reference database'),
+  'unverified must stay visibly unverified'
+);
+check(
+  'ui: the assistant renders report facilities, prescription schedule and verified facts',
+  has('src/features/health-agent/components/AIChatPage.tsx', 'reportFacilities')
+    && has('src/features/health-agent/components/AIChatPage.tsx', 'prescriptionSchedule')
+    && has('src/features/health-agent/components/AIChatPage.tsx', 'medicineCareInfo'),
+  'the new data must actually reach the user'
+);
+check(
+  'tests: the connected-workflow suite exists and is wired into test:focused',
+  existsSync(join(root, 'src/features/health-agent/services/treatmentFacilities.test.mjs'))
+    && has('package.json', 'treatmentFacilities.test.mjs'),
+  'the workflow must be covered by automated tests'
 );
 
 console.log(`\nCareLink wiring audit — ${checks.length} checks`);
