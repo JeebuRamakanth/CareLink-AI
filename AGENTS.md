@@ -1700,3 +1700,103 @@ then re-run `npm run verify:medicine-image` against a configured backend.
   (`npm run fixtures`).
 - Vite `server.allowedHosts` must list the current work host or the dev server returns
   "Blocked request".
+
+## Step 32 — Connected clinical workflow: report→facility, prescription, medicine→pharmacy (VERIFIED)
+
+Requirement: connect the whole medical-intelligence chain end to end, and prove
+it on mobile — not just render cards.
+
+### REAL defects found by running the actual orchestrator (not by reading code)
+Probing `createAgentOrchestrator(mockAdapters)` with real document objects exposed
+four production bugs that all unit/E2E suites were passing over:
+
+1. **An uploaded PRESCRIPTION fell through to a generic answer.** The extracted
+   `prescription.schedule` never reached the user — the text classifier only saw
+   "uploaded document" and produced "Understanding your report".
+2. **An abnormal/critical report recommended ZERO facilities.** Only a bare
+   `/doctors` link. No evidence-grounded treatment-facility discovery existed.
+3. **Medicine results surfaced no pharmacies** except the three legacy demo drugs
+   (`metformin`/`paracetamol`/`amoxicillin`) that carried a hardcoded
+   `pharmacyDiscoveryAction`.
+4. **Verified medicine facts were dropped.** The RxNorm/openFDA lookup returned
+   `uses`/`sideEffects`/`seriousWarnings`/`referenceDosage`, but the agent's
+   `MedicineResult` type had nowhere to carry them.
+
+Two more were found only in the browser E2E:
+
+5. **Pressing Send during analysis sent an UN-ANALYSED attachment.**
+   `runDocumentPipeline` began with `if (pipelineLocks.has(id)) return;` — so the
+   composer's in-flight job was *skipped*, not joined, and `sendMessage` proceeded
+   with a document that had no `secureAnalysis`. The report rendered as
+   "Report received — no lab values extracted yet".
+   Fix: store the pipeline **promise** (`pipelineRuns`) and have `sendMessage`
+   await both in-flight runs and not-yet-started documents.
+6. **Duplicate React key** when one facility was relevant for two specialties
+   (a real console error, caught by the console-exception assertion).
+   Fix: de-duplicate facilities and doctors before rendering.
+
+### Architecture added (all read-boundary clean)
+- `src/features/health-agent/data/analyteSpecialty.ts` — analyte key → canonical
+  clinical SERVICE + area + rationale. A service mapping, never a diagnosis.
+- `src/features/health-agent/services/treatmentFacilities.ts` — the decision layer.
+  `publishedDepartmentFor()` returns the department **only** when the facility's
+  own `evidence_status === 'published'` record satisfies the specialty. Facilities
+  with no published department can never be matched. `whyRelevant` quotes the exact
+  value + reference range and names the facility's own department verbatim, then
+  says "A clinician decides what, if anything, is needed."
+- `src/features/health-agent/services/medicineCareInfo.ts` — verified-facts gate +
+  `prescriptionInstructionFor()` (conservative whole-word medicine matching; a
+  partial typo never matches).
+- `src/features/health-agent/services/medicineLookup.ts` — candidate-name
+  extraction so a typed name outside the 3-drug demo catalog is still offered to
+  the authoritative lookup. Candidates are only ever SHOWN when verification
+  succeeds.
+- `specialtyTaxonomy.ts` gained `Endocrinology` and `Rheumatology` (the directory
+  publishes both; without them the taxonomy could not resolve its own records).
+- Orchestrator: `buildPrescriptionResult`, `buildReportResultWithDiscovery`,
+  `resolveIdentifiedMedicine`, and the `analysedPrescription` short-circuit
+  (checked AFTER `analysedMedicinePhoto` so a photographed medicine still wins).
+- `AgentResult` gained `reportFacilities`, `reportFacilityNotice`,
+  `medicineCareInfo`, `prescriptionSchedule`; `MedicineResult` gained
+  `verified`/`uses`/`sideEffects`/`seriousWarnings`/`referenceDosage`/
+  `uncertaintyReason`/`evidence`/`unverified`.
+
+### Test tooling
+- NEW `src/features/health-agent/services/treatmentFacilities.test.mjs` (18 tests,
+  registered in `test:focused`) — runs the REAL orchestrator plus the pure modules.
+- NEW `npm run verify:workflow-e2e` (`scripts/verify-workflow-e2e.mjs`, 32 checks)
+  — uploads the real fixtures on `/ai` and asserts the rendered result, plus
+  mobile upload/analyse/camera/touch-target/tel: checks at 360/390/430px.
+- `verify:wiring` 124 checks (12 new). One OLD check asserted the race-prone
+  `await Promise.all(pending.map(` — rewritten to assert the promise-join instead.
+- `WORKFLOW_VERIFICATION.md` — the requirement-to-test checklist with
+  IMPLEMENTED / AUTOMATED-TESTED / LIVE-INTEGRATION-VERIFIED / BLOCKED per row.
+
+### Verification (this environment)
+`npm run build` green (807 modules); `npm run lint` 0 errors, **15 pre-existing
+warnings, 0 new**; `test:focused` **214/214** (was 196); `verify:wiring`
+**124/124**; `verify:e2e` 54/54; `verify:workflow-e2e` **32/32**; `verify:sweep`
+18 routes × 8 widths = 0 console errors / 0 overflow; `verify:documents` 26/26;
+`verify:medicine-image` 25/25; `verify:auth` 11/11; `verify:workflow` 39/39;
+`verify:navigation` 10/10; `verify:directory` 21/21. SQL replay **672 PASS /
+0 FAIL** (Docker Postgres 16; run with
+`export PGHOST=127.0.0.1 PGUSER=openhands PGPASSWORD=postgres` inside the
+container — `docker exec -u openhands` fails because that user is not in the
+container's passwd).
+
+### Gotchas
+- `innerText` reflects CSS `text-transform`, and the design system uppercases
+  section headings — E2E text waits must be case-insensitive.
+- `.agent_tmp/` is the scratch space for probe scripts, screenshots and server
+  logs; it is git-ignored.
+- A facility CAN be relevant for two specialties; always de-duplicate before
+  rendering or React reports a duplicate key.
+
+### BLOCKED (unchanged)
+No Supabase URL/anon key, `XAI_API_KEY`, `XAI_MODEL`, `XAI_VISION_MODEL`,
+Cloudinary, Google Places or Maps key exist here. Live AI answers, live
+medicine-photo vision, the live Supabase registry and live pharmacy stock are
+therefore NOT LIVE-INTEGRATION-VERIFIED; each is implemented behind a gate with an
+actionable configuration path, and the UI states the honest unavailable state.
+A physical Android device/emulator is also not attached, so mobile was verified at
+real mobile viewports (360/390/430, DPR 2, touch emulation) rather than on hardware.

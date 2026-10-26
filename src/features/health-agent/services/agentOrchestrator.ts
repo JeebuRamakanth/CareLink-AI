@@ -25,19 +25,20 @@ import type {
   MedicalReport,
   MedicalReportValue,
   MedicineResult,
-  PharmacyRecommendation,
+  ReportFacilityRecommendation,
 
   UrgencyLevel,
   InformationTier,
 } from '../types';
 import type { AgentAdapters } from './adapters/interfaces';
+import type { MedicineRecognitionResult } from '../../documents/types';
+import type { EvidenceReference } from '../../documents/types';
 import { mockAdapters } from './adapters/mockAdapters';
 import { adapters as resolvedAdapters, isAnyProviderReal } from './adapters/registry';
 import { DISCLOSURES } from '../utils/safety';
 import {
   buildRouteFromHospital,
   labRecommendations,
-  pharmacyRecommendations,
   recoverySeed,
   vaccinationSchedules,
 } from '../data/mockData';
@@ -72,6 +73,9 @@ import {
 } from './ai/messages';
 import { getBloodCentres } from '../../../services/bloodCentreService';
 import { identifyMedicine } from '../../documents/services/medicineIdentificationService';
+import { extractMedicineCandidates, looksLikeMedicineQuestion } from './medicineLookup';
+import { buildMedicineCareInfo } from './medicineCareInfo';
+import { matchFacilitiesForReport, type ReportFacilityDiscovery } from './treatmentFacilities';
 import { primaryEmergencyContact } from '../../documents/services/clinical/emergencyConfig';
 import { getPharmacyRecommendations, getLaboratoryRecommendations } from './pharmacyRecommendations';
 import { haversineKm, estimateDriveMinutes } from '../../../lib/location';
@@ -175,9 +179,6 @@ const directoryDoctors = async (specialty: string | undefined) => {
   const matched = filterDoctorsBySpecialty(all, specialty);
   return matched.length > 0 ? matched : all;
 };
-
-/** Full pharmacy pool minus the medicine's own discovery pharmacy, for richer medicine results. */
-const pharmacyNeighbors = (): PharmacyRecommendation[] => pharmacyRecommendations;
 
 /* ----------------------------------------------------------------------------
  * AI engine integration (Step 13)
@@ -572,13 +573,41 @@ async function buildBloodCentreResult(patient?: PatientPoint | null): Promise<Ag
   });
 }
 
+/**
+ * Resolve a medicine identity from free text, then VERIFY it against an
+ * authoritative reference database.
+ *
+ * The adapter's demo catalog only knows a handful of names, so a real medicine
+ * typed by the user ("atorvastatin", "pantoprazole") would otherwise produce no
+ * medicine result at all. Candidate names are therefore extracted from the text
+ * and each is offered to the authoritative lookup. A candidate is only ever
+ * SHOWN when the lookup verifies it — otherwise the honest "not identified"
+ * result is returned.
+ */
+async function resolveIdentifiedMedicine(
+  rawInput: string,
+  adapters: AgentAdapters,
+  preRecognized?: { name: string | null } | null,
+): Promise<MedicineRecognitionResult | null> {
+  const recognized = preRecognized !== undefined ? preRecognized : await adapters.medicines.recognize({ text: rawInput });
+  const direct = recognized?.name ? await identifyMedicine({ text: recognized.name }) : null;
+  if (direct?.name) return direct;
+
+  for (const candidate of extractMedicineCandidates(rawInput)) {
+    const verified = await identifyMedicine({ text: candidate }).catch(() => null);
+    if (verified?.name) return verified;
+  }
+  return null;
+}
+
 async function buildMedicineResult(
   rawInput: string,
   _adapters: AgentAdapters,
   context?: ConversationContext,
   patient?: PatientPoint | null,
   language: AgentLanguage = 'en',
-  documents: HealthDocument[] = []
+  documents: HealthDocument[] = [],
+  resolved?: MedicineRecognitionResult | null,
 ): Promise<AgentResult> {
   // Resolve the medicine NAME first (registry: real provider when configured,
   // honest low-confidence demo match otherwise), then verify that name against an
@@ -586,7 +615,7 @@ async function buildMedicineResult(
   // reference lookup would risk matching an unrelated drug, so the name is
   // extracted before verification.
   const recognized = await _adapters.medicines.recognize({ text: rawInput });
-  const identified = recognized?.name ? await identifyMedicine({ text: recognized.name }) : null;
+  const identified = resolved ?? await resolveIdentifiedMedicine(rawInput, _adapters, recognized);
   const medicine: MedicineResult | null = identified?.name
     ? {
       id: `med-${identified.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40)}`,
@@ -601,11 +630,19 @@ async function buildMedicineResult(
       recognitionConfidence: identified.confidence / 100,
       uncertain: identified.isUncertain,
       source: identified.source === 'real' ? 'real' : 'mock',
+      verified: identified.verified === true,
+      uses: identified.uses,
+      sideEffects: identified.sideEffects,
+      seriousWarnings: identified.seriousWarnings,
+      referenceDosage: identified.referenceDosage ?? null,
+      uncertaintyReason: identified.uncertaintyReason ?? null,
+      evidence: identified.evidence,
+      unverified: identified.unverified,
     }
     : recognized
       ? { ...recognized, uncertain: true, source: 'mock' as const }
       : null;
-  const identifiedEvidence = identified?.evidence ?? [];
+  const identifiedEvidence: EvidenceReference[] = identified?.evidence ?? [];
   // §8.4 — the mandatory professional-consultation notice, in the user's language.
   const consultNotice = localized(MEDICATION_CONSULT_NOTICE, language);
 
@@ -630,9 +667,14 @@ async function buildMedicineResult(
         ? 'Medicine photo — possible match (unverified)'
         : 'Medicine photo — could not be identified';
 
+    // Verified facts + the user's own prescription instruction for the medicine
+    // read from the photo (when a prescription was attached alongside it).
+    const careInfo = med ? buildMedicineCareInfo(med, documents) : null;
+    const rx = careInfo?.prescriptionInstruction ?? null;
+
     return emptyResult('medicine', {
       summary,
-      explanation: `${photo.summary} ${consultNotice}`,
+      explanation: `${photo.summary}${rx ? ` Your attached prescription says: “${rx.asWritten}”.` : ''} ${consultNotice}`,
       urgency: 'routine',
       meta: {
         confidence: level === 'verified' ? 'medium' : 'low',
@@ -640,9 +682,11 @@ async function buildMedicineResult(
         tier: level === 'verified' ? 'educational' : 'professional',
         disclaimer: consultNotice,
       },
-      recommendedNextSteps: level === 'verified'
-        ? ['Confirm this medicine and its dose with a pharmacist before use.']
-        : ['Photograph the front and back of the strip or box in good light, or type the printed name.', 'Ask a pharmacist to confirm the medicine before purchase or use.'],
+      recommendedNextSteps: rx
+        ? [`Follow the prescription exactly as written: “${rx.asWritten}”.`, 'Confirm this medicine and its dose with a pharmacist before use.']
+        : level === 'verified'
+          ? ['Confirm this medicine and its dose with a pharmacist before use.']
+          : ['Photograph the front and back of the strip or box in good light, or type the printed name.', 'Ask a pharmacist to confirm the medicine before purchase or use.'],
       medicines: med ? [{
         id: `med-${photoDoc!.id}`,
         name: med.name ?? printed ?? 'Unidentified medicine',
@@ -656,7 +700,16 @@ async function buildMedicineResult(
         recognitionConfidence: med.confidence / 100,
         uncertain: med.isUncertain || uncertain,
         source: 'real',
+        verified: med.verified === true,
+        uses: med.uses,
+        sideEffects: med.sideEffects,
+        seriousWarnings: med.seriousWarnings,
+        referenceDosage: med.referenceDosage ?? null,
+        uncertaintyReason: med.uncertaintyReason ?? null,
+        evidence: med.evidence,
+        unverified: med.unverified,
       }] : [],
+      medicineCareInfo: careInfo ?? undefined,
       warnings: uncertain
         ? [`Medicine identification is not confirmed (${level}). Verify the name and strength on the strip or with a pharmacist.`]
         : [],
@@ -696,21 +749,53 @@ async function buildMedicineResult(
   }
 
   const med = medicine;
-  const rankedPharmacies = med.pharmacyDiscoveryAction ? rankPharmacies([med.pharmacyDiscoveryAction, ...pharmacyNeighbors()], rankInput('routine', med.name, context)).slice(0, 3) : [];
-  const { results: pharmacies } = localizePharmacies(rankedPharmacies, patient ?? null, !isAnyProviderReal());
+  // REAL sourced pharmacy discovery for EVERY medicine (not only the three
+  // legacy demo drugs that happened to carry a `pharmacyDiscoveryAction`).
+  const rankedPharmacies = rankPharmacies(
+    await getPharmacyRecommendations(
+      patient && typeof patient.lat === 'number' && typeof patient.lng === 'number'
+        ? { lat: patient.lat, lng: patient.lng }
+        : null,
+      6,
+    ),
+    rankInput('routine', med.name, context),
+  ).slice(0, 3);
+  const { results: pharmacies } = { results: rankedPharmacies };
   const uncertain = med.uncertain === true || (typeof med.recognitionConfidence === 'number' && med.recognitionConfidence < 0.6);
+  const careInfo = buildMedicineCareInfo(identified!, documents);
+
+  // The user's OWN prescription instruction (when attached) is shown verbatim and
+  // clearly separated from general educational information. It is never turned
+  // into advice and never used to change a dose.
+  const rx = careInfo.prescriptionInstruction;
+  const rxNote = rx
+    ? ` Your attached prescription says: “${rx.asWritten}”${rx.page ? ` (page ${rx.page})` : ''}. This is reproduced exactly as written — confirm anything unclear with the prescriber.`
+    : '';
+  const nextSteps = rx
+    ? [
+        `Follow the prescription exactly as written: “${rx.asWritten}”.`,
+        'Do not change the dose without asking your doctor or pharmacist.',
+      ]
+    : [med.prescriptionRequired ? 'This medicine needs a prescription — consult your doctor.' : 'Available over the counter; follow label directions.'];
+
+  const warnings: string[] = [];
+  if (uncertain) warnings.push('Medicine identification is uncertain. Please verify the name and strength with the label/pharmacist.');
+  if (!careInfo.verified) warnings.push('No verified reference information is available for this medicine — nothing about its uses or side effects is shown rather than guessing.');
+  if (rx && rx.needsConfirmation.length > 0) warnings.push(`Your prescription line could not be fully read (${rx.needsConfirmation.join(', ')}). Confirm those fields with the prescriber.`);
+
   return emptyResult('medicine', {
     summary: `Medicine info — ${med.name}`,
-    explanation: `General medicine information for navigation only. This is not a prescription or dosage recommendation. ${consultNotice}`,
+    explanation: `General medicine information for navigation only. This is not a prescription or dosage recommendation.${rxNote} ${consultNotice}`,
     urgency: 'routine',
     meta: {
       confidence: uncertain ? 'low' : 'medium', urgency: 'routine', tier: 'educational',
       disclaimer: consultNotice,
     },
-    recommendedNextSteps: [med.prescriptionRequired ? 'This medicine needs a prescription — consult your doctor.' : 'Available over the counter; follow label directions.'],
+    recommendedNextSteps: nextSteps,
     medicines: [med],
+    medicineCareInfo: careInfo,
     pharmacies,
-    warnings: uncertain ? ['Medicine identification is uncertain. Please verify the name and strength with the label/pharmacist.'] : [],
+    warnings,
     dataSource: medicine.source === 'real' ? 'real' : dataSourceFor(),
     isDemoData: medicine.source !== 'real' && !isAnyProviderReal(),
     sources: identifiedEvidence.length > 0 ? identifiedEvidence.map((e) => e.label) : ['Medicine reference lookup unavailable'],
@@ -723,6 +808,108 @@ async function buildMedicineResult(
 }
 
 /**
+ * Prescription-aware result.
+ *
+ * Previously an attached prescription fell through the text classifier and
+ * produced a generic "Understanding your report" answer — the extracted
+ * medication schedule never reached the user. This builder reproduces the
+ * prescription EXACTLY as written, resolves each named medicine against an
+ * authoritative reference database (never a guess), and offers real pharmacy
+ * discovery. It never creates, changes or reminds about a prescription.
+ */
+async function buildPrescriptionResult(
+  documents: HealthDocument[],
+  patient?: PatientPoint | null,
+  language: AgentLanguage = 'en',
+): Promise<AgentResult> {
+  const consultNotice = localized(MEDICATION_CONSULT_NOTICE, language);
+  const rxDoc = documents.find((d) => d.secureAnalysis?.prescription?.schedule?.length);
+  const rx = rxDoc?.secureAnalysis?.prescription;
+
+  if (!rx || (rx.schedule ?? []).length === 0) {
+    return emptyResult('medicine', {
+      summary: 'Prescription received — no medication lines could be read',
+      explanation: `No medicine line could be read from the attached prescription, so nothing has been interpreted. Upload a clearer photo or PDF of the prescription. ${consultNotice}`,
+      urgency: 'routine',
+      meta: { confidence: 'low', urgency: 'routine', tier: 'professional', disclaimer: consultNotice },
+      recommendedNextSteps: ['Upload a clearer copy of the prescription, or type the medicine names you want to check.'],
+      dataSource: 'real',
+      isDemoData: false,
+      sources: ['CareLink document pipeline'],
+      actions: [
+        { type: 'upload-prescription', label: 'Upload a prescription', href: ROUTES.ai, icon: 'upload-prescription' },
+        { type: 'find-doctor', label: 'Find a doctor', href: ROUTES.doctors, icon: 'find-doctor' },
+      ],
+      suggestedReplies: ['Upload a prescription', 'Find a doctor'],
+    });
+  }
+
+  const schedule = rx.schedule ?? [];
+  // Verify each named medicine against a real reference database. A name that
+  // does not resolve is reported as unverified — never presented as a fact.
+  const verified = await Promise.all(schedule.map(async (row) => {
+    const identified = await identifyMedicine({ text: row.medicine }).catch(() => null);
+    return {
+      row,
+      info: identified && identified.verified ? identified : null,
+    };
+  }));
+
+  const verifiedNames = verified.filter((v) => v.info).map((v) => v.info!.genericName ?? v.info!.name ?? v.row.medicine);
+  const unverifiedNames = verified.filter((v) => !v.info).map((v) => v.row.medicine);
+  const anyNeedsConfirmation = schedule.some((r) => r.needsConfirmation.length > 0);
+
+  const pharmacies = rankPharmacies(
+    await getPharmacyRecommendations(
+      patient && typeof patient.lat === 'number' && typeof patient.lng === 'number'
+        ? { lat: patient.lat, lng: patient.lng }
+        : null,
+      6,
+    ),
+    rankInput('routine', undefined, undefined),
+  ).slice(0, 3);
+
+  const warnings: string[] = [];
+  if (unverifiedNames.length > 0) {
+    warnings.push(`These medicines could not be verified against a reference database: ${unverifiedNames.join(', ')}. Confirm the exact name and strength on the prescription with your pharmacist.`);
+  }
+  if (anyNeedsConfirmation) warnings.push('Some prescription fields could not be read clearly. Confirm those lines with the prescriber or pharmacist.');
+
+  return emptyResult('medicine', {
+    summary: `Your prescription — ${schedule.length} medicine line(s)`,
+    explanation: `Your prescription has been read and is reproduced below exactly as written${rx.doctorName ? ` (prescribed by ${rx.doctorName})` : ''}${rx.date ? ` on ${rx.date}` : ''}. ${verifiedNames.length > 0 ? `Verified against a reference database: ${verifiedNames.join(', ')}. ` : ''}This is your own prescription, shown verbatim — CareLink does not create, change or remind you about a prescription. ${consultNotice}`,
+    urgency: 'routine',
+    meta: { confidence: 'medium', urgency: 'routine', tier: 'professional', disclaimer: consultNotice },
+    recommendedNextSteps: [
+      'Follow each instruction exactly as written on the prescription.',
+      'Ask your pharmacist to confirm any line that is unclear, and to check for interactions with your other medicines.',
+    ],
+    prescriptionSchedule: schedule.map((r) => ({
+      medicine: r.medicine,
+      strength: r.strength,
+      form: r.form,
+      instruction: r.instruction,
+      frequency: r.frequency,
+      timing: r.timing,
+      duration: r.duration,
+      schedule: r.schedule,
+      needsConfirmation: r.needsConfirmation,
+      page: r.page,
+    })),
+    pharmacies,
+    warnings,
+    dataSource: 'real',
+    isDemoData: false,
+    sources: ['Values read from your uploaded prescription', ...(verifiedNames.length > 0 ? ['RxNorm / openFDA medicine reference lookup'] : [])],
+    actions: [
+      { type: 'find-pharmacy', label: 'Find a pharmacy', href: ROUTES.pharmacies, icon: 'find-pharmacy' },
+      { type: 'find-doctor', label: 'Find a doctor', href: ROUTES.doctors, icon: 'find-doctor' },
+    ],
+    suggestedReplies: ['Find a pharmacy', 'Find a doctor', 'What should I do next?'],
+  });
+}
+
+/**
  * Build a report result from the REAL secure analysis of the attached documents.
  *
  * This previously returned a hardcoded "mock interpretation" (FBS 132, HbA1c
@@ -730,7 +917,12 @@ async function buildMedicineResult(
  * lab values produced by the documents pipeline, and states honestly when no
  * analysis is available yet — it never invents values.
  */
-function buildReportResult(documents: HealthDocument[]): AgentResult {
+/**
+ * Synchronous report construction. The facility discovery result is computed
+ * asynchronously by the caller (it needs the directory) and passed in, so this
+ * function stays pure and testable.
+ */
+function buildReportResultSync(documents: HealthDocument[], discovery: ReportFacilityDiscovery): AgentResult {
   const analysed = documents.filter((d) => d.secureAnalysis);
   const labDoc = analysed.find((d) => d.secureAnalysis?.labResult);
   const sourceFile = documents.find((d) => d.kind === 'pdf' || d.kind === 'document')?.fileName
@@ -786,27 +978,108 @@ function buildReportResult(documents: HealthDocument[]): AgentResult {
   };
 
   const critical = lab.values.some((v) => v.critical);
+  const hasAttention = lab.valuesRequiringAttention.length > 0;
+
+  // --- Evidence-grounded facility discovery ---------------------------------
+  // Facilities come from the caller-computed discovery result, which only
+  // includes a facility when that facility INDEPENDENTLY publishes the matching
+  // department. We never pad the list and never claim a treatment capability.
+  const reportFacilities: ReportFacilityRecommendation[] = discovery.facilities.map((f) => ({
+    specialty: f.specialty,
+    area: discovery.specialties.find((s) => s.specialty === f.specialty)?.area ?? '',
+    matchedDepartment: f.matchedDepartment,
+    findings: f.findings.map((x) => ({
+      testName: x.testName,
+      measuredValue: x.measuredValue,
+      referenceRange: x.referenceRange,
+      basis: x.basis,
+    })),
+    whyRelevant: f.whyRelevant,
+    facility: f.facility,
+  }));
+
+  const primarySpecialty = discovery.specialties[0];
+  // A facility can be relevant for more than one specialty (e.g. it publishes
+  // both Nephrology and Cardiology). De-duplicate so the SAME hospital is never
+  // rendered twice — a duplicate React key would also break list identity.
+  const seenFacilityIds = new Set<string>();
+  const hospitals = discovery.facilities
+    .filter((f) => {
+      if (seenFacilityIds.has(f.facility.id)) return false;
+      seenFacilityIds.add(f.facility.id);
+      return true;
+    })
+    .map((f) => f.facility)
+    .slice(0, 4);
+  const seenDoctorIds = new Set<string>();
+  const doctors = discovery.facilities
+    .flatMap((f) => f.doctors)
+    .filter((d) => {
+      if (seenDoctorIds.has(d.id)) return false;
+      seenDoctorIds.add(d.id);
+      return true;
+    })
+    .slice(0, 3);
+
+  // Honest notice when a finding needs a service but no facility publishes it.
+  const reportFacilityNotice = discovery.nothingToActOn
+    ? 'No value on this report is outside its reference range, so no clinical service is indicated from it. Keep it with your records and share it at your next routine visit.'
+    : discovery.noPublishedMatch
+      ? `Your report shows a value that is usually reviewed by ${discovery.specialties.map((s) => s.specialty).join(' or ')}. No facility in the CareLink directory publishes that service yet, so no facility is recommended rather than showing an unrelated one. Ask your current doctor for a referral.`
+      : undefined;
+
+  const nextSteps = [
+    analysis.recommendedNextAction,
+    ...(discovery.facilities.length > 0
+      ? [`Confirm with a clinician: ${discovery.specialties.map((s) => s.specialty).join(', ')} is the service that usually manages the value(s) flagged on this report.`]
+      : []),
+  ];
+
   return emptyResult('report', {
     summary: `Medical report — ${lab.values.length} value(s) read`,
     explanation: analysis.summary,
-    urgency: critical ? 'urgent' : lab.valuesRequiringAttention.length > 0 ? 'attention' : 'routine',
+    urgency: critical ? 'urgent' : hasAttention ? 'attention' : 'routine',
     meta: {
       confidence: 'medium',
-      urgency: critical ? 'urgent' : lab.valuesRequiringAttention.length > 0 ? 'attention' : 'routine',
+      urgency: critical ? 'urgent' : hasAttention ? 'attention' : 'routine',
       tier: 'professional',
       disclaimer: 'Values were read from your uploaded document. This is navigational information, not a diagnosis — confirm with a licensed professional.',
     },
-    recommendedNextSteps: [analysis.recommendedNextAction],
+    recommendedNextSteps: nextSteps,
     medicalReport: report,
+    hospitals,
+    doctors,
+    reportFacilities,
+    reportFacilityNotice,
     dataSource: 'real',
     isDemoData: false,
     sources: analysis.evidence?.length ? analysis.evidence.map((e) => e.label) : ['Values read from your uploaded document'],
     actions: [
-      { type: 'find-doctor', label: 'Find a relevant doctor', href: ROUTES.doctors, icon: 'find-doctor' },
+      ...(primarySpecialty
+        ? [{ type: 'find-doctor' as const, label: `Find a ${primarySpecialty.specialty} specialist`, href: `${ROUTES.doctors}?q=${encodeURIComponent(primarySpecialty.specialty)}`, icon: 'find-doctor' as const }]
+        : [{ type: 'find-doctor' as const, label: 'Find a relevant doctor', href: ROUTES.doctors, icon: 'find-doctor' as const }]),
       { type: 'open-command-center', label: 'What should I do next?', href: ROUTES.ai, icon: 'open-command-center' },
     ],
-    suggestedReplies: ['Find a doctor', 'What should I do next?', 'Find a hospital'],
+    suggestedReplies: primarySpecialty
+      ? [`Find a ${primarySpecialty.specialty} specialist`, 'What should I do next?', 'Find a hospital']
+      : ['Find a doctor', 'What should I do next?', 'Find a hospital'],
   });
+}
+
+/**
+ * Report result WITH facility discovery. Reads the real directory, then maps the
+ * report's abnormal findings onto facilities that publish the matching service.
+ * Nothing is recommended when nothing publishes it.
+ */
+async function buildReportResultWithDiscovery(
+  documents: HealthDocument[],
+  patient?: PatientPoint | null,
+): Promise<AgentResult> {
+  const hasLabReport = documents.some((d) => d.secureAnalysis?.labResult);
+  if (!hasLabReport) return buildReportResultSync(documents, { specialties: [], facilities: [], noPublishedMatch: false, nothingToActOn: true });
+  const hospitals = await getHospitalRecommendations(originOf(patient));
+  const discovery = matchFacilitiesForReport(documents, hospitals);
+  return buildReportResultSync(documents, discovery);
 }
 
 function buildAppointmentResult(adapters: AgentAdapters, kind: 'view' | 'book' | 'reschedule' | 'cancel' = 'view'): AgentResult {
@@ -1054,6 +1327,13 @@ export function createAgentOrchestrator(adapters: AgentAdapters = resolvedAdapte
       (d) => d.secureAnalysis?.category === 'medicine-image' && d.secureAnalysis?.identificationLevel
     );
 
+    // A PRESCRIPTION that was actually read by the extraction pipeline is likewise
+    // authoritative: the extracted medication schedule must reach the user, not a
+    // generic report answer. Checked after the medicine photo so a photographed
+    // medicine still wins when both are present.
+    const analysedPrescription = !analysedMedicinePhoto
+      && request.documents.some((d) => (d.secureAnalysis?.prescription?.schedule?.length ?? 0) > 0);
+
     // Phase 2 — detect the user's language BEFORE any branch, so the emergency
     // path is language-aware too and detection can never delay escalation.
     const detection = detectLanguage(request.text);
@@ -1089,6 +1369,8 @@ export function createAgentOrchestrator(adapters: AgentAdapters = resolvedAdapte
     // the user's actual intent, and its analysis is real.
     if (analysedMedicinePhoto) {
       result = await buildMedicineResult(request.text, adapters, priorContext, patient, responseLanguage, request.documents);
+    } else if (analysedPrescription) {
+      result = await buildPrescriptionResult(request.documents, patient, responseLanguage);
     } else switch (classification.intent) {
       case 'symptom':
         result = await buildSymptomResultAsync(classification.entities, priorContext);
@@ -1115,7 +1397,7 @@ export function createAgentOrchestrator(adapters: AgentAdapters = resolvedAdapte
         result = await buildMedicineResult(request.text, adapters, priorContext, patient, responseLanguage, request.documents);
         break;
       case 'report':
-        result = buildReportResult(request.documents);
+        result = await buildReportResultWithDiscovery(request.documents, patient);
         break;
       case 'appointment':
         result = buildAppointmentResult(adapters, 'view');
@@ -1145,7 +1427,16 @@ export function createAgentOrchestrator(adapters: AgentAdapters = resolvedAdapte
         result = await buildLocationResult(priorContext, patient);
         break;
       default:
-        result = buildGeneralResult();
+        // A typed medicine name that the keyword classifier did not recognise
+        // ("tell me about atorvastatin") still deserves a verified answer rather
+        // than a generic reply. The candidate must VERIFY against a reference
+        // database or the general result stands — never a guess.
+        const resolved = looksLikeMedicineQuestion(request.text)
+          ? await resolveIdentifiedMedicine(request.text, adapters)
+          : null;
+        result = resolved
+          ? await buildMedicineResult(request.text, adapters, priorContext, patient, responseLanguage, request.documents, resolved)
+          : buildGeneralResult();
     }
 
     // Step 13: enrich with the structured AI engine (real gateway when

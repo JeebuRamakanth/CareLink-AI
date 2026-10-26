@@ -43,3 +43,7 @@ upload_certificate.pem
 
 # Directory ingestion: raw source HTML cache (re-fetchable, not source of truth)
 scripts/directory/.cache/
+
+# Agent scratch space (screenshots, probe scripts, server logs)
+.agent_tmp/
+nohup.out

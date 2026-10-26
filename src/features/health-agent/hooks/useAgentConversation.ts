@@ -225,7 +225,15 @@ export function useAgentConversation(): UseAgentConversation {
   // Resolved registry (Step 9/13): real providers engage when configured,
   // mock fallback otherwise — never a hardcoded mock-only pipeline.
   const orchestrator = useRef(createAgentOrchestrator());
-  const pipelineLocks = useRef<Set<string>>(new Set());
+  /**
+   * In-flight pipeline promises by document id.
+   *
+   * `sendMessage` must be able to WAIT for an upload started by the composer,
+   * otherwise pressing Send during analysis sent an un-analysed attachment (the
+   * agent then had no extraction and answered generically). The promise is the
+   * join point, and doubles as the "already running" guard.
+   */
+  const pipelineRuns = useRef<Map<string, Promise<void>>>(new Map());
   const handoffDrained = useRef(false);
 
   const [messages, setMessages] = useState<AgentMessage[]>([WELCOME_MESSAGE]);
@@ -349,13 +357,17 @@ export function useAgentConversation(): UseAgentConversation {
    */
   const runDocumentPipeline = useCallback(
     async (id: string) => {
-      if (pipelineLocks.current.has(id)) return;
-      pipelineLocks.current.add(id);
+      // A run is already in flight for this document — return the SAME promise so
+      // a caller that needs the finished analysis can await it, instead of
+      // silently returning and reading a half-analysed document.
+      const existing = pipelineRuns.current.get(id);
+      if (existing) return existing;
 
-      const setStep = (status: HealthDocument['status'], progress: number) =>
-        updateDocument(id, { status, progress });
+      const run = (async () => {
+        const setStep = (status: HealthDocument['status'], progress: number) =>
+          updateDocument(id, { status, progress });
 
-      try {
+        try {
         // Resolve the file from the synchronous mirror so a just-added document
         // is found even before React state has flushed.
         const doc = documentsRef.current.find((d) => d.id === id);
@@ -405,8 +417,14 @@ export function useAgentConversation(): UseAgentConversation {
       } catch (e) {
         const message = e instanceof Error ? e.message : 'The document could not be analysed.';
         updateDocument(id, { status: 'error', progress: 0, errorMessage: message, pipelineError: message });
+        }
+      })();
+
+      pipelineRuns.current.set(id, run);
+      try {
+        await run;
       } finally {
-        pipelineLocks.current.delete(id);
+        pipelineRuns.current.delete(id);
       }
     },
     [updateDocument, ownerId, activeProfileId]
@@ -419,11 +437,23 @@ export function useAgentConversation(): UseAgentConversation {
 
       // Ensure every attached document has finished its REAL analysis before the
       // orchestrator reads it. Without this the request could race the pipeline
-      // and the agent would see an un-analysed attachment.
-      const pending = documentsRef.current.filter((d) => d.file && (d.status === 'queued' || d.status === 'uploading' || d.status === 'reading' || d.status === 'extracting' || d.status === 'organizing' || d.status === 'preparing'));
-      if (pending.length > 0) {
+      // and the agent would see an un-analysed attachment — which is exactly how
+      // a report upload used to degrade to a generic answer.
+      //
+      // Two things must be waited on: a run that is already in flight (started by
+      // the composer) and a document that has not been started yet.
+      const inFlight = documentsRef.current
+        .map((d) => pipelineRuns.current.get(d.id))
+        .filter((p): p is Promise<void> => Boolean(p));
+      const notStarted = documentsRef.current.filter((d) => d.file
+        && !pipelineRuns.current.has(d.id)
+        && (d.status === 'queued' || d.status === 'uploading' || d.status === 'reading' || d.status === 'extracting' || d.status === 'organizing' || d.status === 'preparing'));
+      if (inFlight.length > 0 || notStarted.length > 0) {
         setStatus('thinking');
-        await Promise.all(pending.map((d) => runDocumentPipeline(d.id)));
+        await Promise.all([
+          ...inFlight,
+          ...notStarted.map((d) => runDocumentPipeline(d.id)),
+        ]);
       }
 
       const pendingDocs = documentsRef.current;

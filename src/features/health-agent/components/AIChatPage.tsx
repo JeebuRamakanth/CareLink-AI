@@ -508,10 +508,18 @@ function ResultCard({ result, onReply, focusTopic, patientOrigin }: ResultCardPr
             {result.medicines.map((m) => (
               <article key={m.id} className="rounded-[1rem] border border-white/10 bg-slate-950/45 p-3.5">
                 <div className="flex items-start justify-between gap-2">
-                  <h4 className="text-sm font-semibold text-white">{m.name}</h4>
-                  <span className={cn('shrink-0 rounded-full border px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.16em]', m.prescriptionRequired ? 'border-amber-400/30 bg-amber-500/12 text-amber-200' : 'border-emerald-400/25 bg-emerald-500/12 text-emerald-200')}>
-                    {m.prescriptionRequired ? 'Prescription' : 'OTC'}
-                  </span>
+                  <div className="min-w-0">
+                    <h4 className="break-words text-sm font-semibold text-white">{m.name}{m.strength ? ` ${m.strength}` : ''}</h4>
+                    {m.dosageForm ? <p className="text-[0.72rem] text-ink-400">{m.dosageForm}</p> : null}
+                  </div>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <span className={cn('rounded-full border px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.16em]', m.prescriptionRequired ? 'border-amber-400/30 bg-amber-500/12 text-amber-200' : 'border-emerald-400/25 bg-emerald-500/12 text-emerald-200')}>
+                      {m.prescriptionRequired ? 'Prescription' : 'OTC'}
+                    </span>
+                    <span className={cn('rounded-full border px-2 py-0.5 text-[0.58rem] font-semibold uppercase tracking-[0.14em]', m.verified ? 'border-emerald-400/25 bg-emerald-500/10 text-emerald-200' : 'border-white/12 bg-white/5 text-ink-300')}>
+                      {m.verified ? 'Verified reference' : 'Unverified'}
+                    </span>
+                  </div>
                 </div>
                 <p className="mt-1.5 text-[0.82rem] leading-6 text-ink-200">{m.commonPurpose}</p>
                 <p className="mt-2 rounded-lg border border-amber-400/20 bg-amber-500/8 p-2.5 text-[0.74rem] leading-5 text-amber-100">
@@ -519,6 +527,128 @@ function ResultCard({ result, onReply, focusTopic, patientOrigin }: ResultCardPr
                 </p>
               </article>
             ))}
+          </div>
+        ) : null}
+
+        {/* Verified medicine facts + the user's own prescription instruction */}
+        {result.medicineCareInfo ? (
+          <div className="space-y-2">
+            {result.medicineCareInfo.prescriptionInstruction ? (
+              <div className="rounded-[1rem] border border-brand-400/25 bg-brand-500/8 p-3.5">
+                <p className="text-[0.66rem] font-semibold uppercase tracking-[0.2em] text-brand-200">As written on your prescription</p>
+                <p className="mt-1.5 break-words text-[0.84rem] font-medium text-white">“{result.medicineCareInfo.prescriptionInstruction.asWritten}”</p>
+                <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[0.72rem] text-ink-300">
+                  {result.medicineCareInfo.prescriptionInstruction.strength ? <span>Strength: {result.medicineCareInfo.prescriptionInstruction.strength}</span> : null}
+                  {result.medicineCareInfo.prescriptionInstruction.frequency ? <span>Frequency: {result.medicineCareInfo.prescriptionInstruction.frequency}</span> : null}
+                  {result.medicineCareInfo.prescriptionInstruction.timing ? <span>Timing: {result.medicineCareInfo.prescriptionInstruction.timing}</span> : null}
+                  {result.medicineCareInfo.prescriptionInstruction.duration ? <span>Duration: {result.medicineCareInfo.prescriptionInstruction.duration}</span> : null}
+                  <span>Page {result.medicineCareInfo.prescriptionInstruction.page}</span>
+                </div>
+                {result.medicineCareInfo.prescriptionInstruction.needsConfirmation.length > 0 ? (
+                  <p className="mt-1.5 text-[0.72rem] text-amber-100">Not read clearly — confirm with the prescriber: {result.medicineCareInfo.prescriptionInstruction.needsConfirmation.join(', ')}</p>
+                ) : null}
+                <p className="mt-2 text-[0.7rem] italic text-ink-400">Reproduced exactly as written. CareLink does not create, change or remind you about a prescription.</p>
+              </div>
+            ) : null}
+
+            {result.medicineCareInfo.verified && result.medicineCareInfo.facts.length > 0 ? (
+              <div className="rounded-[1rem] border border-white/10 bg-slate-950/45 p-3.5">
+                <p className="text-[0.66rem] font-semibold uppercase tracking-[0.2em] text-ink-400">Verified medicine information</p>
+                <dl className="mt-2 space-y-2">
+                  {result.medicineCareInfo.facts.map((f) => (
+                    <div key={f.label}>
+                      <dt className="text-[0.72rem] font-semibold text-ink-200">{f.label}</dt>
+                      <dd className="text-[0.78rem] leading-6 text-ink-300">{f.detail}</dd>
+                    </div>
+                  ))}
+                </dl>
+                {result.medicineCareInfo.referenceDosage ? (
+                  <p className="mt-2 rounded-lg border border-white/10 bg-white/5 p-2.5 text-[0.74rem] leading-5 text-ink-200">
+                    <span className="font-semibold">Reference dosage (from the label):</span> {result.medicineCareInfo.referenceDosage}
+                    <span className="mt-1 block text-[0.7rem] italic text-ink-400">This is the label's reference text, not your personal dose. Follow your prescriber.</span>
+                  </p>
+                ) : null}
+                {result.medicineCareInfo.sources.length > 0 ? (
+                  <p className="mt-2 text-[0.68rem] text-ink-500">Sources: {result.medicineCareInfo.sources.join(' · ')}</p>
+                ) : null}
+                {result.medicineCareInfo.unverified.length > 0 ? (
+                  <p className="mt-1.5 text-[0.68rem] text-ink-500">Not verified: {result.medicineCareInfo.unverified.join(', ')}</p>
+                ) : null}
+              </div>
+            ) : (
+              <div className="rounded-[1rem] border border-white/10 bg-slate-950/45 p-3.5">
+                <p className="text-[0.66rem] font-semibold uppercase tracking-[0.2em] text-ink-400">Medicine information</p>
+                <p className="mt-1.5 text-[0.78rem] leading-6 text-ink-300">{result.medicineCareInfo.uncertaintyReason ?? 'This medicine could not be verified against a reference database, so no medicine facts are shown.'}</p>
+                <p className="mt-1.5 text-[0.72rem] italic text-ink-400">Nothing about its uses, side effects or dosage is displayed rather than guessing.</p>
+              </div>
+            )}
+          </div>
+        ) : null}
+
+        {/* The user's own prescription, reproduced as written */}
+        {result.prescriptionSchedule && result.prescriptionSchedule.length > 0 ? (
+          <div className="rounded-[1rem] border border-white/10 bg-slate-950/45 p-3.5">
+            <p className="text-[0.66rem] font-semibold uppercase tracking-[0.2em] text-ink-400">Your prescription, as written</p>
+            <ul className="mt-2 space-y-2">
+              {result.prescriptionSchedule.map((row, i) => (
+                <li key={`${row.medicine}-${i}`} className="min-w-0 rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-2">
+                    <p className="break-words text-[0.82rem] font-semibold text-white">{row.medicine}{row.strength ? ` ${row.strength}` : ''}{row.form ? ` · ${row.form}` : ''}</p>
+                    <span className="text-[0.68rem] text-ink-400">page {row.page}</span>
+                  </div>
+                  <p className="mt-1 break-words text-[0.78rem] leading-6 text-ink-200">{row.instruction}</p>
+                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[0.7rem] text-ink-400">
+                    {row.frequency ? <span>{row.frequency}</span> : null}
+                    {row.timing ? <span>{row.timing}</span> : null}
+                    {row.duration ? <span>{row.duration}</span> : null}
+                    {row.schedule.length > 0 ? <span className="capitalize">{row.schedule.join(' · ')}</span> : <span className="italic">Schedule not stated</span>}
+                  </div>
+                  {row.needsConfirmation.length > 0 ? (
+                    <p className="mt-1 text-[0.7rem] font-semibold text-amber-100">Needs confirmation: {row.needsConfirmation.join(', ')}</p>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-[0.7rem] italic text-ink-400">Shown exactly as written on your document. Confirm anything unclear with your doctor or pharmacist.</p>
+          </div>
+        ) : null}
+
+        {/* Facilities relevant to an analysed report, with published-department evidence */}
+        {result.reportFacilities && result.reportFacilities.length > 0 ? (
+          <div className="space-y-2">
+            <p className="text-[0.66rem] font-semibold uppercase tracking-[0.2em] text-ink-400">Facilities for the services your report indicates</p>
+            {result.reportFacilities.map((rf) => (
+              <article key={`${rf.facility.id}-${rf.specialty}`} className="rounded-[1rem] border border-white/10 bg-slate-950/45 p-3.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <h4 className="break-words text-sm font-semibold text-white">{rf.facility.name}</h4>
+                    <p className="text-[0.72rem] text-ink-400">{rf.facility.address}{rf.facility.city ? `, ${rf.facility.city}` : ''}</p>
+                  </div>
+                  <span className="shrink-0 rounded-full border border-sky-400/25 bg-sky-500/10 px-2 py-0.5 text-[0.6rem] font-semibold text-sky-100">{rf.matchedDepartment}</span>
+                </div>
+                <p className="mt-2 break-words text-[0.76rem] leading-6 text-ink-200">{rf.whyRelevant}</p>
+                {rf.findings.length > 0 ? (
+                  <ul className="mt-1.5 space-y-0.5">
+                    {rf.findings.map((f, i) => (
+                      <li key={i} className="text-[0.7rem] text-ink-400">{f.testName} {f.measuredValue}{f.referenceRange ? ` (reference ${f.referenceRange})` : ''}</li>
+                    ))}
+                  </ul>
+                ) : null}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Link to={`${ROUTES.hospitals}/${rf.facility.detailSlug}`} className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15">View Hospital</Link>
+                  <Link to={`${ROUTES.hospitals}/${rf.facility.detailSlug}?focus=${encodeURIComponent(rf.specialty)}`} className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.78rem] font-semibold text-ink-100 transition hover:bg-white/15">View {rf.matchedDepartment}</Link>
+                  <Link to={`${ROUTES.doctors}?q=${encodeURIComponent(rf.specialty)}`} className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-3 py-1.5 text-[0.78rem] font-semibold text-white transition hover:opacity-90">Find a {rf.specialty} specialist</Link>
+                </div>
+              </article>
+            ))}
+            <p className="text-[0.7rem] italic text-ink-400">Each facility publishes the department named above in the sourced directory. CareLink does not recommend a treatment or a medicine — a clinician decides what is needed.</p>
+          </div>
+        ) : null}
+
+        {result.reportFacilityNotice ? (
+          <div className="rounded-[1rem] border border-white/10 bg-slate-950/45 p-3.5">
+            <p className="text-[0.66rem] font-semibold uppercase tracking-[0.2em] text-ink-400">Where to go next</p>
+            <p className="mt-1.5 text-[0.78rem] leading-6 text-ink-200">{result.reportFacilityNotice}</p>
           </div>
         ) : null}
 
