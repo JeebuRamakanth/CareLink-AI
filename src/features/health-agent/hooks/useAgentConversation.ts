@@ -235,6 +235,12 @@ export function useAgentConversation(): UseAgentConversation {
    */
   const pipelineRuns = useRef<Map<string, Promise<void>>>(new Map());
   const handoffDrained = useRef(false);
+  /**
+   * Stable thread id for this chat surface. The n8n workflow keeps its memory
+   * keyed on it, so it must not change between turns. A cleared conversation
+   * starts a new thread (see `clearConversation`).
+   */
+  const conversationIdRef = useRef(`conv-${Math.random().toString(36).slice(2, 12)}`);
 
   const [messages, setMessages] = useState<AgentMessage[]>([WELCOME_MESSAGE]);
   const [status, setStatus] = useState<ChatStatus>('idle');
@@ -488,6 +494,8 @@ export function useAgentConversation(): UseAgentConversation {
           language,
           conversationContext: context,
           history: messages,
+          userId: ownerId,
+          conversationId: conversationIdRef.current,
         });
 
         if (abort.signal.aborted) return;
@@ -525,7 +533,7 @@ export function useAgentConversation(): UseAgentConversation {
         abortRef.current = null;
       }
     },
-    [activeProfile, language, context, messages, activeProfileId, clearDocuments, familyProfiles, runDocumentPipeline]
+    [activeProfile, language, context, messages, activeProfileId, clearDocuments, familyProfiles, runDocumentPipeline, ownerId]
   );
 
   const stop = useCallback(() => {
@@ -652,6 +660,9 @@ export function useAgentConversation(): UseAgentConversation {
     setLastResult(null);
     setError(null);
     setStatus('idle');
+    // A cleared chat is a new thread; the old one must not keep accumulating
+    // n8n workflow memory under the same id.
+    conversationIdRef.current = `conv-${Math.random().toString(36).slice(2, 12)}`;
   }, []);
 
   const recoveryCheckIn = useCallback(async (trend: RecoveryTrend, note?: string) => {

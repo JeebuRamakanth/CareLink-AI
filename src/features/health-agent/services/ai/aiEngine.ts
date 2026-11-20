@@ -25,6 +25,7 @@ import type {
 } from '../../types';
 import type { AIChatRequest, AIChatResponse, AIEngineOutcome } from './aiTypes';
 import { sendToAIGateway, aiGatewayMode } from './aiGateway';
+import { sendToN8n, n8nMode, composeN8nResponse } from './n8nChat';
 import { buildContextSnapshot, boundHistory } from './contextSnapshot';
 import { screenForInjection, detectPrivilegeRequest, privilegeRefusalResponse } from './promptGuards';
 import { enforceResponseSafety } from './safetyLayer';
@@ -46,6 +47,10 @@ export interface AIEngineInput {
   /** Pre-classified intent from the orchestrator's classifier; the mock
    *  responder reuses it so both paths never disagree. */
   classification?: IntentClassification;
+  /** Authenticated user id for the n8n workflow (never an email or name). */
+  userId?: string;
+  /** Stable conversation thread id for the n8n workflow's memory. */
+  conversationId?: string;
   signal?: AbortSignal;
 }
 
@@ -63,7 +68,7 @@ export interface AIEngineResult {
 }
 
 export function aiEngineMode(): AIEngineMode {
-  return aiGatewayMode() === 'real' ? 'real' : 'mock';
+  return aiGatewayMode() === 'real' || n8nMode() === 'real' ? 'real' : 'mock';
 }
 
 /** A safe, honest "temporarily unavailable" response for real-mode failures. */
@@ -169,6 +174,9 @@ export async function runAITurn(input: AIEngineInput): Promise<AIEngineResult> {
   const outcome: AIEngineOutcome = await sendToAIGateway(request, input.signal);
 
   const gatewayReal = aiGatewayMode() === 'real';
+  // n8n is the fallback provider when the Supabase gateway is not configured but
+  // the operator supplied a webhook. A validated n8n reply is REAL content.
+  const n8nReal = n8nMode() === 'real';
 
   let raw: AIChatResponse;
   let mode: AIEngineMode;
@@ -179,6 +187,31 @@ export async function runAITurn(input: AIEngineInput): Promise<AIEngineResult> {
     // A real gateway exists but is unavailable right now — never fake it.
     raw = unavailableResponse(outcome.kind === 'unavailable' ? outcome.reason : 'gateway-error', responseLanguage);
     mode = 'unavailable';
+  } else if (n8nReal) {
+    // No Supabase gateway, but an n8n workflow is configured. The workflow
+    // supplies the language; CareLink's deterministic scaffold supplies the
+    // safe baseline that its answer is merged into.
+    const baseline = mockAIRespond({ ...input, language: responseLanguage });
+    const n8n = await sendToN8n(
+      {
+        message: input.text.slice(0, 2000),
+        userId: input.userId ?? 'anonymous',
+        conversationId: input.conversationId ?? 'local-conversation',
+        language: responseLanguage,
+        history: request.messages,
+        context: snapshot,
+        signal: input.signal,
+      },
+      input.signal
+    );
+    if (n8n.kind === 'validated') {
+      raw = composeN8nResponse(n8n.reply, baseline);
+      mode = 'real';
+    } else {
+      // An n8n workflow IS configured but failed. Never fabricate an answer.
+      raw = unavailableResponse(n8n.reason, responseLanguage);
+      mode = 'unavailable';
+    }
   } else {
     raw = mockAIRespond({ ...input, language: responseLanguage }, outcome.kind === 'unavailable' ? outcome.reason : undefined);
     mode = 'mock';

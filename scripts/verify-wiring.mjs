@@ -847,6 +847,51 @@ check(
   'the workflow must be covered by automated tests'
 );
 
+// --- Step 33: n8n AI provider integration ---
+check(
+  'n8n: the adapter sends the required contract fields',
+  has('src/features/health-agent/services/ai/n8nChat.ts', 'user_id')
+    && has('src/features/health-agent/services/ai/n8nChat.ts', 'conversation_id')
+    && has('src/features/health-agent/services/ai/n8nChat.ts', 'message:'),
+  'the workflow expects message, user_id and conversation_id'
+);
+check(
+  'n8n: only a real https webhook is used',
+  has('src/config/env.ts', "N8N_CONFIGURED = /^https:\\/\\//i.test(N8N_WEBHOOK_URL)"),
+  'an http:// or placeholder webhook must never be treated as configured'
+);
+check(
+  'n8n: a configured-but-failing workflow yields an honest unavailable state',
+  has('src/features/health-agent/services/ai/aiEngine.ts', 'n8nReal')
+    && has('src/features/health-agent/services/ai/aiEngine.ts', 'raw = unavailableResponse(n8n.reason, responseLanguage)'),
+  'a broken workflow must never be silently replaced with a fake live answer'
+);
+check(
+  'n8n: the workflow cannot lower the safety level or urgency',
+  has('src/features/health-agent/services/ai/n8nChat.ts', 'rank[reply.safetyLevel] > rank[baseline.safetyLevel]')
+    && has('src/features/health-agent/services/ai/n8nChat.ts', 'urgencyRank[reply.urgency] > urgencyRank[baseline.urgency]'),
+  'model output may escalate but never de-escalate a case'
+);
+check(
+  'n8n: the gateway prefers a server-side webhook secret over a browser value',
+  has('supabase/functions/ai-gateway/index.ts', "Deno.env.get('N8N_WEBHOOK_URL')")
+    && has('supabase/functions/ai-gateway/logic.ts', 'export function n8nConfigured')
+    && has('supabase/functions/ai-gateway/logic.ts', 'export function parseN8nCompletion'),
+  'the webhook URL is a credential and belongs on the server'
+);
+check(
+  'n8n: the conversation thread id is stable and rotates on clear',
+  has('src/features/health-agent/hooks/useAgentConversation.ts', 'conversationIdRef')
+    && has('src/features/health-agent/hooks/useAgentConversation.ts', 'conversationId: conversationIdRef.current'),
+  'workflow memory needs one thread per conversation, not one per turn'
+);
+check(
+  'n8n: tests are wired into test:focused',
+  existsSync(join(root, 'src/features/health-agent/services/ai/n8nChat.test.mjs'))
+    && has('package.json', 'n8nChat.test.mjs'),
+  'the n8n adapter must be covered by automated tests'
+);
+
 console.log(`\nCareLink wiring audit — ${checks.length} checks`);
 for (const c of checks) {
   console.log(`  ${c.ok ? 'PASS' : 'FAIL'}  ${c.name}`);

@@ -67,6 +67,21 @@ add(
   'Server-side Edge Function secret; cannot be verified from the browser. Runs demo mode until set.',
 );
 
+// --- n8n chat workflow (preferred server-side; browser override reported) ---
+const n8nServer = present('N8N_WEBHOOK_URL');
+const n8nBrowser = present('VITE_N8N_WEBHOOK_URL');
+add(
+  'n8n',
+  'n8n chat workflow (AI Agent + tools)',
+  n8nServer ? 'CONFIGURED (server-side)' : n8nBrowser ? 'CONFIGURED (browser)' : 'NOT CONFIGURED',
+  ['N8N_WEBHOOK_URL', 'VITE_N8N_WEBHOOK_URL'],
+  n8nServer
+    ? 'The webhook URL stays on the Edge Function; the browser never sees it.'
+    : n8nBrowser
+      ? 'Called directly from the browser — the webhook URL ships in the bundle. Prefer N8N_WEBHOOK_URL.'
+      : 'Set N8N_WEBHOOK_URL on the ai-gateway function (preferred) or VITE_N8N_WEBHOOK_URL.',
+);
+
 // --- Medicine image analysis (vision) ---
 add(
   'medicine-vision',

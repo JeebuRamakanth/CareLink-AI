@@ -108,7 +108,7 @@ export function HospitalDetailsPage() {
     <Container className="py-8 sm:py-10 lg:py-14">
       <div className="mx-auto max-w-5xl space-y-6">
         <Link to={ROUTES.hospitals} className="inline-flex rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-ink-200 hover:bg-white/10">
-          ← Back to Machilipatnam directory
+          ← Back to hospital directory
         </Link>
 
         <article className="overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/80 shadow-[0_24px_80px_rgba(0,0,0,0.25)]">

@@ -168,6 +168,19 @@ export function getIntegrationReadiness(): IntegrationReadiness[] {
         '(`supabase secrets set ...`). Until then the assistant runs in clearly-labelled demo mode.',
     },
     {
+      id: 'n8n',
+      label: 'n8n chat workflow (AI Agent + tools)',
+      // Preferred route is server-side (N8N_WEBHOOK_URL on the gateway), so the
+      // webhook URL — which is itself a credential — never reaches the browser.
+      // The VITE_ override is reported because it changes which provider answers.
+      status: present('VITE_N8N_WEBHOOK_URL') ? 'configured' : 'not-configured',
+      variables: ['N8N_WEBHOOK_URL', 'VITE_N8N_WEBHOOK_URL'],
+      serverOnly: true,
+      setup:
+        'Set N8N_WEBHOOK_URL as an ai-gateway secret (preferred — the webhook URL never reaches the browser), ' +
+        'or VITE_N8N_WEBHOOK_URL to call the workflow from the browser. Until then the assistant uses the demo responder.',
+    },
+    {
       id: 'medicine-vision',
       label: 'Medicine image analysis (vision) via the medicine-vision Edge Function',
       // Vision needs the SAME server key plus a vision-capable model, and the
