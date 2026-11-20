@@ -24,9 +24,12 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import {
   MAX_BODY_BYTES,
+  buildN8nPayload,
   detectScriptLanguage,
   missingConfiguration,
+  n8nConfigured,
   parseGatewayPayload,
+  parseN8nCompletion,
   parseProviderCompletion,
   readBoundedBody,
   safeProviderFailure,
@@ -35,6 +38,7 @@ import {
 const XAI_API_BASE_URL = 'https://api.x.ai/v1';
 const XAI_API_KEY = Deno.env.get('XAI_API_KEY') ?? '';
 const XAI_MODEL = Deno.env.get('XAI_MODEL') ?? '';
+const N8N_WEBHOOK_URL = Deno.env.get('N8N_WEBHOOK_URL') ?? '';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
 
@@ -148,7 +152,10 @@ Deno.serve(async (req: Request) => {
   if (!rateLimitOk(userId)) return jsonResponse({ error: 'rate-limit' }, 429);
 
   const missingConfig = missingConfiguration(XAI_API_KEY, XAI_MODEL);
-  if (missingConfig) {
+  const useN8n = n8nConfigured(N8N_WEBHOOK_URL);
+  // A provider is required: the xAI key+model pair, or an n8n webhook (which
+  // carries its own model and tools server-side).
+  if (missingConfig && !useN8n) {
     console.warn(JSON.stringify({ event: 'ai_gateway_error', requestId, category: missingConfig }));
     return jsonResponse({ error: 'ai-not-configured', requestId }, 503);
   }
@@ -200,8 +207,8 @@ Deno.serve(async (req: Request) => {
     { role: 'user', content: `<user_message>${payload.input}</user_message>` },
   ];
 
-  // --- Call the xAI Chat Completions API; never retry billable requests. ---
-  let providerRes: Response;
+  // --- Call the provider: n8n workflow first when configured, else xAI. ---
+  let parsed: ReturnType<typeof parseProviderCompletion>;
   const controller = new AbortController();
   let timedOut = false;
   const timeout = setTimeout(() => {
@@ -210,43 +217,58 @@ Deno.serve(async (req: Request) => {
   }, PROVIDER_TIMEOUT_MS);
   const functionTimeout = setTimeout(() => controller.abort(), FUNCTION_TIMEOUT_MS);
   req.signal.addEventListener('abort', () => controller.abort(), { once: true });
+
   try {
-    providerRes = await fetch(`${XAI_API_BASE_URL}/chat/completions`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${XAI_API_KEY}` },
-      body: JSON.stringify({
-        model: XAI_MODEL,
-        messages: providerMessages,
-        temperature: 0.2,
-        max_tokens: 900,
-        response_format: { type: 'json_object' },
-      }),
-      signal: controller.signal,
-    });
-  } catch {
-    const status = timedOut ? 504 : 502;
-    const category = timedOut ? 'provider-timeout' : 'provider-network';
-    console.warn(JSON.stringify({ event: 'ai_gateway_error', requestId, category }));
-    return jsonResponse({ error: 'provider-unavailable', requestId }, status);
+    let providerRes: Response;
+    try {
+      providerRes = useN8n
+        ? await fetch(N8N_WEBHOOK_URL, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(buildN8nPayload(payload, userId, providerMessages)),
+          signal: controller.signal,
+        })
+        : await fetch(`${XAI_API_BASE_URL}/chat/completions`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', authorization: `Bearer ${XAI_API_KEY}` },
+          body: JSON.stringify({
+            model: XAI_MODEL,
+            messages: providerMessages,
+            temperature: 0.2,
+            max_tokens: 900,
+            response_format: { type: 'json_object' },
+          }),
+          signal: controller.signal,
+        });
+    } catch {
+      const status = timedOut ? 504 : 502;
+      const category = timedOut ? 'provider-timeout' : 'provider-network';
+      console.warn(JSON.stringify({ event: 'ai_gateway_error', requestId, category }));
+      return jsonResponse({ error: 'provider-unavailable', requestId }, status);
+    }
+
+    if (!providerRes.ok) {
+      const failure = safeProviderFailure(providerRes.status);
+      console.warn(JSON.stringify({ event: 'ai_gateway_error', requestId, category: failure.category }));
+      return jsonResponse({ error: failure.error, requestId }, failure.status);
+    }
+
+    // --- Extract and strictly validate structured output ---
+    let completion: unknown;
+    try {
+      completion = await providerRes.json();
+    } catch {
+      console.warn(JSON.stringify({ event: 'ai_gateway_error', requestId, category: 'malformed-provider-response' }));
+      return jsonResponse({ error: 'provider-unavailable', requestId }, 502);
+    }
+    parsed = useN8n
+      ? parseN8nCompletion(completion, effectiveLanguage)
+      : parseProviderCompletion(completion, effectiveLanguage);
   } finally {
     clearTimeout(timeout);
     clearTimeout(functionTimeout);
   }
-  if (!providerRes.ok) {
-    const failure = safeProviderFailure(providerRes.status);
-    console.warn(JSON.stringify({ event: 'ai_gateway_error', requestId, category: failure.category }));
-    return jsonResponse({ error: failure.error, requestId }, failure.status);
-  }
 
-  // --- Extract and strictly validate structured output ---
-  let completion: unknown;
-  try {
-    completion = await providerRes.json();
-  } catch {
-    console.warn(JSON.stringify({ event: 'ai_gateway_error', requestId, category: 'malformed-provider-response' }));
-    return jsonResponse({ error: 'provider-unavailable', requestId }, 502);
-  }
-  const parsed = parseProviderCompletion(completion, effectiveLanguage);
   if (!parsed) {
     console.warn(JSON.stringify({ event: 'ai_gateway_error', requestId, category: 'invalid-provider-response' }));
     return jsonResponse({ error: 'provider-unavailable', requestId }, 502);
@@ -255,6 +277,10 @@ Deno.serve(async (req: Request) => {
   // Provenance is attached server-side so the client can trust the label.
   return jsonResponse({
     ...parsed,
-    source: { provider: XAI_MODEL, mode: 'real', fetchedAt: new Date().toISOString() },
+    source: {
+      provider: useN8n ? 'n8n' : XAI_MODEL,
+      mode: 'real',
+      fetchedAt: new Date().toISOString(),
+    },
   });
 });

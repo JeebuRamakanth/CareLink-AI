@@ -1800,3 +1800,98 @@ therefore NOT LIVE-INTEGRATION-VERIFIED; each is implemented behind a gate with 
 actionable configuration path, and the UI states the honest unavailable state.
 A physical Android device/emulator is also not attached, so mobile was verified at
 real mobile viewports (360/390/430, DPR 2, touch emulation) rather than on hardware.
+
+## Step 33 — n8n AI provider integration + dependency/security repairs (VERIFIED)
+
+### n8n was NOT integrated at all (the reported "existing n8n integration" did not exist)
+`grep -rn "n8n"` over the whole repo returned zero code references, and the host
+`https://jeebu.app.n8n.cloud` answers **`404 - No instance here`** (the n8n
+instance is not deployed / the subdomain is not live). So there was nothing to
+"verify" — the integration had to be BUILT. It now is, in three layers.
+
+### 1. Browser adapter — `src/features/health-agent/services/ai/n8nChat.ts`
+`sendToN8n()` is the only browser→workflow path. Contract (the fields the
+workflow expects): `{ message, user_id, conversation_id, language, history,
+context }`. Rules enforced:
+- only a real `https://` webhook counts (`env.n8n.configured`) — `http://` and
+  `YOUR_…` placeholders are treated as unconfigured;
+- 25 s timeout, caller cancellation, bounded history (6 turns × 280 chars),
+  message truncated to 2000 chars, NO automatic retry (a retry double-bills);
+- shares the gateway's token bucket (`tryConsumeRateToken`) so a session has one
+  cost budget regardless of provider;
+- `parseN8nReply()` accepts every shape n8n actually returns: `[{ output }]`,
+  `{ output | text | response | answer | message | reply | content }`,
+  `{ output: { summary, … } }`, a direct AIChatResponse object, a nested
+  `data`/`json`/`body` envelope, or a bare JSON string. Unusable bodies return
+  `null` → `unavailable`, never an invented answer;
+- `composeN8nResponse()` merges the workflow text into CareLink's deterministic
+  baseline. **The workflow may RAISE safetyLevel/urgency but never lower it**,
+  and its enum values are dropped unless they passed validation.
+
+### 2. Provider precedence — `aiEngine.runAITurn`
+`Supabase gateway (validated) → gateway configured but failing ⇒ unavailable →
+n8n configured ⇒ n8n (real | unavailable) → mock responder`. A configured n8n
+that fails produces an HONEST "temporarily unavailable", never a fabricated live
+answer. `aiEngineMode()` and the `AIEngineMode` union are unchanged.
+
+### 3. Server route (PREFERRED) — `supabase/functions/ai-gateway`
+`N8N_WEBHOOK_URL` is an Edge Function secret, so the webhook URL (which is
+itself a credential) never ships to the browser. `logic.ts` gained
+`n8nConfigured()`, `buildN8nPayload()` (keeps the `<untrusted_document>` /
+`<user_message>` channel separation) and `parseN8nCompletion()` (strict enums,
+plain-text wrap, `null` on unusable). `index.ts` requires EITHER
+`XAI_API_KEY`+`XAI_MODEL` OR a valid `N8N_WEBHOOK_URL`, and stamps
+`source.provider = 'n8n'` server-side.
+
+### Identity plumbing
+`AgentOrchestratorRequest` gained optional `userId`/`conversationId`;
+`useAgentConversation` passes `ownerId` (the authenticated Supabase id, or the
+local demo id) and a `conversationIdRef` thread id that ROTATES on
+`clearConversation()` — workflow memory is per conversation, not per turn.
+`useHealthAgent` (Home hero) does not pass them; the defaults are used.
+
+### Verified end-to-end (not just parsed)
+A local HTTPS mock workflow received
+`{"message":"…","user_id":"user-abc","conversation_id":"conv-xyz","has_history":true,"language":"en"}`
+and the real orchestrator returned `provenance {mode:'real', provider:'n8n',
+verification:'validated'}`. A mock answering "You have diabetes. You must take
+500 mg metformin…service_role key…" was REPLACED by the safety layer's
+diagnosis-free text. A mock returning 500 produced `mode:'unavailable'` with the
+honest temporary-unavailable copy.
+
+### Config
+`N8N_WEBHOOK_URL` (server, preferred) / `VITE_N8N_WEBHOOK_URL` (browser
+fallback — the URL ships in the bundle, so treat it as public). Both documented
+in `.env.example`; `getIntegrationReadiness()` and `npm run verify:readiness`
+report n8n status (server vs browser vs not configured).
+
+### Other defects fixed in this step
+- **8 unreferenced components deleted** (`HospitalHero`, `HospitalOverview`,
+  `HospitalQuickActions`, `HospitalRatingSummary`, `HospitalReviewSection`,
+  `HospitalSpecialties`, `HospitalDoctorPreview`, `DoctorProfilePreview`) —
+  leftovers from earlier refactors; the live hospital detail page is unaffected.
+- **`vite.config.ts` `allowedHosts`** held 30+ stale per-session work hosts and
+  still omitted the current one (→ "Blocked request"). Replaced with
+  `.prod-runtime.all-hands.dev` + localhost, which covers every workspace.
+- **`npm audit --omit=dev` advisory** GHSA-vfpm-58rq-9qcg (Vite `?vite-wasm-instance`)
+  fixed by upgrading `vite` 8.2.0 → 8.3.8 (same major). Now **0 vulnerabilities**.
+- **Copy inaccuracies**: "← Back to Machilipatnam directory" → "← Back to hospital
+  directory" (the directory is corridor-wide); the agent sidebar's "Backend sync
+  is coming soon" → Supabase-aware copy (conversations DO persist when configured).
+
+### Test/verification totals after this step
+`test:focused` **230/230** (was 214; +11 `n8nChat.test.mjs`, +5 gateway n8n).
+`verify:wiring` **131/131** (7 new n8n checks). `verify:e2e` 54/54,
+`verify:sweep` 18×8 = 0 console errors / 0 overflow, `verify:documents` 26/26,
+`verify:medicine-image` 25/25, `verify:workflow-e2e` 32/32, `verify:auth` 11/11,
+`verify:directory`/`navigation`/`workflow` PASS, build 808 modules,
+lint 0 errors / 15 pre-existing warnings, SQL replay **672 PASS / 0 FAIL**
+(`supabase/tests/run.sh` inside the Postgres 16 container).
+
+### Gotchas
+- The webhook URL is a credential. Prefer `N8N_WEBHOOK_URL` (server); only use
+  `VITE_N8N_WEBHOOK_URL` for a webhook you are willing to publish.
+- `n8nMode()` rejects `http://` by design — a local http mock reads as
+  `unavailable`. Use an https mock (self-signed + `NODE_TLS_REJECT_UNAUTHORIZED=0`)
+  to exercise the fetch path.
+- `npm run verify:e2e|sweep|documents|...` need the dev server on port 12000.

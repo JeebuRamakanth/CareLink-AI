@@ -197,6 +197,135 @@ export function missingConfiguration(apiKey: string, model: string): 'api-key-mi
   return null;
 }
 
+/* ----------------------------------------------------------------------------
+ * n8n provider (optional, preferred when configured)
+ * ------------------------------------------------------------------------- */
+
+/** True when the operator pointed the gateway at an n8n webhook. */
+export function n8nConfigured(webhookUrl: string): boolean {
+  const value = webhookUrl.trim();
+  if (!/^https:\/\//i.test(value)) return false;
+  return !/YOUR_|example\.com/i.test(value);
+}
+
+/**
+ * Build the n8n request body.
+ *
+ * The workflow receives the user's message plus the ALREADY channel-separated
+ * provider messages, so the same prompt-injection contract applies: document
+ * extractions stay inside `<untrusted_document>` tags and the user text inside
+ * `<user_message>`. `user_id` is the authenticated id, never an email.
+ */
+export function buildN8nPayload(
+  payload: GatewayPayload,
+  userId: string,
+  messages: { role: string; content: string }[],
+): Record<string, unknown> {
+  return {
+    message: payload.input,
+    user_id: userId,
+    conversation_id: payload.requestId ?? 'anonymous',
+    language: payload.language,
+    messages,
+    context: payload.context,
+    attachments: payload.attachments,
+    allowed_actions: payload.allowedActions,
+  };
+}
+
+/**
+ * Parse an n8n workflow reply into the gateway's structured response.
+ *
+ * The workflow may return the AIChatResponse JSON directly, an n8n item list
+ * (`[{ output: "…" }]`), or a plain text answer. A plain text answer is wrapped
+ * into the schema with a safe, non-diagnostic scaffold — the client's safety
+ * layer and enum clamping still run on top. Returns null when there is no
+ * usable content, so the caller answers 502 instead of inventing a reply.
+ */
+export function parseN8nCompletion(
+  value: unknown,
+  fallbackLanguage: GatewayPayload['language'],
+): ParsedAIResponse | null {
+  const unwrap = (input: unknown): unknown => {
+    if (Array.isArray(input)) return input.length > 0 ? unwrap(input[0]) : null;
+    if (typeof input === 'string') {
+      const text = input.trim();
+      if (!text) return null;
+      try {
+        return unwrap(JSON.parse(text));
+      } catch {
+        return text;
+      }
+    }
+    if (!isRecord(input)) return input;
+    for (const key of ['data', 'json', 'body']) {
+      const nested = input[key];
+      if (isRecord(nested) && (nested.summary !== undefined || nested.output !== undefined)) return unwrap(nested);
+    }
+    return input;
+  };
+
+  const candidate = unwrap(value);
+  if (typeof candidate === 'string') {
+    const text = candidate.slice(0, 2000);
+    return {
+      summary: text.slice(0, 400),
+      intent: 'general',
+      confidence: 'medium',
+      urgency: 'routine',
+      safetyLevel: 'educational',
+      explanation: text,
+      nextActions: [],
+      followUpQuestions: [],
+      warnings: [],
+      entities: [],
+      language: fallbackLanguage,
+    };
+  }
+  if (!isRecord(candidate)) return null;
+
+  // Structured payload: reuse the strict validator's enums but never trust a
+  // free-form value. `output` may itself be the structured object.
+  const structured = isRecord(candidate.output) ? candidate.output : candidate;
+  const summary = typeof structured.summary === 'string' ? structured.summary.trim() : '';
+  const explanation = typeof structured.explanation === 'string' ? structured.explanation.trim() : '';
+  const plainOutput = typeof structured.output === 'string' ? structured.output.trim() : '';
+  const text = summary || explanation || plainOutput;
+  if (!text) return null;
+
+  const pick = (field: unknown, allowed: Set<string>, fallback: string): string =>
+    typeof field === 'string' && allowed.has(field) ? field : fallback;
+
+  const list = (field: unknown): string[] =>
+    Array.isArray(field)
+      ? field.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+        .slice(0, 8).map((item) => item.trim().slice(0, 320))
+      : [];
+
+  const language = typeof structured.language === 'string'
+    && (SUPPORTED_GATEWAY_LANGUAGES as readonly string[]).includes(structured.language)
+    ? (structured.language as GatewayLanguage)
+    : fallbackLanguage;
+
+  return {
+    summary: (summary || text).slice(0, 400),
+    intent: pick(structured.intent, new Set([
+      'symptom', 'disease', 'hospital', 'doctor', 'pharmacy', 'medicine', 'lab',
+      'report', 'appointment', 'emergency', 'route', 'recovery', 'vaccination',
+      'child-care', 'elder-care', 'mental-health', 'family', 'location', 'general',
+    ]), 'general'),
+    confidence: pick(structured.confidence, new Set(['low', 'medium', 'high']), 'medium'),
+    urgency: pick(structured.urgency, new Set(['routine', 'attention', 'urgent', 'emergency']), 'routine'),
+    safetyLevel: pick(structured.safetyLevel, new Set(['educational', 'possible-concern', 'urgent', 'emergency', 'professional-care']), 'educational'),
+    explanation: (explanation || text).slice(0, 2000),
+    nextActions: list(structured.nextActions ?? structured.next_actions),
+    followUpQuestions: list(structured.followUpQuestions ?? structured.follow_up_questions),
+    warnings: list(structured.warnings),
+    entities: list(structured.entities),
+    language,
+  };
+}
+
 /**
  * Server-side script detection (defense in depth).
  *

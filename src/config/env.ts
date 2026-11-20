@@ -25,6 +25,12 @@ const API_BASE_URL = str('VITE_API_BASE_URL') || '/api';
 const AI_PROVIDER_BASE_URL = str('VITE_AI_PROVIDER_BASE_URL');
 const ADMIN_GATEWAY_URL = str('VITE_ADMIN_GATEWAY_URL');
 
+// n8n chat webhook. The webhook URL itself is the credential, so it is only
+// used when an operator explicitly opts in; the AI gateway Edge Function
+// (N8N_WEBHOOK_URL, server-side) is the preferred route.
+const N8N_WEBHOOK_URL = str('VITE_N8N_WEBHOOK_URL');
+const N8N_CONFIGURED = /^https:\/\//i.test(N8N_WEBHOOK_URL) && !/YOUR_|example\.com/i.test(N8N_WEBHOOK_URL);
+
 const SUPABASE_URL = str('VITE_SUPABASE_URL');
 const SUPABASE_ANON_KEY = str('VITE_SUPABASE_ANON_KEY');
 
@@ -58,6 +64,11 @@ export const env = {
   ai: {
     providerBaseUrl: AI_PROVIDER_BASE_URL,
     configured: AI_PROVIDER_BASE_URL.length > 0,
+  },
+
+  n8n: {
+    webhookUrl: N8N_WEBHOOK_URL,
+    configured: N8N_CONFIGURED,
   },
 
   admin: {

@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../common/cn';
 import { useAgent } from '../../contexts/AgentContext';
 import { IconPlus, IconTrash, IconSparkle, IconClose } from './AgentIcons';
+import { isSupabaseConfigured } from '../../services/supabase/client';
 import type { AgentConversation } from '../../services/agent/agentTypes';
 
 interface Props {
@@ -108,7 +109,9 @@ export function ConversationSidebar({ open, onClose }: Props) {
 
         <div className="border-t border-white/10 p-3">
           <p className="text-[0.66rem] leading-5 text-ink-400">
-            Conversations are stored locally on this device for now. Backend sync is coming soon.
+            {isSupabaseConfigured()
+              ? 'Conversations are saved to your CareLink account and available after you sign in.'
+              : 'Conversations are stored on this device only. Sign in with a configured backend to sync them.'}
           </p>
         </div>
       </motion.aside>

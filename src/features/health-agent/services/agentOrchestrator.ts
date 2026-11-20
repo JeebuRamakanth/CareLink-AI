@@ -1453,6 +1453,8 @@ export function createAgentOrchestrator(adapters: AgentAdapters = resolvedAdapte
       language: request.language,
       allowedActions: ALLOWED_ACTIONS,
       classification,
+      userId: request.userId,
+      conversationId: request.conversationId,
     });
     result = mergeAIIntoResult(result, ai);
 

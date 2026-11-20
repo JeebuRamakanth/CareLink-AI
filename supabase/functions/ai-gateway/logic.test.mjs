@@ -3,9 +3,12 @@ import assert from 'node:assert/strict';
 import {
   MAX_BODY_BYTES,
   SUPPORTED_GATEWAY_LANGUAGES,
+  buildN8nPayload,
   detectScriptLanguage,
   missingConfiguration,
+  n8nConfigured,
   parseGatewayPayload,
+  parseN8nCompletion,
   parseProviderCompletion,
   readBoundedBody,
   safeProviderFailure,
@@ -117,4 +120,62 @@ test('a provider response may declare any supported language', () => {
   // An unsupported/absent language falls back to the requested language.
   assert.equal(parseProviderCompletion(completionFor('zz'), 'hi')?.language, 'hi');
   assert.equal(parseProviderCompletion(completionFor(undefined), 'kn')?.language, 'kn');
+});
+
+/* ---------------------------------------------------------------------------
+ * n8n provider
+ * ------------------------------------------------------------------------- */
+
+test('n8n is only configured by a real https webhook', () => {
+  assert.equal(n8nConfigured('https://jeebu.app.n8n.cloud/webhook/carelink-chat'), true);
+  assert.equal(n8nConfigured('http://insecure.example/webhook'), false);
+  assert.equal(n8nConfigured(''), false);
+  assert.equal(n8nConfigured('   '), false);
+  assert.equal(n8nConfigured('https://YOUR_N8N_HOST/webhook/x'), false);
+});
+
+test('the n8n payload carries the contract fields and never an email', () => {
+  const payload = buildN8nPayload(
+    { ...validRequest, input: 'I have a cough', requestId: 'req-abc123' },
+    'user-uuid-1',
+    [{ role: 'system', content: 'rules' }, { role: 'user', content: 'hi' }],
+  );
+  assert.equal(payload.message, 'I have a cough');
+  assert.equal(payload.user_id, 'user-uuid-1');
+  assert.equal(payload.conversation_id, 'req-abc123');
+  assert.equal(payload.language, 'en');
+  assert.ok(Array.isArray(payload.messages));
+  assert.equal(payload.user_id.includes('@'), false);
+});
+
+test('parses an n8n AI Agent item list into the structured schema', () => {
+  const parsed = parseN8nCompletion([{ output: 'Rest and drink fluids.' }], 'en');
+  assert.ok(parsed);
+  assert.equal(parsed.explanation, 'Rest and drink fluids.');
+  assert.equal(parsed.intent, 'general');
+  assert.equal(parsed.safetyLevel, 'educational');
+});
+
+test('parses a structured n8n payload and rejects invalid enums', () => {
+  const parsed = parseN8nCompletion({
+    summary: 'See a clinician',
+    explanation: 'Your symptoms may need review.',
+    intent: 'symptom',
+    urgency: 'not-valid',
+    safetyLevel: 'emergency',
+    followUpQuestions: ['How long?'],
+    language: 'te',
+  }, 'en');
+  assert.ok(parsed);
+  assert.equal(parsed.intent, 'symptom');
+  assert.equal(parsed.urgency, 'routine', 'invalid urgency is clamped to the safe default');
+  assert.equal(parsed.safetyLevel, 'emergency');
+  assert.equal(parsed.language, 'te');
+});
+
+test('an unusable n8n body is rejected rather than invented', () => {
+  assert.equal(parseN8nCompletion(null, 'en'), null);
+  assert.equal(parseN8nCompletion({}, 'en'), null);
+  assert.equal(parseN8nCompletion([], 'en'), null);
+  assert.equal(parseN8nCompletion({ unrelated: 1 }, 'en'), null);
 });

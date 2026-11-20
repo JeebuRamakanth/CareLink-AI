@@ -796,6 +796,10 @@ export interface AgentOrchestratorRequest {
   history?: AgentMessage[];
   /** Accumulated context from earlier turns (ContextManager output). */
   conversationContext?: ConversationContext;
+  /** Authenticated user id, forwarded to the n8n workflow. Never an email. */
+  userId?: string;
+  /** Stable conversation thread id, forwarded to the n8n workflow memory. */
+  conversationId?: string;
 }
 
 export interface AgentOrchestratorResponse {
